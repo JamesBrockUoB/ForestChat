@@ -1,0 +1,17 @@
+matplotlib
+pandas
+geopy
+shapely
+scikit-learn
+tqdm
+rasterio
+scikit-image
+pytorch-metric-learning
+timm
+ipywidgets 
+torchvision
+albumentations
+pyproj
+torch>=2.0.0
+shapely>=2.0.0
+python-dotenv
