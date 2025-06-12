@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 def get_train_weights(train_dataset):
     train_weights = [0, 0, 0, 0, 0]
     for i in range(len(train_dataset)):
@@ -100,12 +101,12 @@ class UNet(nn.Module):
         self.up2 = Up(64, 32 // factor, bilinear)
         self.up3 = Up(32, 16 // factor, bilinear)
         self.up4 = Up(16, 8, bilinear)
-        self.outc = OutConv(8, n_classes)
+        self.outc = OutConv(8, 1)
 
         self.flatten = nn.Flatten()
         self.lin1 = nn.Linear(6400, 512)
         self.lin2 = nn.Linear(512, 256)
-        self.lin3 = nn.Linear(256, 4)
+        self.lin3 = nn.Linear(512, n_classes if stage == "classification" else 4)
         
         # slope
         self.flatten = nn.Flatten()
@@ -131,7 +132,7 @@ class UNet(nn.Module):
         pred = F.relu(self.lin1(pred))
         pred = F.relu(self.lin2(pred))
 
-        if s != None:
+        if s is not None:
             s = self.flatten(s)
             s = self.batch1d_n(s)
             s = self.dropout(s)
@@ -139,7 +140,7 @@ class UNet(nn.Module):
             s = F.relu(self.linear2(s))
             
             pred = torch.concat((pred,s),1)
-            pred = self.lin3(self.dropout(self.linear2(pred)))
+            pred = self.lin3(self.dropout(pred))
         
         if self.stage == "classification":
             return logits, pred
