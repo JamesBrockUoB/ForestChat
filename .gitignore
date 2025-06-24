@@ -3,3 +3,4 @@ examples/
 .env
 model_weights/
 __pycache__
+GDFL_1KM/

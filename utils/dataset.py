@@ -4,17 +4,6 @@ import pickle
 from pathlib import Path
 
 
-def update_shapely_pickles(base_dir):
-    for root, _, files in os.walk(base_dir):
-        for file in files:
-            if file == "forest_loss_region.pkl":
-                pkl_path = Path(root) / file
-                with open(pkl_path, "rb") as f:
-                    data = pickle.load(f)
-                with open(pkl_path, "wb") as f:
-                    pickle.dump(data, f)
-
-
 def filter_timeseries_by_length(df, min_length=2):
     """
     Filters time series data to only include locations with a specified number of steps.

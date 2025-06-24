@@ -13,6 +13,7 @@ Create a virtual environment using pyenv for python 3.8 via the following comman
 1. Confirm the correct python version is selected with `python -V` - it should be 3.8.20
 1. Select this virtual environment for any notebook kernels
 1. Install pip requirements via `pip install -r requirements.txt`
+    1. If you run into issues with this if needing to recreate the environment, try installing via `pip install --no-cache-dir -r requirements.txt` or `pip install --force-reinstall -r requirements.txt` to fix.
 
 Citations:
 

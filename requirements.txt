@@ -12,6 +12,8 @@ ipywidgets
 torchvision
 albumentations
 pyproj
-torch>=2.0.0
-shapely>=2.0.0
+torch
+shapely==1.8.1
 python-dotenv
+torchmetrics
+geopandas
