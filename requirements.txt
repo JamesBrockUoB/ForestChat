@@ -17,3 +17,6 @@ shapely==1.8.1
 python-dotenv
 torchmetrics
 geopandas
+git+https://github.com/Z-Zheng/pytorch-change-models
+ever-beta
+datasets
