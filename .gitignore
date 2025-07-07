@@ -6,3 +6,4 @@ __pycache__
 *.py[cod]
 cache_dir/
 data/LEVIR-MCI-dataset/
+models_ckpt/

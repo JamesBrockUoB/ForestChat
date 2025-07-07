@@ -1,11 +1,11 @@
 import argparse
 import json
 
-from regex import D
 import torch.optim
 from data.LEVIR_MCI import LEVIRCCDataset
 from model.model_decoder import DecoderTransformer
 from model.model_encoder_att import AttentiveEncoder, Encoder
+from regex import D
 from torch.nn.utils.rnn import pack_padded_sequence
 from torch.utils import data
 from tqdm import tqdm
@@ -13,6 +13,7 @@ from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class Trainer(object):
     def __init__(self, args):
@@ -590,7 +591,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--print_freq",
         type=int,
-        default=100,
+        default=10,
         help="print training/validation stats every __ batches",
     )
     # Training parameters
@@ -610,7 +611,7 @@ if __name__ == "__main__":
         help="whether fine-tune encoder or not",
     )
     parser.add_argument(
-        "--train_batchsize", type=int, default=64, help="batch_size for training"
+        "--train_batchsize", type=int, default=16, help="batch_size for training"
     )
     parser.add_argument(
         "--num_epochs",
