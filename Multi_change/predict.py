@@ -16,6 +16,8 @@ from model.model_decoder import DecoderTransformer
 from utils_tool.utils import *
 from imageio.v2 import imread
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 # compute_change_map(path_A, path_B)函数: 生成一个掩膜mask用来表示两个图像之间的变化区域
 '''
@@ -113,11 +115,11 @@ class Change_Perception(object):
         self.decoder.load_state_dict(checkpoint['decoder_dict'])
         # Move to GPU, if available
         self.encoder.eval()
-        self.encoder = self.encoder.cuda()
+        self.encoder = self.encoder.to(DEVICE)
         self.encoder_trans.eval()
-        self.encoder_trans = self.encoder_trans.cuda()
+        self.encoder_trans = self.encoder_trans.to(DEVICE)
         self.decoder.eval()
-        self.decoder = self.decoder.cuda()
+        self.decoder = self.decoder.to(DEVICE)
 
 
     def preprocess(self, path_A, path_B):
@@ -150,8 +152,8 @@ class Change_Perception(object):
         print('model_infer_change_captioning: start')
         imgA, imgB = self.preprocess(path_A, path_B)
         # Move to GPU, if available
-        imgA = imgA.cuda()
-        imgB = imgB.cuda()
+        imgA = imgA.to(DEVICE)
+        imgB = imgB.to(DEVICE)
         feat1, feat2 = self.encoder(imgA, imgB)
         feat1, feat2, seg_pre = self.encoder_trans(feat1, feat2)
         seq = self.decoder.sample(feat1, feat2, k=1)
@@ -169,8 +171,8 @@ class Change_Perception(object):
         print('model_infer_change_detection: start')
         imgA, imgB = self.preprocess(path_A, path_B)
         # Move to GPU, if available
-        imgA = imgA.cuda()
-        imgB = imgB.cuda()
+        imgA = imgA.to(DEVICE)
+        imgB = imgB.to(DEVICE)
         feat1, feat2 = self.encoder(imgA, imgB)
         feat1, feat2, seg_pre = self.encoder_trans(feat1, feat2)
         # for segmentation

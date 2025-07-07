@@ -1,6 +1,7 @@
 import argparse
 import json
 
+from regex import D
 import torch.optim
 from data.LEVIR_MCI import LEVIRCCDataset
 from model.model_decoder import DecoderTransformer
@@ -11,6 +12,7 @@ from tqdm import tqdm
 from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class Trainer(object):
     def __init__(self, args):
@@ -48,8 +50,8 @@ class Trainer(object):
         self.build_model()
 
         # Loss function
-        self.criterion_cap = torch.nn.CrossEntropyLoss().cuda()
-        self.criterion_det = torch.nn.CrossEntropyLoss().cuda()
+        self.criterion_cap = torch.nn.CrossEntropyLoss().to(DEVICE)
+        self.criterion_det = torch.nn.CrossEntropyLoss().to(DEVICE)
 
         # Custom dataloaders
         if args.data_name == "LEVIR_MCI":
@@ -161,9 +163,9 @@ class Trainer(object):
         )
 
         # Move to GPU, if available
-        self.encoder = self.encoder.cuda()
-        self.encoder_trans = self.encoder_trans.cuda()
-        self.decoder = self.decoder.cuda()
+        self.encoder = self.encoder.to(DEVICE)
+        self.encoder_trans = self.encoder_trans.to(DEVICE)
+        self.decoder = self.decoder.to(DEVICE)
         self.encoder_lr_scheduler = (
             torch.optim.lr_scheduler.StepLR(
                 self.encoder_optimizer, step_size=5, gamma=1.0
@@ -215,11 +217,11 @@ class Trainer(object):
             accum_steps = 64 // args.train_batchsize
 
             # Move to GPU, if available
-            imgA = imgA.cuda()
-            imgB = imgB.cuda()
-            seg_label = seg_label.cuda()
-            token = token.squeeze(1).cuda()
-            token_len = token_len.cuda()
+            imgA = imgA.to(DEVICE)
+            imgB = imgB.to(DEVICE)
+            seg_label = seg_label.to(DEVICE)
+            token = token.squeeze(1).to(DEVICE)
+            token_len = token_len.to(DEVICE)
             # Forward prop.
             feat1, feat2 = self.encoder(imgA, imgB)
             feat1, feat2, seg_pre = self.encoder_trans(feat1, feat2)
@@ -380,9 +382,9 @@ class Trainer(object):
                 tqdm(self.val_loader, desc="val_" + "EVALUATING AT BEAM SIZE " + str(1))
             ):
                 # Move to GPU, if available
-                imgA = imgA.cuda()
-                imgB = imgB.cuda()
-                token_all = token_all.squeeze(0).cuda()
+                imgA = imgA.to(DEVICE)
+                imgB = imgB.to(DEVICE)
+                token_all = token_all.squeeze(0).to(DEVICE)
                 # Forward prop.
                 if self.encoder is not None:
                     feat1, feat2 = self.encoder(imgA, imgB)

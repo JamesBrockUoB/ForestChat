@@ -5,10 +5,13 @@ from typing import Dict, List, Optional, Union
 from lagent.schema import ModelStatusCode
 from .base_api import APITemplateParser
 from .base_llm import BaseModel
+import torch
 
 logger = logging.getLogger(__name__)
 
 logger = logging.getLogger(__name__)
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class HFTransformer(BaseModel):
@@ -161,7 +164,7 @@ class HFTransformer(BaseModel):
                 inputs, padding=True, return_tensors='pt', return_length=True)
             input_length = inputs['length']
             for k, v in inputs.items():
-                inputs[k] = v.cuda()
+                inputs[k] = v.to(DEVICE)
             input_ids = inputs['input_ids']
             attention_mask = inputs['attention_mask']
             batch_size = input_ids.shape[0]

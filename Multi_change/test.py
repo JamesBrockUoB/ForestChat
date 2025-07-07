@@ -10,6 +10,8 @@ from model.model_decoder import DecoderTransformer
 from utils_tool.utils import *
 from utils_tool.metrics import Evaluator
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 def save_mask(pred, gt, name, save_path,args):
     # pred value: 0,1,2; map to black, yellow, red
     # gt value: 0,1,2; map to black, yellow, red
@@ -116,11 +118,11 @@ def main(args):
     decoder.load_state_dict(checkpoint['decoder_dict'])
     # Move to GPU, if available
     encoder.eval()
-    encoder = encoder.cuda()
+    encoder = encoder.to(DEVICE)
     encoder_trans.eval()
-    encoder_trans = encoder_trans.cuda()
+    encoder_trans = encoder_trans.to(DEVICE)
     decoder.eval()
-    decoder = decoder.cuda()
+    decoder = decoder.to(DEVICE)
 
     # Custom dataloaders
     if args.data_name == 'LEVIR_MCI':
@@ -147,9 +149,9 @@ def main(args):
         for ind, (imgA, imgB, seg_label, token_all, token_all_len, _, _, name) in enumerate(
                 tqdm(test_loader, desc='test_' + " EVALUATING AT BEAM SIZE " + str(1))):
             # Move to GPU, if available
-            imgA = imgA.cuda()
-            imgB = imgB.cuda()
-            token_all = token_all.squeeze(0).cuda()
+            imgA = imgA.to(DEVICE)
+            imgB = imgB.to(DEVICE)
+            token_all = token_all.squeeze(0).to(DEVICE)
             # decode_lengths = max(token_all_len.squeeze(0)).item()
             # Forward prop.
             if encoder is not None:
