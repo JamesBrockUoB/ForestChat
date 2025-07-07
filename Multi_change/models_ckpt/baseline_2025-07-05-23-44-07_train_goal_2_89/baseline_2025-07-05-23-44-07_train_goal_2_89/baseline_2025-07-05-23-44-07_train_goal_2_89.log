@@ -1,0 +1,6 @@
+=>datset: LEVIR_MCI
+=>network: segformer-mit_b1
+=>encoder_lr: 0.0001
+=>decoder_lr: 0.0001
+=>num_epochs: 250
+=>train_batchsize: 64
