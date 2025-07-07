@@ -274,7 +274,7 @@ class DecoderTransformer(nn.Module):
 
         mask = torch.triu(torch.ones(self.max_lengths, self.max_lengths) * float('-inf'), diagonal=1)
         mask = mask.to(DEVICE)
-        tgt[:, 0] = torch.LongTensor([self.word_vocab['<START>']] *batch.to(DEVICE) #(batch_size, 1)
+        tgt[:, 0] = torch.LongTensor([self.word_vocab['<START>']] *batch.to(DEVICE)) #(batch_size, 1)
         seqs = torch.LongTensor([[self.word_vocab['<START>']]] *batch).to(DEVICE) #(batch_size, 1)
         #Weight = torch.zeros(1, self.max_lengths, x.size(0)).cuda()
         for step in range(self.max_lengths):
