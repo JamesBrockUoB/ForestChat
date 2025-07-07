@@ -3,8 +3,6 @@ examples/
 .env
 model_weights/
 __pycache__
-GDFL_1KM/
 *.py[cod]
 cache_dir/
-teochat.egg-info/
 data/LEVIR-MCI-dataset/
