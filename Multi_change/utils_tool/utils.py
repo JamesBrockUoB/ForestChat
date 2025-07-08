@@ -1,16 +1,27 @@
 import os
-import torch
+import random
+import time
+
 import numpy as np
+import torch
 from eval_func.bleu.bleu import Bleu
-from eval_func.rouge.rouge import Rouge
 from eval_func.cider.cider import Cider
 from eval_func.meteor.meteor import Meteor
-import time
-import random
+from eval_func.rouge.rouge import Rouge
 
 
-def save_checkpoint(args, data_name, epoch, encoder, encoder_feat, decoder, encoder_optimizer,
-                encoder_feat_optimizer, decoder_optimizer, best_bleu4):
+def save_checkpoint(
+    args,
+    data_name,
+    epoch,
+    encoder,
+    encoder_feat,
+    decoder,
+    encoder_optimizer,
+    encoder_feat_optimizer,
+    decoder_optimizer,
+    best_bleu4,
+):
     """
     Saves model checkpoint.
 
@@ -24,21 +35,22 @@ def save_checkpoint(args, data_name, epoch, encoder, encoder_feat, decoder, enco
     :param bleu4: validation BLEU-4 score for this epoch
     :param is_best: is this checkpoint the best so far?
     """
-    state = {'epoch': epoch,
-             'best_bleu-4': best_bleu4,
-             'encoder': encoder,
-             'encoder_feat': encoder_feat,
-             'decoder': decoder,
-             'encoder_optimizer': encoder_optimizer,
-             'encoder_feat_optimizer': encoder_feat_optimizer,
-             'decoder_optimizer': decoder_optimizer,
-             }
-    #filename = 'checkpoint_' + data_name + '_' + args.network + '.pth.tar'
-    path = args.savepath #'./models_checkpoint/mymodel/3-times/'
-    if os.path.exists(path)==False:
+    state = {
+        "epoch": epoch,
+        "best_bleu-4": best_bleu4,
+        "encoder": encoder,
+        "encoder_feat": encoder_feat,
+        "decoder": decoder,
+        "encoder_optimizer": encoder_optimizer,
+        "encoder_feat_optimizer": encoder_feat_optimizer,
+        "decoder_optimizer": decoder_optimizer,
+    }
+    # filename = 'checkpoint_' + data_name + '_' + args.network + '.pth.tar'
+    path = args.savepath  #'./models_checkpoint/mymodel/3-times/'
+    if os.path.exists(path) == False:
         os.makedirs(path)
         # If this checkpoint is the best so far, store a copy so it doesn't get overwritten by a worse checkpoint
-    torch.save(state, os.path.join(path, 'BEST_' + data_name))
+    torch.save(state, os.path.join(path, "BEST_" + data_name))
 
     # torch.save(state, os.path.join(path, 'checkpoint_' + data_name +'_epoch_'+str(epoch) + '.pth.tar'))
 
@@ -65,19 +77,29 @@ def get_eval_score(references, hypotheses):
         (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
         (Meteor(), "METEOR"),
         (Rouge(), "ROUGE_L"),
-        (Cider(), "CIDEr")
+        (Cider(), "CIDEr"),
     ]
 
-    hypo = [[' '.join(hypo)] for hypo in [[str(x) for x in hypo] for hypo in hypotheses]]
-    ref = [[' '.join(reft) for reft in reftmp] for reftmp in
-           [[[str(x) for x in reft] for reft in reftmp] for reftmp in references]]
+    hypo = [
+        [" ".join(hypo)] for hypo in [[str(x) for x in hypo] for hypo in hypotheses]
+    ]
+    ref = [
+        [" ".join(reft) for reft in reftmp]
+        for reftmp in [
+            [[str(x) for x in reft] for reft in reftmp] for reftmp in references
+        ]
+    ]
     score = []
     method = []
     for scorer, method_i in scorers:
         score_i, scores_i = scorer.compute_score(ref, hypo)
         score.extend(score_i) if isinstance(score_i, list) else score.append(score_i)
-        method.extend(method_i) if isinstance(method_i, list) else method.append(method_i)
-        #print("{} {}".format(method_i, score_i))
+        (
+            method.extend(method_i)
+            if isinstance(method_i, list)
+            else method.append(method_i)
+        )
+        # print("{} {}".format(method_i, score_i))
     score_dict = dict(zip(method, score))
 
     return score_dict
@@ -91,10 +113,11 @@ def clip_gradient(optimizer, grad_clip):
     :param grad_clip: clip value
     """
     for group in optimizer.param_groups:
-        for param in group['params']:
+        for param in group["params"]:
             if param.grad is not None:
                 param.grad.data.clamp_(-grad_clip, grad_clip)
-                
+
+
 def adjust_learning_rate(optimizer, shrink_factor):
     """
     Shrinks learning rate by a specified factor.
@@ -105,8 +128,9 @@ def adjust_learning_rate(optimizer, shrink_factor):
 
     print("\nDECAYING learning rate.")
     for param_group in optimizer.param_groups:
-        param_group['lr'] = param_group['lr'] * shrink_factor
-    print("The new learning rate is %f\n" % (optimizer.param_groups[0]['lr'],))
+        param_group["lr"] = param_group["lr"] * shrink_factor
+    print("The new learning rate is %f\n" % (optimizer.param_groups[0]["lr"],))
+
 
 class AverageMeter(object):
     """
@@ -130,14 +154,25 @@ class AverageMeter(object):
 
 
 def time_file_str():
-    ISOTIMEFORMAT='%Y-%m-%d-%H-%M-%S'
-    string = '{}'.format(time.strftime( ISOTIMEFORMAT, time.gmtime(time.time()) ))
-    return string #+ '-{}'.format(random.randint(1, 10000))
+    ISOTIMEFORMAT = "%Y-%m-%d-%H-%M-%S"
+    string = "{}".format(time.strftime(ISOTIMEFORMAT, time.gmtime(time.time())))
+    return string  # + '-{}'.format(random.randint(1, 10000))
+
 
 def print_log(print_string, log):
     print("{:}".format(print_string))
-    log.write('{:}\n'.format(print_string))
+    log.write("{:}\n".format(print_string))
     log.flush()
 
 
+def pad_vocab(vocab, prev_vocab_size):
+    current_vocab_size = len(vocab)
+    max_idx = max(vocab.values())
 
+    if current_vocab_size < prev_vocab_size:
+        pad_count = prev_vocab_size - current_vocab_size
+        for i in range(pad_count):
+            new_token = f"<PAD_{i}>"
+            vocab[new_token] = max_idx + 1 + i
+
+    return vocab

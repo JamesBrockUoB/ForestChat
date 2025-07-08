@@ -1,32 +1,39 @@
-import sys
+import argparse
+import json
 
 # 添加特定路径到 Python 解释器的搜索路径中
 # sys.path.append('F:\LCY\Change_Agent\Change-Agent-git\Multi_change')
 import os.path
+import sys
 
 import cv2
 import torch.optim
-import argparse
-import json
-
-from skimage import measure
-
-from model.model_encoder_att import Encoder, AttentiveEncoder
-from model.model_decoder import DecoderTransformer
-from utils_tool.utils import *
+from griffe import check
 from imageio.v2 import imread
+from model.model_decoder import DecoderTransformer
+from model.model_encoder_att import AttentiveEncoder, Encoder
+from skimage import measure
+from skimage.segmentation import find_boundaries
+from torchange.models.segment_any_change import AnyChange, show_change_masks
+from torchange.models.segment_any_change.segment_anything.utils.amg import (
+    MaskData,
+    area_from_rle,
+    box_xyxy_to_xywh,
+    rle_to_mask,
+)
+from utils_tool.utils import *
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 # compute_change_map(path_A, path_B)函数: 生成一个掩膜mask用来表示两个图像之间的变化区域
-'''
+"""
 Args:
     path_A: 图像A的路径
     path_B: 图像B的路径
 Returns:
     change_map: 变化区域的掩膜
-'''
+"""
 # def compute_change_mask(path_A, path_B):
 #     import cv2
 #     import numpy as np
@@ -40,79 +47,59 @@ Returns:
 #     return 'I have save the changed mask in E:\change_map.png'
 
 # compute_change_caption(path_A, path_B)函数：生成一个文本用于描述两个图像之间变化
-'''
+"""
 Args:
     path_A: 图像A的路径
     path_B: 图像B的路径
 Returns:
     caption: 变化描述文本
-'''
+"""
+
+
 class Change_Perception(object):
-    def define_args(self):
-
-
-        script_path = os.path.abspath(__file__)
-        script_dir = os.path.dirname(script_path)
-        print(script_dir)
-        parser = argparse.ArgumentParser(description='Remote_Sensing_Image_Change_Interpretation')
-
-        parser.add_argument('--data_folder', default='D:\Dataset\Caption\change_caption\Levir-MCI-dataset\images',
-                            help='folder with data files')
-        parser.add_argument('--list_path', default='F:\LCY\Change_Agent\Change-Agent-git\Multi_change\data\LEVIR_MCI/',
-                            help='path of the data lists')
-        parser.add_argument('--vocab_file', default='vocab', help='path of the data lists')
-        parser.add_argument('--max_length', type=int, default=41, help='path of the data lists')
-
-        # inference
-        parser.add_argument('--gpu_id', type=int, default=0, help='gpu id in the training.')
-        parser.add_argument('--checkpoint', default='./models_ckpt/MCI_model.pth',help='path to checkpoint')
-        parser.add_argument('--result_path', default="./predict_result/",
-                            help='path to save the result of masks and captions')
-
-        # backbone parameters
-        parser.add_argument('--network', default='segformer-mit_b1',
-                            help='define the backbone encoder to extract features')
-        parser.add_argument('--encoder_dim', type=int, default=512,
-                            help='the dimension of extracted features using backbone ')
-        parser.add_argument('--feat_size', type=int, default=16,
-                            help='define the output size of encoder to extract features')
-        parser.add_argument('--dropout', type=float, default=0.1, help='dropout')
-        # Model parameters
-        parser.add_argument('--n_heads', type=int, default=8, help='Multi-head attention in Transformer.')
-        parser.add_argument('--n_layers', type=int, default=3, help='Number of layers in AttentionEncoder.')
-        parser.add_argument('--decoder_n_layers', type=int, default=1)
-        parser.add_argument('--feature_dim', type=int, default=512, help='embedding dimension')
-
-        args = parser.parse_args()
-
-        return args
-
-    def __init__(self,):
+    def __init__(self, args):
         """
         Training and validation.
         """
-        args = self.define_args()
         self.mean = [0.39073 * 255, 0.38623 * 255, 0.32989 * 255]
         self.std = [0.15329 * 255, 0.14628 * 255, 0.13648 * 255]
 
-        with open(os.path.join(args.list_path + args.vocab_file + '.json'), 'r') as f:
+        with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
             self.word_vocab = json.load(f)
         # Load checkpoint
         snapshot_full_path = args.checkpoint
 
-        checkpoint = torch.load(snapshot_full_path)
-        self.encoder = Encoder(args.network)
-        self.encoder_trans = AttentiveEncoder(train_stage=None, n_layers=args.n_layers,
-                                         feature_size=[args.feat_size, args.feat_size, args.encoder_dim],
-                                         heads=args.n_heads, dropout=args.dropout)
-        self.decoder = DecoderTransformer(encoder_dim=args.encoder_dim, feature_dim=args.feature_dim,
-                                     vocab_size=len(self.word_vocab), max_lengths=args.max_length,
-                                     word_vocab=self.word_vocab, n_head=args.n_heads,
-                                     n_layers=args.decoder_n_layers, dropout=args.dropout)
+        checkpoint = torch.load(snapshot_full_path, map_location=DEVICE)
 
-        self.encoder.load_state_dict(checkpoint['encoder_dict'])
-        self.encoder_trans.load_state_dict(checkpoint['encoder_trans_dict'], strict=False)
-        self.decoder.load_state_dict(checkpoint['decoder_dict'])
+        self.word_vocab = pad_vocab(
+            self.word_vocab,
+            checkpoint["decoder_dict"]["vocab_embedding.weight"].shape[0],
+        )
+
+        self.encoder = Encoder(args.network)
+        self.encoder_trans = AttentiveEncoder(
+            train_stage=None,
+            n_layers=args.n_layers,
+            feature_size=[args.feat_size, args.feat_size, args.encoder_dim],
+            heads=args.n_heads,
+            dropout=args.dropout,
+        )
+        self.decoder = DecoderTransformer(
+            encoder_dim=args.encoder_dim,
+            feature_dim=args.feature_dim,
+            vocab_size=len(self.word_vocab),
+            max_lengths=args.max_length,
+            word_vocab=self.word_vocab,
+            n_head=args.n_heads,
+            n_layers=args.decoder_n_layers,
+            dropout=args.dropout,
+        )
+
+        self.encoder.load_state_dict(checkpoint["encoder_dict"])
+        self.encoder_trans.load_state_dict(
+            checkpoint["encoder_trans_dict"], strict=False
+        )
+        self.decoder.load_state_dict(checkpoint["decoder_dict"])
         # Move to GPU, if available
         self.encoder.eval()
         self.encoder = self.encoder.to(DEVICE)
@@ -120,7 +107,6 @@ class Change_Perception(object):
         self.encoder_trans = self.encoder_trans.to(DEVICE)
         self.decoder.eval()
         self.decoder = self.decoder.to(DEVICE)
-
 
     def preprocess(self, path_A, path_B):
 
@@ -143,13 +129,14 @@ class Change_Perception(object):
 
         imgA = torch.FloatTensor(imgA)
         imgB = torch.FloatTensor(imgB)
+
         imgA = imgA.unsqueeze(0)  # (1, 3, 256, 256)
         imgB = imgB.unsqueeze(0)
 
         return imgA, imgB
 
     def generate_change_caption(self, path_A, path_B):
-        print('model_infer_change_captioning: start')
+        print("model_infer_change_captioning: start")
         imgA, imgB = self.preprocess(path_A, path_B)
         # Move to GPU, if available
         imgA = imgA.to(DEVICE)
@@ -157,18 +144,27 @@ class Change_Perception(object):
         feat1, feat2 = self.encoder(imgA, imgB)
         feat1, feat2, seg_pre = self.encoder_trans(feat1, feat2)
         seq = self.decoder.sample(feat1, feat2, k=1)
-        pred_seq = [w for w in seq if w not in {self.word_vocab['<START>'], self.word_vocab['<END>'], self.word_vocab['<NULL>']}]
+        pred_seq = [
+            w
+            for w in seq
+            if w
+            not in {
+                self.word_vocab["<START>"],
+                self.word_vocab["<END>"],
+                self.word_vocab["<NULL>"],
+            }
+        ]
         pred_caption = ""
         for i in pred_seq:
             pred_caption += (list(self.word_vocab.keys())[i]) + " "
 
-        caption ='there is road change'
+        caption = "there is road change"
         caption = pred_caption
-        print('change captioning:', caption)
+        print("change captioning:", caption)
         return caption
 
     def change_detection(self, path_A, path_B, savepath_mask):
-        print('model_infer_change_detection: start')
+        print("model_infer_change_detection: start")
         imgA, imgB = self.preprocess(path_A, path_B)
         # Move to GPU, if available
         imgA = imgA.to(DEVICE)
@@ -185,10 +181,76 @@ class Change_Perception(object):
         pred_rgb[pred == 2] = [0, 0, 255]
 
         cv2.imwrite(savepath_mask, pred_rgb)
-        print('model_infer: mask saved in', savepath_mask)
+        print("model_infer: mask saved in", savepath_mask)
 
-        print('model_infer_change_detection: end')
-        return pred # (256,256,3)
+        print("model_infer_change_detection: end")
+        return pred  # (256,256,3)
+        # return 'change detection successfully. '
+
+    def sac_change_detection(self, path_A, path_B, savepath_mask):
+        print("model_infer_change_detection_with_sac: start")
+        imgA = imread(path_A)
+        imgA = cv2.resize(imgA, (256, 256))
+        imgB = imread(path_B)
+        imgB = cv2.resize(imgB, (256, 256))
+
+        m = AnyChange("vit_h", sam_checkpoint="./models_ckpt/sam_vit_h_4b8939.pth")
+
+        m.make_mask_generator(
+            points_per_side=32,
+            stability_score_thresh=0.95,
+        )
+
+        m.set_hyperparameters(
+            change_confidence_threshold=145,
+            use_normalized_feature=True,
+            bitemporal_match=True,
+        )
+
+        mask_data, _, _ = m.forward(imgA, imgB)
+
+        assert isinstance(mask_data, MaskData)
+        anns = []
+
+        for idx in range(len(mask_data["rles"])):
+            ann_i = {
+                "segmentation": rle_to_mask(mask_data["rles"][idx]),
+                "area": area_from_rle(mask_data["rles"][idx]),
+            }
+            if "boxes" in mask_data._stats:
+                ann_i["bbox"] = box_xyxy_to_xywh(mask_data["boxes"][idx]).tolist()
+            anns.append(ann_i)
+
+        if len(anns) == 0:
+            print("No masks to save.")
+            return
+
+        sorted_anns = sorted(anns, key=lambda x: x["area"], reverse=True)
+        H, W = sorted_anns[0]["segmentation"].shape
+        img = np.ones((H, W, 4), dtype=np.float32)
+        img[:, :, 3] = 0  # alpha channel
+
+        for ann in sorted_anns:
+            m = ann["segmentation"]
+            boundary = find_boundaries(m)
+            color_mask = np.concatenate([np.random.random(3), [0.35]])  # RGBA
+            color_boundary = np.array([0.0, 1.0, 1.0, 0.8])  # cyan boundaries
+
+            img[m] = color_mask
+            img[boundary] = color_boundary
+
+        # Convert RGBA float [0,1] → uint8 RGB
+        img_rgb = (img[:, :, :3] * 255).astype(np.uint8)
+
+        # Convert RGB to BGR for OpenCV
+        img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
+
+        cv2.imwrite(savepath_mask, img_bgr)
+
+        print("model_infer: mask saved in", savepath_mask)
+
+        print("model_infer_change_detection_with_sac: end")
+        return img_rgb  # (256,256,3)
         # return 'change detection successfully. '
 
     def compute_object_num(self, changed_mask, object):
@@ -196,9 +258,9 @@ class Change_Perception(object):
         # compute the number of connected components
         mask = changed_mask
         mask_cp = 0 * mask.copy()
-        if object == 'road':
+        if object == "road":
             mask_cp[mask == 1] = 255
-        elif object == 'building':
+        elif object == "building":
             mask_cp[mask == 2] = 255
         lbl = measure.label(mask_cp, connectivity=2)
         props = measure.regionprops(lbl)
@@ -218,26 +280,56 @@ class Change_Perception(object):
         # cv2.resizeWindow('findCorners', 600, 600)
         # cv2.imshow('findCorners', mask_array_copy)
         # cv2.waitKey(0)
-        print('Found', num, object)
-        print('compute num end')
+        print("Found", num, object)
+        print("compute num end")
         # return
-        num_str = 'Found ' + str(num) + ' changed ' + object
+        num_str = "Found " + str(num) + " changed " + object
         return num_str
 
     # design more tool functions:
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Remote_Sensing_Image_Change_Interpretation')
-    parser.add_argument('--imgA_path', default=r'F:/LCY/Change_Agent/Multi_change/predict_result/test_000004_A.png')
-    parser.add_argument('--imgB_path', default=r'F:/LCY/Change_Agent/Multi_change/predict_result/test_000004_B.png')
-    parser.add_argument('--mask_save_path', default=r'./CDmask.png')
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Remote_Sensing_Image_Change_Interpretation"
+    )
+
+    parser.add_argument(
+        "--data_folder",
+        default="./data/LEVIR-MCI-dataset/images",
+    )
+    parser.add_argument(
+        "--list_path",
+        default="./data/LEVIR_MCI/",
+    )
+    parser.add_argument("--vocab_file", default="vocab")
+    parser.add_argument("--max_length", type=int, default=41)
+    parser.add_argument("--gpu_id", type=int, default=0)
+    parser.add_argument("--checkpoint", default="./models_ckpt/MCI_model.pth")
+    parser.add_argument("--result_path", default="./predict_results/")
+    parser.add_argument("--network", default="segformer-mit_b1")
+    parser.add_argument("--encoder_dim", type=int, default=512)
+    parser.add_argument("--feat_size", type=int, default=16)
+    parser.add_argument("--dropout", type=float, default=0.1)
+    parser.add_argument("--n_heads", type=int, default=8)
+    parser.add_argument("--n_layers", type=int, default=3)
+    parser.add_argument("--decoder_n_layers", type=int, default=1)
+    parser.add_argument("--feature_dim", type=int, default=512)
+
+    # Custom args for inference
+    parser.add_argument("--imgA_path", required=True)
+    parser.add_argument("--imgB_path", required=True)
+    parser.add_argument("--mask_save_path", required=True)
 
     args = parser.parse_args()
 
     imgA_path = args.imgA_path
     imgB_path = args.imgB_path
 
-    Change_Perception = Change_Perception()
+    Change_Perception = Change_Perception(args)
     Change_Perception.generate_change_caption(imgA_path, imgB_path)
     Change_Perception.change_detection(imgA_path, imgB_path, args.mask_save_path)
+
+    base, ext = os.path.splitext(args.mask_save_path)
+    sac_mask_filename = f"{base}_sac{ext}"
+    Change_Perception.sac_change_detection(imgA_path, imgB_path, sac_mask_filename)

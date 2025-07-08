@@ -25,3 +25,4 @@ python-dotenv==1.1.1
 git+https://github.com/Z-Zheng/pytorch-change-models
 datasets==2.19.2
 ever-beta==0.5.1
+scikit-image==0.24.0
