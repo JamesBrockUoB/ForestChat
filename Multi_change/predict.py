@@ -71,11 +71,6 @@ class Change_Perception(object):
 
         checkpoint = torch.load(snapshot_full_path, map_location=DEVICE)
 
-        self.word_vocab = pad_vocab(
-            self.word_vocab,
-            checkpoint["decoder_dict"]["vocab_embedding.weight"].shape[0],
-        )
-
         self.encoder = Encoder(args.network)
         self.encoder_trans = AttentiveEncoder(
             train_stage=None,

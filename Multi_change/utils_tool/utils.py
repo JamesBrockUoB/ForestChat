@@ -163,16 +163,3 @@ def print_log(print_string, log):
     print("{:}".format(print_string))
     log.write("{:}\n".format(print_string))
     log.flush()
-
-
-def pad_vocab(vocab, prev_vocab_size):
-    current_vocab_size = len(vocab)
-    max_idx = max(vocab.values())
-
-    if current_vocab_size < prev_vocab_size:
-        pad_count = prev_vocab_size - current_vocab_size
-        for i in range(pad_count):
-            new_token = f"<PAD_{i}>"
-            vocab[new_token] = max_idx + 1 + i
-
-    return vocab

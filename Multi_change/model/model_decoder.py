@@ -272,19 +272,10 @@ class DecoderTransformer(nn.Module):
         self.Conv1 = nn.Conv2d(encoder_dim * 2, feature_dim, kernel_size=1)
         self.LN = resblock(feature_dim, feature_dim)
 
-        self.invalid_token_ids = torch.tensor(
-            [v for k, v in self.word_vocab.items() if k.startswith("<PAD_")]
-        ).to(DEVICE)
         # embedding layer
         self.vocab_embedding = nn.Embedding(
             vocab_size, self.embed_dim
         )  # vocaburaly embedding
-
-        with torch.no_grad():
-            self.vocab_embedding.weight[self.invalid_token_ids] = (
-                torch.randn_like(self.vocab_embedding.weight[self.invalid_token_ids])
-                * 1e-6
-            )
 
         # Transformer layer
         decoder_layer = Mesh_TransformerDecoderLayer(
@@ -396,7 +387,6 @@ class DecoderTransformer(nn.Module):
             scores = scores[:, step, :].squeeze(
                 1
             )  # [batch, 1, vocab_size] -> [batch, vocab_size]
-            scores[:, self.invalid_token_ids] = float("-inf")
             predicted_id = torch.argmax(scores, axis=-1)
             seqs = torch.cat([seqs, predicted_id.unsqueeze(1)], dim=-1)
             # Weight = torch.cat([Weight, weight], dim = 0)
@@ -461,7 +451,6 @@ class DecoderTransformer(nn.Module):
                 1
             )  # [batch, 1, vocab_size] -> [batch, vocab_size]
             scores = F.log_softmax(scores, dim=1)
-            scores[:, self.invalid_token_ids] = float("-inf")
             scores = top_k_scores.expand_as(scores) + scores
             if step == 0:
                 top_k_scores, top_k_words = scores[0].topk(k, 0, True, True)

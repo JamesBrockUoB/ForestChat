@@ -34,9 +34,6 @@ def main(args):
         output_vocab_json = "vocab.json"
         save_dir = "./data/LEVIR_MCI/"
 
-        if args.keep_only_trees:
-            filter_forest_images(os.path.join(DATA_PATH_ROOT, "LEVIR-MCI-dataset"))
-
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     if not os.path.exists(os.path.join(save_dir + "tokens/")):
@@ -115,6 +112,9 @@ def main(args):
     if output_vocab_json != "":
         with open(os.path.join(save_dir + output_vocab_json), "w") as f:
             json.dump(word_freq, f)
+
+    if args.keep_only_trees:
+        filter_forest_images(os.path.join(DATA_PATH_ROOT, "LEVIR-MCI-dataset"))
 
 
 def filter_forest_images(dataset_root):
