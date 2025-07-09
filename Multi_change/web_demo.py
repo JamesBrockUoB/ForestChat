@@ -14,7 +14,7 @@ from lagent.llms import GPTAPI
 from lagent.llms.huggingface import HFTransformerCasualLM
 from streamlit.logger import get_logger
 
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+load_dotenv()
 
 os.environ["http_proxy"] = "http://localhost:7890"
 os.environ["https_proxy"] = "http://localhost:7890"
@@ -30,7 +30,7 @@ class SessionState:
 
         action_list = [
             Visual_Change_Process_PythonInterpreter(),
-            GoogleSearch(api_key=os.environ.get("SERPER_KEY")),
+            GoogleSearch(api_key=os.environ.get("SERPER_API_KEY")),
         ]
         st.session_state["plugin_map"] = {action.name: action for action in action_list}
         st.session_state["model_map"] = {}
@@ -60,7 +60,7 @@ class StreamlitUI:
             page_title="RSAgent-web",
             page_icon="./docs/imgs/lagent_icon.png",
         )
-        st.header("🌏 :blue[RS] Agent ", divider="rainbow")
+        st.header("🌏 :blue[ForestChat] Agent ", divider="rainbow")
 
         st.sidebar.title("Configuration")
 
@@ -105,7 +105,9 @@ class StreamlitUI:
         if option not in st.session_state["model_map"]:
             if option.startswith("gpt"):
                 st.session_state["model_map"][option] = GPTAPI(
-                    model_type=option, key=os.environ.get("OPEN_AI_KEY")
+                    model_type=option,
+                    key=os.environ.get("OPEN_AI_KEY"),
+                    proxies={},
                 )
             else:
                 st.session_state["model_map"][option] = HFTransformerCasualLM(

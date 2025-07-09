@@ -13,7 +13,7 @@ from lagent.llms import GPTAPI, HFTransformer, HFTransformerCasualLM
 # os.environ["http_proxy"] = "http://127.0.0.1:7890"
 # os.environ["https_proxy"] = "http://127.0.0.1:7890"
 
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+load_dotenv()
 
 llm = GPTAPI(
     model_type="gpt-3.5-turbo", key=os.environ.get("OPEN_AI_KEY")

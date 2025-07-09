@@ -95,6 +95,13 @@ The overview of the MCI model:
     ```
     After that, you can find some generated files in `./data/LEVIR_MCI/`. 
 
+- **Download Segment Any Change (SAC)**:
+  <details open>
+  
+  Link: [SAC](https://github.com/facebookresearch/segment-anything?tab=readme-ov-file#model-checkpoints)
+
+  Place the downloaded model into: `Multi_change/models_ckpt/` with the name unchanged (`sam_vit_h_4b8939.pth`)
+
 ### Train
 Make sure you performed the data preparation above. Then, start training as follows:
 ```python
@@ -144,7 +151,7 @@ You can modify ``--checkpoint`` of ``Change_Perception.define_args()`` in ``pred
     ```bash
     # You need to install streamlit first
     # pip install streamlit
-    streamlit run react_web_demo.py
+    streamlit run web_demo.py
     ```
     <br>
     <div align="center">

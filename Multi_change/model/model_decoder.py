@@ -1,12 +1,20 @@
 import copy
 import math
 import os
+import warnings
 from typing import Optional
 
 import torch
 from torch import Tensor, nn
 from torch.nn import functional as F
 from torch.nn.init import xavier_uniform_
+
+warnings.filterwarnings(
+    "ignore",
+    message="Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.",
+    category=UserWarning,
+    module="torch.nn.functional",
+)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -133,7 +141,6 @@ class Mesh_TransformerDecoderLayer(nn.Module):
         tgt_key_padding_mask: Optional[Tensor] = None,
         memory_key_padding_mask: Optional[Tensor] = None,
     ) -> Tensor:
-
         self_att_tgt = self.norm1(
             tgt + self._sa_block(tgt, tgt_mask, tgt_key_padding_mask)
         )

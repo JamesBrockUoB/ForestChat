@@ -7,7 +7,8 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "python": "/opt/anaconda3/envs/teochat/bin/python3"
+            "cwd": "${workspaceFolder}/Multi_change",
+            "python": "/opt/anaconda3/envs/Multi_change_env/bin/python3"
         }
     ]
 }
