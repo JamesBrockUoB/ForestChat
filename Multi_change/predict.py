@@ -57,10 +57,48 @@ Returns:
 
 
 class Change_Perception(object):
-    def __init__(self, args):
+    def define_args(self, parent_parser=None):
+
+        script_path = os.path.abspath(__file__)
+        script_dir = os.path.dirname(script_path)
+        print(script_dir)
+        parser = argparse.ArgumentParser(
+            description="Remote_Sensing_Image_Change_Interpretation",
+            parents=[parent_parser] if parent_parser else [],
+            add_help=False,
+        )
+
+        parser.add_argument(
+            "--data_folder",
+            default="./data/LEVIR-MCI-dataset/images",
+        )
+        parser.add_argument(
+            "--list_path",
+            default="./data/LEVIR_MCI/",
+        )
+        parser.add_argument("--vocab_file", default="vocab")
+        parser.add_argument("--max_length", type=int, default=41)
+        parser.add_argument("--gpu_id", type=int, default=0)
+        parser.add_argument("--checkpoint", default="./models_ckpt/MCI_model.pth")
+        parser.add_argument("--result_path", default="./predict_results/")
+        parser.add_argument("--network", default="segformer-mit_b1")
+        parser.add_argument("--encoder_dim", type=int, default=512)
+        parser.add_argument("--feat_size", type=int, default=16)
+        parser.add_argument("--dropout", type=float, default=0.1)
+        parser.add_argument("--n_heads", type=int, default=8)
+        parser.add_argument("--n_layers", type=int, default=3)
+        parser.add_argument("--decoder_n_layers", type=int, default=1)
+        parser.add_argument("--feature_dim", type=int, default=512)
+
+        args = parser.parse_args()
+
+        return args
+
+    def __init__(self, parent_parser=None):
         """
         Training and validation.
         """
+        args = self.define_args(parent_parser=parent_parser)
         self.mean = [0.39073 * 255, 0.38623 * 255, 0.32989 * 255]
         self.std = [0.15329 * 255, 0.14628 * 255, 0.13648 * 255]
 
@@ -289,28 +327,6 @@ if __name__ == "__main__":
         description="Remote_Sensing_Image_Change_Interpretation"
     )
 
-    parser.add_argument(
-        "--data_folder",
-        default="./data/LEVIR-MCI-dataset/images",
-    )
-    parser.add_argument(
-        "--list_path",
-        default="./data/LEVIR_MCI/",
-    )
-    parser.add_argument("--vocab_file", default="vocab")
-    parser.add_argument("--max_length", type=int, default=41)
-    parser.add_argument("--gpu_id", type=int, default=0)
-    parser.add_argument("--checkpoint", default="./models_ckpt/MCI_model.pth")
-    parser.add_argument("--result_path", default="./predict_results/")
-    parser.add_argument("--network", default="segformer-mit_b1")
-    parser.add_argument("--encoder_dim", type=int, default=512)
-    parser.add_argument("--feat_size", type=int, default=16)
-    parser.add_argument("--dropout", type=float, default=0.1)
-    parser.add_argument("--n_heads", type=int, default=8)
-    parser.add_argument("--n_layers", type=int, default=3)
-    parser.add_argument("--decoder_n_layers", type=int, default=1)
-    parser.add_argument("--feature_dim", type=int, default=512)
-
     # Custom args for inference
     parser.add_argument("--imgA_path", required=True)
     parser.add_argument("--imgB_path", required=True)
@@ -321,7 +337,7 @@ if __name__ == "__main__":
     imgA_path = args.imgA_path
     imgB_path = args.imgB_path
 
-    Change_Perception = Change_Perception(args)
+    Change_Perception = Change_Perception(parent_parser=parser)
     Change_Perception.generate_change_caption(imgA_path, imgB_path)
     Change_Perception.change_detection(imgA_path, imgB_path, args.mask_save_path)
 

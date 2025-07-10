@@ -235,7 +235,7 @@ class GPTAPI(BaseAPIModel):
                 raw_response = requests.post(
                     self.url,
                     headers=header,
-                    data=data,
+                    data=json.dumps(data),
                     proxies=self.proxies,
                 )
                 response = raw_response.json()

@@ -16,8 +16,9 @@ from streamlit.logger import get_logger
 
 load_dotenv()
 
-os.environ["http_proxy"] = "http://localhost:7890"
-os.environ["https_proxy"] = "http://localhost:7890"
+# os.environ["http_proxy"] = "http://localhost:7890"
+# os.environ["https_proxy"] = "http://localhost:7890"
+os.environ["NO_PROXY"] = "localhost,127.0.0.1,huggingface.co,openai.com"
 
 
 class SessionState:
@@ -57,7 +58,7 @@ class StreamlitUI:
         """Initialize Streamlit's UI settings."""
         st.set_page_config(
             layout="wide",
-            page_title="RSAgent-web",
+            page_title="ForestChatAgent-web",
             page_icon="./docs/imgs/lagent_icon.png",
         )
         st.header("🌏 :blue[ForestChat] Agent ", divider="rainbow")
@@ -190,10 +191,10 @@ def main():
     else:
         st.set_page_config(
             layout="wide",
-            page_title="RSAgent-web",
+            page_title="ForestChatAgent-web",
             page_icon="./docs/imgs/lagent_icon.png",
         )
-        st.header("🌏:blue[RS] Agent ", divider="rainbow")
+        st.header("🌏:blue[ForestChat] Agent ", divider="rainbow")
     model_name, model, plugin_action, uploaded_file_A, uploaded_file_B = (
         st.session_state["ui"].setup_sidebar()
     )
@@ -217,25 +218,6 @@ def main():
         st.session_state["ui"].render_user(user_input)
         st.session_state["user"].append(user_input)
         # Add file uploader to sidebar
-        if uploaded_file_B:
-            file_bytes_B = uploaded_file_B.read()
-            file_type_B = uploaded_file_B.type
-            if "image" in file_type_B:
-                st.image(
-                    file_bytes_B, caption="Uploaded Image_B"
-                )  # , use_column_width=False, width=300
-            # elif 'video' in file_type_B:
-            #     st.video(file_bytes_B, caption='Uploaded Video')
-            # elif 'audio' in file_type_B:
-            #     st.audio(file_bytes_B, caption='Uploaded Audio')
-            # Save the file to a temporary location and get the path
-            file_path_B = os.path.join(root_dir, uploaded_file_B.name)
-            with open(file_path_B, "wb") as tmpfile:
-                tmpfile.write(file_bytes_B)
-            st.write(f"File saved at: {file_path_B}")
-            user_input = "The path of the image_B:: {file_path_B}. {user_input}".format(
-                file_path_B=file_path_B, user_input=user_input
-            )
         if uploaded_file_A:
             file_bytes_A = uploaded_file_A.read()
             file_type_A = uploaded_file_A.type
@@ -254,6 +236,25 @@ def main():
             st.write(f"File saved at: {file_path_A}")
             user_input = "The path of the image_A: {file_path_A}. {user_input}".format(
                 file_path_A=file_path_A, user_input=user_input
+            )
+        if uploaded_file_B:
+            file_bytes_B = uploaded_file_B.read()
+            file_type_B = uploaded_file_B.type
+            if "image" in file_type_B:
+                st.image(
+                    file_bytes_B, caption="Uploaded Image_B"
+                )  # , use_column_width=False, width=300
+            # elif 'video' in file_type_B:
+            #     st.video(file_bytes_B, caption='Uploaded Video')
+            # elif 'audio' in file_type_B:
+            #     st.audio(file_bytes_B, caption='Uploaded Audio')
+            # Save the file to a temporary location and get the path
+            file_path_B = os.path.join(root_dir, uploaded_file_B.name)
+            with open(file_path_B, "wb") as tmpfile:
+                tmpfile.write(file_bytes_B)
+            st.write(f"File saved at: {file_path_B}")
+            user_input = "The path of the image_B:: {file_path_B}. {user_input}".format(
+                file_path_B=file_path_B, user_input=user_input
             )
 
         print("user_input:", user_input)

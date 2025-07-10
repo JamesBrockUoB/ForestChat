@@ -8,7 +8,15 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}/Multi_change",
-            "python": "/opt/anaconda3/envs/Multi_change_env/bin/python3"
+            "python": "/opt/anaconda3/envs/Multi_change_env/bin/python3",
+            "args": [
+                "--imgA_path",
+                "./data/LEVIR-MCI-dataset/images/test/A/test_000068.png",
+                "--imgB_path",
+                "./data/LEVIR-MCI-dataset/images/test/B/test_000068.png",
+                "--mask_save_path",
+                "./predict_results/"
+            ]
         }
     ]
 }
