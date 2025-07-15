@@ -132,7 +132,8 @@ class StreamlitUI:
             for action in agent_return.actions:
                 if action:
                     self.render_action(action)
-            st.markdown(agent_return.response)
+            if agent_return.response:
+                st.markdown(agent_return.response)
 
     def render_action(self, action):
         with st.expander(action.type, expanded=True):
@@ -163,7 +164,7 @@ class StreamlitUI:
             for result in action.result:
                 if isinstance(result, dict):
                     st.markdown(
-                        "<p style='text-align: left;display:flex;'><span style='font-size:14px;font-weight:600;width:70px;text-align-last: justify;'> 执行结果</span><span style='width:14px;text-align:left;display:block;'>:</span></p>",  # noqa E501
+                        "<p style='text-align: left;display:flex;'><span style='font-size:14px;font-weight:600;width:70px;text-align-last: justify;'> Result</span><span style='width:14px;text-align:left;display:block;'>:</span></p>",  # noqa E501
                         unsafe_allow_html=True,
                     )
                     if "text" in result["type"]:
