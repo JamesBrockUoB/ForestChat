@@ -6,6 +6,7 @@ import streamlit as st
 from dotenv import load_dotenv
 from lagent.actions import (
     ActionExecutor,
+    GoogleScholar,
     GoogleSearch,
     PythonInterpreter,
     Visual_Change_Process_PythonInterpreter,
@@ -33,6 +34,7 @@ class SessionState:
         action_list = [
             Visual_Change_Process_PythonInterpreter(),
             GoogleSearch(api_key=os.environ.get("SERPER_API_KEY")),
+            GoogleScholar(api_key=os.environ.get("SERPER_API_KEY")),
         ]
         st.session_state["plugin_map"] = {action.name: action for action in action_list}
         st.session_state["model_map"] = {}
@@ -157,28 +159,32 @@ class StreamlitUI:
     def render_action_results(self, action):
         """Render the results of action, including text, images, videos, and
         audios."""
-        if isinstance(action.result, dict):
-            st.markdown(
-                "<p style='text-align: left;display:flex;'><span style='font-size:14px;font-weight:600;width:70px;text-align-last: justify;'> 执行结果</span><span style='width:14px;text-align:left;display:block;'>:</span></p>",  # noqa E501
-                unsafe_allow_html=True,
-            )
-            if "text" in action.result:
-                st.markdown(
-                    "<p style='text-align: left;'>" + action.result["text"] + "</p>",
-                    unsafe_allow_html=True,
-                )
-            if "image" in action.result:
-                image_path = action.result["image"]
-                image_data = open(image_path, "rb").read()
-                st.image(image_data, caption="Generated Image")
-            if "video" in action.result:
-                video_data = action.result["video"]
-                video_data = open(video_data, "rb").read()
-                st.video(video_data)
-            if "audio" in action.result:
-                audio_data = action.result["audio"]
-                audio_data = open(audio_data, "rb").read()
-                st.audio(audio_data)
+        if isinstance(action.result, list):
+            for result in action.result:
+                if isinstance(result, dict):
+                    st.markdown(
+                        "<p style='text-align: left;display:flex;'><span style='font-size:14px;font-weight:600;width:70px;text-align-last: justify;'> 执行结果</span><span style='width:14px;text-align:left;display:block;'>:</span></p>",  # noqa E501
+                        unsafe_allow_html=True,
+                    )
+                    if "text" in result["type"]:
+                        st.markdown(
+                            "<p style='text-align: left;'>"
+                            + result["content"]
+                            + "</p>",
+                            unsafe_allow_html=True,
+                        )
+                    if "image" in result["type"]:
+                        image_path = result["content"]
+                        image_data = open(image_path, "rb").read()
+                        st.image(image_data, caption="Generated Image")
+                    if "video" in result["type"]:
+                        video_data = result["content"]
+                        video_data = open(video_data, "rb").read()
+                        st.video(video_data)
+                    if "audio" in result["type"]:
+                        audio_data = result["content"]
+                        audio_data = open(audio_data, "rb").read()
+                        st.audio(audio_data)
 
 
 def main():
@@ -215,6 +221,7 @@ def main():
     # User input form at the bottom (this part will be at the bottom)
     # with st.form(key='my_form', clear_on_submit=True):
 
+    prefix = ""
     if user_input := st.chat_input(""):
         st.session_state["ui"].render_user(user_input)
         st.session_state["user"].append(user_input)
@@ -242,9 +249,7 @@ def main():
             with open(file_path_A, "wb") as tmpfile:
                 tmpfile.write(file_bytes_A)
             st.write(f"File saved at: {file_path_A}")
-            user_input = "The path of the image_A: {file_path_A}. {user_input}".format(
-                file_path_A=file_path_A, user_input=user_input
-            )
+            prefix += f"The path of the image_A: {file_path_A}. "
         if uploaded_file_B:
             file_bytes_B = uploaded_file_B.read()
             file_type_B = uploaded_file_B.type
@@ -261,11 +266,10 @@ def main():
             with open(file_path_B, "wb") as tmpfile:
                 tmpfile.write(file_bytes_B)
             st.write(f"File saved at: {file_path_B}")
-            user_input = "The path of the image_B:: {file_path_B}. {user_input}".format(
-                file_path_B=file_path_B, user_input=user_input
-            )
+            prefix += f"The path of the image_B: {file_path_B}. "
 
-        print("user_input:", user_input)
+        user_input = f"{prefix}{user_input}"
+        print(f"user_input:, {user_input}")
         st.session_state["history"].append(dict(role="user", content=user_input))
         agent_return = st.session_state["chatbot"].chat(st.session_state["history"])
         st.session_state["history"].append(

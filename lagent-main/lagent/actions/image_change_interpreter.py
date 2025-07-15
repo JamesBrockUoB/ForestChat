@@ -1,6 +1,7 @@
 # flake8: noqa: E501
 import copy
 import io
+import os
 from contextlib import redirect_stdout
 from typing import Any, Optional, Type
 
@@ -16,8 +17,7 @@ class GenericRuntime:
 
     def __init__(self):
         self._global_vars = copy.copy(self.GLOBAL_DICT)
-        self._local_vars = copy.copy(
-            self.LOCAL_DICT) if self.LOCAL_DICT else None
+        self._local_vars = copy.copy(self.LOCAL_DICT) if self.LOCAL_DICT else None
 
         for c in self.HEADERS:
             self.exec_code(c)
@@ -47,14 +47,16 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             ``True``.
     """
 
-    def __init__(self,
-                 answer_symbol: Optional[str] = None,
-                 answer_expr: Optional[str] = 'solution()',
-                 answer_from_stdout: bool = False,
-                 timeout: int = 500,
-                 description: Optional[dict] = None,
-                 parser: Type[BaseParser] = JsonParser,
-                 enable: bool = True) -> None:
+    def __init__(
+        self,
+        answer_symbol: Optional[str] = None,
+        answer_expr: Optional[str] = "solution()",
+        answer_from_stdout: bool = False,
+        timeout: int = 500,
+        description: Optional[dict] = None,
+        parser: Type[BaseParser] = JsonParser,
+        enable: bool = True,
+    ) -> None:
         super().__init__(description, parser, enable)
         self.answer_symbol = answer_symbol
         self.answer_expr = answer_expr
@@ -123,6 +125,7 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             mask_bgr = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
             mask_bgr[mask == 2] = [0, 0, 255] # '2' stands for changed building (red)
             cv2.imwrite(savepath_mask, mask_bgr)
+            return savepath_mask
         ```
 
 
@@ -131,6 +134,7 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             command (:class:`str`): Python code snippet
         """
         from func_timeout import FunctionTimedOut, func_set_timeout
+
         self.runtime = GenericRuntime()
         try:
             tool_return = func_set_timeout(self.timeout)(self._call)(command)
@@ -142,38 +146,45 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
 
     def _call(self, command: str) -> ActionReturn:
         tool_return = ActionReturn(type=self.name)
-        print('RUN Command:', command)
+        print("RUN Command:", command)
         try:
-            if '```python' in command:
-                command = command.split('```python')[1].split('```')[0]
-            elif '```' in command:
-                command = command.split('```')[1].split('```')[0]
-            tool_return.args = dict(text='```python\n' + command + '\n```')
-            command = command.split('\n')
+            if "```python" in command:
+                command = command.split("```python")[1].split("```")[0]
+            elif "```" in command:
+                command = command.split("```")[1].split("```")[0]
+            tool_return.args = dict(text="```python\n" + command + "\n```")
+            command = command.split("\n")
 
             if self.answer_from_stdout:
                 program_io = io.StringIO()
                 with redirect_stdout(program_io):
-                    self.runtime.exec_code('\n'.join(command))
+                    self.runtime.exec_code("\n".join(command))
                 program_io.seek(0)
                 res = program_io.readlines()[-1]
             elif self.answer_symbol:
-                self.runtime.exec_code('\n'.join(command))
+                self.runtime.exec_code("\n".join(command))
                 res = self.runtime._global_vars[self.answer_symbol]
             elif self.answer_expr:
-                self.runtime.exec_code('\n'.join(command))
+                self.runtime.exec_code("\n".join(command))
                 res = self.runtime.eval_code(self.answer_expr)
             else:
-                self.runtime.exec_code('\n'.join(command[:-1]))
+                self.runtime.exec_code("\n".join(command[:-1]))
                 res = self.runtime.eval_code(command[-1])
         except Exception as e:
-            print('Model RUN Error:', e)
+            print("Model RUN Error:", e)
             tool_return.errmsg = repr(e)
             tool_return.type = self.name
             tool_return.state = ActionStatusCode.API_ERROR
             return tool_return
         try:
-            tool_return.result = [dict(type='text', content=str(res))]
+            if (
+                isinstance(res, str)
+                and os.path.isfile(res)
+                and res.lower().endswith((".png", ".jpg", ".jpeg"))
+            ):
+                tool_return.result = [dict(type="image", content=res)]
+            else:
+                tool_return.result = [dict(type="text", content=str(res))]
             tool_return.state = ActionStatusCode.SUCCESS
         except Exception as e:
             tool_return.errmsg = repr(e)

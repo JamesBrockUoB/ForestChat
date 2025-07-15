@@ -4,8 +4,7 @@ from typing import List, Optional, Union
 
 
 def enum_dict_factory(inputs):
-    inputs = [(i[0], i[-1].value) if isinstance(i[-1], IntEnum) else i
-              for i in inputs]
+    inputs = [(i[0], i[-1].value) if isinstance(i[-1], IntEnum) else i for i in inputs]
     return dict(inputs)
 
 
@@ -44,11 +43,11 @@ class ActionReturn:
         """Concatenate items in result."""
         result = []
         for item in self.result or []:
-            if item['type'] == 'text':
-                result.append(item['content'])
+            if item["type"] == "text":
+                result.append(item["content"])
             else:
                 result.append(f"[{item['type']}]({item['content']})")
-        result = '\n'.join(result)
+        result = "\n".join(result)
         return result
 
 
@@ -83,6 +82,6 @@ class AgentStatusCode(IntEnum):
 class AgentReturn:
     state: Union[AgentStatusCode, int] = AgentStatusCode.END
     actions: List[ActionReturn] = field(default_factory=list)
-    response: str = ''
+    response: str = ""
     inner_steps: List = field(default_factory=list)
     errmsg: Optional[str] = None
