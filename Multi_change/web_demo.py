@@ -14,6 +14,7 @@ from lagent.actions import (
 from lagent.agents.react import ReAct
 from lagent.llms import GPTAPI
 from lagent.llms.huggingface import HFTransformerCasualLM
+from numpy import isin
 from streamlit.logger import get_logger
 
 load_dotenv()
@@ -160,32 +161,32 @@ class StreamlitUI:
     def render_action_results(self, action):
         """Render the results of action, including text, images, videos, and
         audios."""
-        if isinstance(action.result, list):
-            for result in action.result:
-                if isinstance(result, dict):
+        if isinstance(action.result, dict):
+            action.result = list(action.result)
+
+        for result in action.result:
+            if isinstance(result, dict):
+                st.markdown(
+                    "<p style='text-align: left;display:flex;'><span style='font-size:14px;font-weight:600;width:70px;text-align-last: justify;'> Result</span><span style='width:14px;text-align:left;display:block;'>:</span></p>",  # noqa E501
+                    unsafe_allow_html=True,
+                )
+                if "text" in result["type"]:
                     st.markdown(
-                        "<p style='text-align: left;display:flex;'><span style='font-size:14px;font-weight:600;width:70px;text-align-last: justify;'> Result</span><span style='width:14px;text-align:left;display:block;'>:</span></p>",  # noqa E501
+                        "<p style='text-align: left;'>" + result["content"] + "</p>",
                         unsafe_allow_html=True,
                     )
-                    if "text" in result["type"]:
-                        st.markdown(
-                            "<p style='text-align: left;'>"
-                            + result["content"]
-                            + "</p>",
-                            unsafe_allow_html=True,
-                        )
-                    if "image" in result["type"]:
-                        image_path = result["content"]
-                        image_data = open(image_path, "rb").read()
-                        st.image(image_data, caption="Generated Image")
-                    if "video" in result["type"]:
-                        video_data = result["content"]
-                        video_data = open(video_data, "rb").read()
-                        st.video(video_data)
-                    if "audio" in result["type"]:
-                        audio_data = result["content"]
-                        audio_data = open(audio_data, "rb").read()
-                        st.audio(audio_data)
+                if "image" in result["type"]:
+                    image_path = result["content"]
+                    image_data = open(image_path, "rb").read()
+                    st.image(image_data, caption="Generated Image")
+                if "video" in result["type"]:
+                    video_data = result["content"]
+                    video_data = open(video_data, "rb").read()
+                    st.video(video_data)
+                if "audio" in result["type"]:
+                    audio_data = result["content"]
+                    audio_data = open(audio_data, "rb").read()
+                    st.audio(audio_data)
 
 
 def main():
