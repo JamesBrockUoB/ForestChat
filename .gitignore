@@ -9,3 +9,4 @@ Multi_change/data/LEVIR-MCI-dataset/
 models_ckpt/
 predict_results/
 tmp_dir/
+.vscode/

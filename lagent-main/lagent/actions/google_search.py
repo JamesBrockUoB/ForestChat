@@ -29,29 +29,35 @@ class GoogleSearch(BaseAction):
             action's inputs and outputs. Defaults to :class:`JsonParser`.
         enable (bool): Whether the action is enabled. Defaults to ``True``.
     """
+
     result_key_for_type = {
-        'news': 'news',
-        'places': 'places',
-        'images': 'images',
-        'search': 'organic',
+        "news": "news",
+        "places": "places",
+        "images": "images",
+        "search": "organic",
     }
 
-    def __init__(self,
-                 api_key: Optional[str] = None,
-                 timeout: int = 5,
-                 search_type: str = 'search',
-                 description: Optional[dict] = None,
-                 parser: Type[BaseParser] = JsonParser,
-                 enable: bool = True):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        timeout: int = 5,
+        search_type: str = "search",
+        description: Optional[dict] = None,
+        parser: Type[BaseParser] = JsonParser,
+        enable: bool = True,
+        k: int = 3,
+    ):
         super().__init__(description, parser, enable)
-        api_key = os.environ.get('SERPER_API_KEY', api_key)
+        api_key = os.environ.get("SERPER_API_KEY", api_key)
         if api_key is None:
             raise ValueError(
-                'Please set Serper API key either in the environment '
-                'as SERPER_API_KEY or pass it as `api_key` parameter.')
+                "Please set Serper API key either in the environment "
+                "as SERPER_API_KEY or pass it as `api_key` parameter."
+            )
         self.api_key = api_key
         self.timeout = timeout
         self.search_type = search_type
+        self.k = k
 
     @tool_api
     def run(self, query: str, k: int = 10) -> ActionReturn:
@@ -69,7 +75,7 @@ class GoogleSearch(BaseAction):
             tool_return.state = ActionStatusCode.HTTP_ERROR
         elif status_code == 200:
             parsed_res = self._parse_results(response)
-            tool_return.result = [dict(type='text', content=str(parsed_res))]
+            tool_return.result = [dict(type="text", content=str(parsed_res))]
             tool_return.state = ActionStatusCode.SUCCESS
         else:
             tool_return.errmsg = str(status_code)
@@ -89,42 +95,40 @@ class GoogleSearch(BaseAction):
 
         snippets = []
 
-        if results.get('answerBox'):
-            answer_box = results.get('answerBox', {})
-            if answer_box.get('answer'):
-                return [answer_box.get('answer')]
-            elif answer_box.get('snippet'):
-                return [answer_box.get('snippet').replace('\n', ' ')]
-            elif answer_box.get('snippetHighlighted'):
-                return answer_box.get('snippetHighlighted')
+        if results.get("answerBox"):
+            answer_box = results.get("answerBox", {})
+            if answer_box.get("answer"):
+                return [answer_box.get("answer")]
+            elif answer_box.get("snippet"):
+                return [answer_box.get("snippet").replace("\n", " ")]
+            elif answer_box.get("snippetHighlighted"):
+                return answer_box.get("snippetHighlighted")
 
-        if results.get('knowledgeGraph'):
-            kg = results.get('knowledgeGraph', {})
-            title = kg.get('title')
-            entity_type = kg.get('type')
+        if results.get("knowledgeGraph"):
+            kg = results.get("knowledgeGraph", {})
+            title = kg.get("title")
+            entity_type = kg.get("type")
             if entity_type:
-                snippets.append(f'{title}: {entity_type}.')
-            description = kg.get('description')
+                snippets.append(f"{title}: {entity_type}.")
+            description = kg.get("description")
             if description:
                 snippets.append(description)
-            for attribute, value in kg.get('attributes', {}).items():
-                snippets.append(f'{title} {attribute}: {value}.')
+            for attribute, value in kg.get("attributes", {}).items():
+                snippets.append(f"{title} {attribute}: {value}.")
 
-        for result in results[self.result_key_for_type[
-                self.search_type]][:self.k]:
-            if 'snippet' in result:
-                snippets.append(result['snippet'])
-            for attribute, value in result.get('attributes', {}).items():
-                snippets.append(f'{attribute}: {value}.')
+        for result in results[self.result_key_for_type[self.search_type]][: self.k]:
+            if "snippet" in result:
+                snippets.append(result["snippet"])
+            for attribute, value in result.get("attributes", {}).items():
+                snippets.append(f"{attribute}: {value}.")
 
         if len(snippets) == 0:
-            return ['No good Google Search Result was found']
+            return ["No good Google Search Result was found"]
         return snippets
 
-    def _search(self,
-                search_term: str,
-                search_type: Optional[str] = None,
-                **kwargs) -> Tuple[int, Union[dict, str]]:
+    def _search(
+        self, search_term: str, search_type: Optional[str] = None, **kwargs
+    ) -> Tuple[int, Union[dict, str]]:
         """HTTP requests to Serper API.
 
         Args:
@@ -138,22 +142,20 @@ class GoogleSearch(BaseAction):
                 - response (dict): response context with json format.
         """
         headers = {
-            'X-API-KEY': self.api_key or '',
-            'Content-Type': 'application/json',
+            "X-API-KEY": self.api_key or "",
+            "Content-Type": "application/json",
         }
         params = {
-            'q': search_term,
-            **{
-                key: value
-                for key, value in kwargs.items() if value is not None
-            },
+            "q": search_term,
+            **{key: value for key, value in kwargs.items() if value is not None},
         }
         try:
             response = requests.post(
-                f'https://google.serper.dev/{search_type or self.search_type}',
+                f"https://google.serper.dev/{search_type or self.search_type}",
                 headers=headers,
                 params=params,
-                timeout=self.timeout)
+                timeout=self.timeout,
+            )
         except Exception as e:
             return -1, str(e)
         return response.status_code, response.json()

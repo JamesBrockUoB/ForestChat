@@ -1,5 +1,6 @@
 import copy
 import os
+from re import U
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -218,6 +219,13 @@ def main():
         st.session_state["ui"].render_user(user_input)
         st.session_state["user"].append(user_input)
         # Add file uploader to sidebar
+        if uploaded_file_A and uploaded_file_B:
+            if uploaded_file_A.name == uploaded_file_B.name:
+                file_A_base, file_A_ext = os.path.splitext(uploaded_file_A.name)
+                uploaded_file_A.name = f"{file_A_base}_A{file_A_ext}"
+                file_B_base, file_B_ext = os.path.splitext(uploaded_file_B.name)
+                uploaded_file_B.name = f"{file_B_base}_B{file_B_ext}"
+
         if uploaded_file_A:
             file_bytes_A = uploaded_file_A.read()
             file_type_A = uploaded_file_A.type
