@@ -7,6 +7,7 @@ import os.path
 import sys
 
 import cv2
+import numpy as np
 import torch.optim
 from griffe import check
 from imageio.v2 import imread
@@ -14,7 +15,7 @@ from model.model_decoder import DecoderTransformer
 from model.model_encoder_att import AttentiveEncoder, Encoder
 from skimage import measure
 from skimage.segmentation import find_boundaries
-from torchange.models.segment_any_change import AnyChange, show_change_masks
+from torchange.models.segment_any_change import AnyChange
 from torchange.models.segment_any_change.segment_anything.utils.amg import (
     MaskData,
     area_from_rle,
@@ -223,9 +224,7 @@ class Change_Perception(object):
     def sac_change_detection(self, path_A, path_B, savepath_mask):
         print("model_infer_change_detection_with_sac: start")
         imgA = imread(path_A)
-        imgA = cv2.resize(imgA, (256, 256))
         imgB = imread(path_B)
-        imgB = cv2.resize(imgB, (256, 256))
 
         m = AnyChange("vit_h", sam_checkpoint="./models_ckpt/sam_vit_h_4b8939.pth")
 
@@ -272,19 +271,83 @@ class Change_Perception(object):
             img[m] = color_mask
             img[boundary] = color_boundary
 
-        # Convert RGBA float [0,1] → uint8 RGB
         img_rgb = (img[:, :, :3] * 255).astype(np.uint8)
 
-        # Convert RGB to BGR for OpenCV
-        img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
-
-        cv2.imwrite(savepath_mask, img_bgr)
+        cv2.imwrite(savepath_mask, img_rgb)
 
         print("model_infer: mask saved in", savepath_mask)
 
         print("model_infer_change_detection_with_sac: end")
-        return img_rgb  # (256,256,3)
-        # return 'change detection successfully. '
+        return img_rgb
+
+    def sac_change_detection_points_of_interest(
+        self, path_A, path_B, savepath_mask, xyts
+    ):
+        print("model_infer_change_detection_with_sac_points_of_interest: start")
+        imgA = imread(path_A)
+        imgB = imread(path_B)
+
+        m = AnyChange("vit_h", sam_checkpoint="./models_ckpt/sam_vit_h_4b8939.pth")
+
+        m.make_mask_generator(
+            points_per_side=32,
+            stability_score_thresh=0.85,
+        )
+
+        m.set_hyperparameters(
+            change_confidence_threshold=165,
+            use_normalized_feature=True,
+            bitemporal_match=True,
+            object_sim_thresh=70,
+        )
+
+        if len(xyts) == 1:
+            temporal = xyts[0][-1]
+            xy = xyts[0][:2]
+            mask_data = m.single_point_match(
+                img1=imgA, img2=imgB, temporal=temporal, xy=xy
+            )
+        else:
+            mask_data = m.multi_points_match(img1=imgA, img2=imgB, xyts=xyts)
+
+        assert isinstance(mask_data, MaskData)
+        anns = []
+
+        for idx in range(len(mask_data["rles"])):
+            ann_i = {
+                "segmentation": rle_to_mask(mask_data["rles"][idx]),
+                "area": area_from_rle(mask_data["rles"][idx]),
+            }
+            if "boxes" in mask_data._stats:
+                ann_i["bbox"] = box_xyxy_to_xywh(mask_data["boxes"][idx]).tolist()
+            anns.append(ann_i)
+
+        if len(anns) == 0:
+            print("No masks to save.")
+            return
+
+        sorted_anns = sorted(anns, key=lambda x: x["area"], reverse=True)
+        H, W = sorted_anns[0]["segmentation"].shape
+        img = np.ones((H, W, 4), dtype=np.float32)
+        img[:, :, 3] = 0  # alpha channel
+
+        for ann in sorted_anns:
+            m = ann["segmentation"]
+            boundary = find_boundaries(m)
+            color_mask = np.concatenate([np.random.random(3), [0.35]])  # RGBA
+            color_boundary = np.array([0.0, 1.0, 1.0, 0.8])  # cyan boundaries
+
+            img[m] = color_mask
+            img[boundary] = color_boundary
+
+        img_rgb = (img[:, :, :3] * 255).astype(np.uint8)
+
+        cv2.imwrite(savepath_mask, img_rgb)
+
+        print("model_infer: mask saved in", savepath_mask)
+
+        print("model_infer_change_detection_with_sac_points_of_interest: end")
+        return img_rgb
 
     def compute_object_num(self, changed_mask, object):
         print("compute num start")

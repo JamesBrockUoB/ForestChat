@@ -2,6 +2,7 @@ import copy
 import os
 from io import BytesIO
 
+import numpy as np
 import streamlit as st
 from dotenv import load_dotenv
 from lagent.actions import (
@@ -14,8 +15,8 @@ from lagent.actions import (
 from lagent.agents.react import ReAct
 from lagent.llms import GPTAPI
 from lagent.llms.huggingface import HFTransformerCasualLM
-from numpy import isin
 from PIL import Image, ImageDraw
+from predict import Change_Perception
 from streamlit.logger import get_logger
 from streamlit_image_coordinates import streamlit_image_coordinates as sic
 
@@ -166,7 +167,6 @@ class StreamlitUI:
 
     def render_point_selector_tab(self):
         MAX_POINTS = 3
-        st.subheader("📍 Select Points of Interest")
 
         available_images = []
         if "image_A_bytes" in st.session_state:
@@ -174,71 +174,138 @@ class StreamlitUI:
         if "image_B_bytes" in st.session_state:
             available_images.append("Image B")
 
-        if not available_images:
-            st.info("Please upload Image A and/or B from the sidebar first.")
+        if (
+            "image_A_bytes" not in st.session_state
+            or "image_B_bytes" not in st.session_state
+        ):
+            st.warning(
+                "Please upload both Image A and Image B from the sidebar before proceeding."
+            )
             st.stop()
 
-        selected_image_key = st.selectbox("Choose image to annotate:", available_images)
+        with st.expander("Points of Interest", expanded=True):
+            st.subheader("📍 Select Points of Interest")
+            selected_image_key = st.selectbox(
+                "Choose image to annotate:", available_images
+            )
 
-        # --- Session state init ---
-        if "selected_points" not in st.session_state:
-            st.session_state.selected_points = {"Image A": [], "Image B": []}
-        if "last_coords" not in st.session_state:
-            st.session_state.last_coords = {"Image A": None, "Image B": None}
+            if "selected_points" not in st.session_state:
+                st.session_state.selected_points = {"Image A": [], "Image B": []}
+            if "last_coords" not in st.session_state:
+                st.session_state.last_coords = {"Image A": None, "Image B": None}
 
-        points = st.session_state.selected_points[selected_image_key]
-        last_coords = st.session_state.last_coords[selected_image_key]
+            points = st.session_state.selected_points[selected_image_key]
+            last_coords = st.session_state.last_coords[selected_image_key]
 
-        image_bytes = (
-            st.session_state["image_A_bytes"]
-            if selected_image_key == "Image A"
-            else st.session_state["image_B_bytes"]
-        )
-        original_image = Image.open(BytesIO(image_bytes)).convert("RGB")
+            image_bytes = (
+                st.session_state["image_A_bytes"]
+                if selected_image_key == "Image A"
+                else st.session_state["image_B_bytes"]
+            )
+            original_image = Image.open(BytesIO(image_bytes)).convert("RGB")
 
-        # 🖍 Annotate before displaying (so sic shows it)
-        image_to_display = original_image.copy()
-        draw = ImageDraw.Draw(image_to_display)
-        for x, y in points:
-            r = 4
-            draw.ellipse((x - r, y - r, x + r, y + r), fill="red")
+            image_to_display = original_image.copy()
+            draw = ImageDraw.Draw(image_to_display)
+            for x, y, _ in points:
+                r = 2
+                draw.ellipse((x - r, y - r, x + r, y + r), fill="red")
 
-        # ⬅️ ➡️ Layout
-        left_col, right_col = st.columns([2, 1])
+            left_col, right_col = st.columns([2, 1])
 
-        with left_col:
-            # --- Controls ---
-            b1, b2 = st.columns(2)
-            if b1.button("↩️ Undo Last Point"):
-                if points:
-                    points.pop()
-                st.session_state.last_coords[selected_image_key] = None
-                st.rerun()
-
-            if b2.button("🧹 Reset Points"):
-                st.session_state.selected_points[selected_image_key] = []
-                st.session_state.last_coords[selected_image_key] = None
-                st.rerun()
-
-            # --- Clickable image with annotations ---
-            st.markdown(f"### 👆 Click to select up to {MAX_POINTS} points.")
-            coords = sic(image_to_display, key=f"{selected_image_key}_click")
-
-            if coords and coords != last_coords:
-                if len(points) < MAX_POINTS:
-                    points.append((coords["x"], coords["y"]))
-                    st.session_state.last_coords[selected_image_key] = coords
+            with left_col:
+                b1, b2 = st.columns(2)
+                if b1.button("↩️ Undo Last Point"):
+                    if points:
+                        points.pop()
+                    st.session_state.last_coords[selected_image_key] = None
                     st.rerun()
-                else:
-                    st.warning(f"Max {MAX_POINTS} points allowed.")
 
-        with right_col:
-            st.markdown(f"### ✅ Selected Points ({len(points)}/{MAX_POINTS})")
-            if points:
-                for i, (x, y) in enumerate(points):
-                    st.markdown(f"**{i+1}.** (x: {x}, y: {y})")
-            else:
-                st.write("No points selected yet.")
+                if b2.button("🧹 Reset Points"):
+                    st.session_state.selected_points[selected_image_key] = []
+                    st.session_state.last_coords[selected_image_key] = None
+                    st.rerun()
+
+                st.markdown(
+                    f"### 👆 Click to select up to {MAX_POINTS} points to aid segmentation (Optional)"
+                )
+                coords = sic(image_to_display, key=f"{selected_image_key}_click")
+
+                t_value = 1 if selected_image_key == "Image A" else 2
+                if coords and coords != last_coords:
+                    if len(points) < MAX_POINTS:
+                        points.append(np.array((coords["x"], coords["y"], t_value)))
+                        st.session_state.last_coords[selected_image_key] = coords
+                        st.rerun()
+                    else:
+                        st.warning(f"Max {MAX_POINTS} points allowed.")
+
+            with right_col:
+                st.markdown(f"### ✅ Selected Points ({len(points)}/{MAX_POINTS})")
+                if points:
+                    for i, (x, y, t) in enumerate(points):
+                        st.markdown(f"**{i+1}.** (x: {x}, y: {y}, at time: {t})")
+                else:
+                    st.write("No points selected yet.")
+
+        st.markdown("---")
+        st.markdown("## 🎯 Run SAC Model")
+
+        if st.button("Run"):
+            points = st.session_state.selected_points[selected_image_key]
+            path_A = os.path.join(root_dir, st.session_state["image_A_name"])
+            path_B = os.path.join(root_dir, st.session_state["image_B_name"])
+            savepath_mask = "./tmp_dir/sac_change_mask.png"
+
+            try:
+                with st.spinner("Running SAC Model... This may take up to a minute."):
+                    change_perception = Change_Perception()
+                    if len(points) == 0:
+                        result = change_perception.sac_change_detection(
+                            path_A=path_A,
+                            path_B=path_B,
+                            savepath_mask=savepath_mask,
+                        )
+                    else:
+                        result = (
+                            change_perception.sac_change_detection_points_of_interest(
+                                path_A=path_A,
+                                path_B=path_B,
+                                savepath_mask=savepath_mask,
+                                xyts=points,
+                            )
+                        )
+
+                    st.session_state["sac_result_path"] = savepath_mask
+
+                st.success("✅ Segmentation completed!")
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    st.image(
+                        st.session_state["image_A_name"],
+                        caption="Image A",
+                        use_column_width=True,
+                    )
+
+                with col2:
+                    st.image(
+                        st.session_state["image_B_name"],
+                        caption="Image B",
+                        use_column_width=True,
+                    )
+
+                with col3:
+                    st.image(
+                        st.session_state["sac_result_path"],
+                        caption="🔍 SAC Output",
+                        use_column_width=True,
+                    )
+
+                st.markdown(f"📁 Output saved at: `{savepath_mask}`")
+            except Exception as e:
+                st.markdown(
+                    f"☠️ Uh oh! Ran into a problem executing the model: {e} - double check model hyperparameters"
+                )
 
     def render_action(self, action):
         with st.expander(action.type, expanded=True):
