@@ -1,6 +1,6 @@
 import copy
 import os
-from re import U
+from io import BytesIO
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -15,7 +15,9 @@ from lagent.agents.react import ReAct
 from lagent.llms import GPTAPI
 from lagent.llms.huggingface import HFTransformerCasualLM
 from numpy import isin
+from PIL import Image, ImageDraw
 from streamlit.logger import get_logger
+from streamlit_image_coordinates import streamlit_image_coordinates as sic
 
 load_dotenv()
 
@@ -97,12 +99,38 @@ class StreamlitUI:
             )
         if st.sidebar.button("**Clear conversation**", key="clear"):
             self.session_state.clear_state()
+
         uploaded_file_A = st.sidebar.file_uploader(
-            "**Upload Image_A:**", type=["png", "jpg", "jpeg"]
-        )  # , 'mp4', 'mp3', 'wav'
-        uploaded_file_B = st.sidebar.file_uploader(
-            "**Upload Image_B:**", type=["png", "jpg", "jpeg"]
+            "**Upload Image_A:**", type=["png", "jpg", "jpeg"], key="image_A"
         )
+        uploaded_file_B = st.sidebar.file_uploader(
+            "**Upload Image_B:**", type=["png", "jpg", "jpeg"], key="image_B"
+        )
+        # , 'mp4', 'mp3', 'wav'
+
+        if (
+            uploaded_file_A
+            and uploaded_file_B
+            and uploaded_file_A.name == uploaded_file_B.name
+        ):
+            file_A_base, file_A_ext = os.path.splitext(uploaded_file_A.name)
+            file_B_base, file_B_ext = os.path.splitext(uploaded_file_B.name)
+            new_name_A = f"{file_A_base}_A{file_A_ext}"
+            new_name_B = f"{file_B_base}_B{file_B_ext}"
+        else:
+            new_name_A = uploaded_file_A.name if uploaded_file_A else None
+            new_name_B = uploaded_file_B.name if uploaded_file_B else None
+
+        if uploaded_file_A:
+            image_A_bytes = uploaded_file_A.read()
+            st.session_state["image_A_bytes"] = image_A_bytes
+            st.session_state["image_A_name"] = new_name_A
+
+        if uploaded_file_B:
+            image_B_bytes = uploaded_file_B.read()
+            st.session_state["image_B_bytes"] = image_B_bytes
+            st.session_state["image_B_name"] = new_name_B
+
         return model_name, model, plugin_action, uploaded_file_A, uploaded_file_B
 
     def init_model(self, option):
@@ -136,6 +164,82 @@ class StreamlitUI:
             if agent_return.response:
                 st.markdown(agent_return.response)
 
+    def render_point_selector_tab(self):
+        MAX_POINTS = 3
+        st.subheader("📍 Select Points of Interest")
+
+        available_images = []
+        if "image_A_bytes" in st.session_state:
+            available_images.append("Image A")
+        if "image_B_bytes" in st.session_state:
+            available_images.append("Image B")
+
+        if not available_images:
+            st.info("Please upload Image A and/or B from the sidebar first.")
+            st.stop()
+
+        selected_image_key = st.selectbox("Choose image to annotate:", available_images)
+
+        # --- Session state init ---
+        if "selected_points" not in st.session_state:
+            st.session_state.selected_points = {"Image A": [], "Image B": []}
+        if "last_coords" not in st.session_state:
+            st.session_state.last_coords = {"Image A": None, "Image B": None}
+
+        points = st.session_state.selected_points[selected_image_key]
+        last_coords = st.session_state.last_coords[selected_image_key]
+
+        image_bytes = (
+            st.session_state["image_A_bytes"]
+            if selected_image_key == "Image A"
+            else st.session_state["image_B_bytes"]
+        )
+        original_image = Image.open(BytesIO(image_bytes)).convert("RGB")
+
+        # 🖍 Annotate before displaying (so sic shows it)
+        image_to_display = original_image.copy()
+        draw = ImageDraw.Draw(image_to_display)
+        for x, y in points:
+            r = 4
+            draw.ellipse((x - r, y - r, x + r, y + r), fill="red")
+
+        # ⬅️ ➡️ Layout
+        left_col, right_col = st.columns([2, 1])
+
+        with left_col:
+            # --- Controls ---
+            b1, b2 = st.columns(2)
+            if b1.button("↩️ Undo Last Point"):
+                if points:
+                    points.pop()
+                st.session_state.last_coords[selected_image_key] = None
+                st.rerun()
+
+            if b2.button("🧹 Reset Points"):
+                st.session_state.selected_points[selected_image_key] = []
+                st.session_state.last_coords[selected_image_key] = None
+                st.rerun()
+
+            # --- Clickable image with annotations ---
+            st.markdown(f"### 👆 Click to select up to {MAX_POINTS} points.")
+            coords = sic(image_to_display, key=f"{selected_image_key}_click")
+
+            if coords and coords != last_coords:
+                if len(points) < MAX_POINTS:
+                    points.append((coords["x"], coords["y"]))
+                    st.session_state.last_coords[selected_image_key] = coords
+                    st.rerun()
+                else:
+                    st.warning(f"Max {MAX_POINTS} points allowed.")
+
+        with right_col:
+            st.markdown(f"### ✅ Selected Points ({len(points)}/{MAX_POINTS})")
+            if points:
+                for i, (x, y) in enumerate(points):
+                    st.markdown(f"**{i+1}.** (x: {x}, y: {y})")
+            else:
+                st.write("No points selected yet.")
+
     def render_action(self, action):
         with st.expander(action.type, expanded=True):
             st.markdown(
@@ -156,7 +260,8 @@ class StreamlitUI:
                     unsafe_allow_html=True,
                 )
                 st.markdown(action.args["text"])
-            self.render_action_results(action)
+            if action.result:
+                self.render_action_results(action)
 
     def render_action_results(self, action):
         """Render the results of action, including text, images, videos, and
@@ -215,71 +320,54 @@ def main():
             model, plugin_action
         )
 
-    for prompt, agent_return in zip(
-        st.session_state["user"], st.session_state["assistant"]
-    ):
-        st.session_state["ui"].render_user(prompt)
-        st.session_state["ui"].render_assistant(agent_return)
-    # User input form at the bottom (this part will be at the bottom)
-    # with st.form(key='my_form', clear_on_submit=True):
+    tab_selection = st.selectbox("Choose a mode:", ["ForestChat Agent", "SAC Model"])
 
-    prefix = ""
-    if user_input := st.chat_input(""):
-        st.session_state["ui"].render_user(user_input)
-        st.session_state["user"].append(user_input)
-        # Add file uploader to sidebar
-        if uploaded_file_A and uploaded_file_B:
-            if uploaded_file_A.name == uploaded_file_B.name:
-                file_A_base, file_A_ext = os.path.splitext(uploaded_file_A.name)
-                uploaded_file_A.name = f"{file_A_base}_A{file_A_ext}"
-                file_B_base, file_B_ext = os.path.splitext(uploaded_file_B.name)
-                uploaded_file_B.name = f"{file_B_base}_B{file_B_ext}"
+    if tab_selection == "ForestChat Agent":
+        for prompt, agent_return in zip(
+            st.session_state["user"], st.session_state["assistant"]
+        ):
+            st.session_state["ui"].render_user(prompt)
+            st.session_state["ui"].render_assistant(agent_return)
 
-        if uploaded_file_A:
-            file_bytes_A = uploaded_file_A.read()
-            file_type_A = uploaded_file_A.type
-            if "image" in file_type_A:
-                st.image(
-                    file_bytes_A, caption="Uploaded Image_A"
-                )  # , use_column_width=False, width=300
-            # elif 'video' in file_type_A:
-            #     st.video(file_bytes_A, caption='Uploaded Video')
-            # elif 'audio' in file_type_A:
-            #     st.audio(file_bytes_A, caption='Uploaded Audio')
-            # Save the file to a temporary location and get the path
-            file_path_A = os.path.join(root_dir, uploaded_file_A.name)
-            with open(file_path_A, "wb") as tmpfile:
-                tmpfile.write(file_bytes_A)
-            st.write(f"File saved at: {file_path_A}")
-            prefix += f"The path of the image_A: {file_path_A}. "
-        if uploaded_file_B:
-            file_bytes_B = uploaded_file_B.read()
-            file_type_B = uploaded_file_B.type
-            if "image" in file_type_B:
-                st.image(
-                    file_bytes_B, caption="Uploaded Image_B"
-                )  # , use_column_width=False, width=300
-            # elif 'video' in file_type_B:
-            #     st.video(file_bytes_B, caption='Uploaded Video')
-            # elif 'audio' in file_type_B:
-            #     st.audio(file_bytes_B, caption='Uploaded Audio')
-            # Save the file to a temporary location and get the path
-            file_path_B = os.path.join(root_dir, uploaded_file_B.name)
-            with open(file_path_B, "wb") as tmpfile:
-                tmpfile.write(file_bytes_B)
-            st.write(f"File saved at: {file_path_B}")
-            prefix += f"The path of the image_B: {file_path_B}. "
+        if user_input := st.chat_input(""):
+            st.session_state["ui"].render_user(user_input)
+            st.session_state["user"].append(user_input)
 
-        user_input = f"{prefix}{user_input}"
-        print(f"user_input:, {user_input}")
-        st.session_state["history"].append(dict(role="user", content=user_input))
-        agent_return = st.session_state["chatbot"].chat(st.session_state["history"])
-        st.session_state["history"].append(
-            dict(role="assistant", content=agent_return.response)
-        )
-        st.session_state["assistant"].append(copy.deepcopy(agent_return))
-        logger.info(agent_return.inner_steps)
-        st.session_state["ui"].render_assistant(agent_return)
+            prefix = ""
+            file_path_A = file_path_B = None
+
+            if "image_A_bytes" in st.session_state:
+                st.image(st.session_state["image_A_bytes"], caption="Uploaded Image_A")
+                file_path_A = os.path.join(root_dir, st.session_state["image_A_name"])
+                if not os.path.exists(file_path_A):
+                    with open(file_path_A, "wb") as f:
+                        f.write(st.session_state["image_A_bytes"])
+                st.write(f"File saved at: {file_path_A}")
+                prefix += f"The path of the image_A: {file_path_A}. "
+
+            if "image_B_bytes" in st.session_state:
+                st.image(st.session_state["image_B_bytes"], caption="Uploaded Image_B")
+                file_path_B = os.path.join(root_dir, st.session_state["image_B_name"])
+                if not os.path.exists(file_path_B):
+                    with open(file_path_B, "wb") as f:
+                        f.write(st.session_state["image_B_bytes"])
+                st.write(f"File saved at: {file_path_B}")
+                prefix += f"The path of the image_B: {file_path_B}. "
+
+            full_input = f"{prefix}{user_input}"
+            print(f"user_input: {full_input}")
+            st.session_state["history"].append(dict(role="user", content=full_input))
+
+            agent_return = st.session_state["chatbot"].chat(st.session_state["history"])
+            st.session_state["history"].append(
+                dict(role="assistant", content=agent_return.response)
+            )
+            st.session_state["assistant"].append(copy.deepcopy(agent_return))
+            logger.info(agent_return.inner_steps)
+            st.session_state["ui"].render_assistant(agent_return)
+
+    elif tab_selection == "SAC Model":
+        st.session_state["ui"].render_point_selector_tab()
 
 
 if __name__ == "__main__":

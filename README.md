@@ -1,8 +1,8 @@
 <div align="center">
     
-<h1><a href="https://ieeexplore.ieee.org/document/10591792">Change-Agent: Toward Interactive Comprehensive Remote Sensing Change Interpretation and Analysis</a></h1>
+<h1>ForestChat: Toward Interactive Comprehensive Remote Sensing Forest Change Interpretation and Analysis</h1>
 
-**[Chenyang Liu](https://chen-yang-liu.github.io/), [Keyan Chen](https://kyanchen.github.io), [Haotian Zhang](https://scholar.google.com/citations?user=c7uR6NUAAAAJ), [Zipeng Qi](https://scholar.google.com/citations?user=KhMtmBsAAAAJ), [Zhengxia Zou](https://scholar.google.com.hk/citations?hl=en&user=DzwoyZsAAAAJ), and [Zhenwei Shi*✉](https://scholar.google.com.hk/citations?hl=en&user=kNhFWQIAAAAJ)**
+**[James Brock](https://github.com/JamesBrockUoB/)**
 
 <div align="center">
   <img src="resource/Change_Agent.png" width="400"/>
@@ -10,13 +10,6 @@
 </div>
 
 ## Share us a :star: if you're interested in this repo
-
-Official PyTorch implementation of the paper: "**Change-Agent: Toward Interactive Comprehensive Remote Sensing Change Interpretation and Analysis**" in [[IEEE](https://ieeexplore.ieee.org/document/10591792)]  ***(Accepted by IEEE TGRS 2024)***
-
-## News
-
-- 2024-06: The code is **available**.
-- 2024-03: The paper is **available**.
 
 ## Table of Contents
 - [LEVIR-MCI dataset](#LEVIR-MCI-dataset)

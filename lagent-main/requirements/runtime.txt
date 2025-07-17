@@ -10,6 +10,7 @@ jupyter_client
 phx-class-registry
 requests
 streamlit
+streamlit-image-coordinates
 tiktoken
 timeout-decorator
 typing-extensions
