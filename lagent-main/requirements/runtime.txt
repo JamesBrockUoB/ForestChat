@@ -11,6 +11,7 @@ phx-class-registry
 requests
 streamlit
 streamlit-image-coordinates
+streamlit-file-browser
 tiktoken
 timeout-decorator
 typing-extensions

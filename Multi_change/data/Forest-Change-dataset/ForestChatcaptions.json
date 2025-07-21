@@ -1,0 +1,121 @@
+{
+  "images": [
+    {
+      "filename": "train_000037.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "minor deforestation in small scattered patches at the peripheries of prior loss areas",
+          "tokens": [
+            "minor",
+            "deforestation",
+            "in",
+            "small",
+            "scattered",
+            "patches",
+            "at",
+            "the",
+            "peripheries",
+            "of",
+            "prior",
+            "loss",
+            "areas"
+          ]
+        },
+        {
+          "raw": "testing if caption will overwrite",
+          "tokens": [
+            "testing",
+            "if",
+            "caption",
+            "will",
+            "overwrite"
+          ]
+        },
+        {
+          "raw": "1.22% of the observed area has been affected by deforestation",
+          "tokens": [
+            "1.22%",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, primarily occurring in the bottom-left and center regions",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible,",
+            "primarily",
+            "occurring",
+            "in",
+            "the",
+            "bottom-left",
+            "and",
+            "center",
+            "regions"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, occurring in numerous small patches, which are highly varied in size",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible,",
+            "occurring",
+            "in",
+            "numerous",
+            "small",
+            "patches,",
+            "which",
+            "are",
+            "highly",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000023.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "new caption with only this one",
+          "tokens": [
+            "new",
+            "caption",
+            "with",
+            "only",
+            "this",
+            "one"
+          ]
+        }
+      ]
+    }
+  ]
+}

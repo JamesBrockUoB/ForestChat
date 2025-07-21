@@ -12,6 +12,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--dataset", type=str, default="LEVIR_MCI", help="the name of the dataset"
 )
+parser.add_argument(
+    "--captions_json",
+    type=str,
+    default="LevirCCcaptions.json",
+    help="the name of json file with the captions",
+)
 parser.add_argument("--word_count_threshold", default=5, type=int)
 parser.add_argument("--keep_only_trees", default=False, type=bool)
 
@@ -25,23 +31,25 @@ DATA_PATH_ROOT = "data"
 
 
 def main(args):
-    if args.dataset == "LEVIR_MCI":
+    if args.dataset in ["LEVIR_MCI", "Forest-Change"]:
         input_captions_json = os.path.join(
-            DATA_PATH_ROOT, "LEVIR-MCI-dataset", "LevirCCcaptions.json"
+            DATA_PATH_ROOT, f"{args.dataset}-dataset", args.captions_json
         )
-        input_image_dir = os.path.join(DATA_PATH_ROOT, "LEVIR-MCI-dataset", "images")
+        input_image_dir = os.path.join(
+            DATA_PATH_ROOT, f"{args.dataset}-dataset", "images"
+        )
         input_vocab_json = ""
         output_vocab_json = "vocab.json"
-        save_dir = "./data/LEVIR_MCI/"
+        save_dir = f"./data/{args.dataset}/"
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     if not os.path.exists(os.path.join(save_dir + "tokens/")):
         os.makedirs(os.path.join(save_dir + "tokens/"))
     print("Loading captions")
-    assert args.dataset in {"LEVIR_MCI"}
+    assert args.dataset in {"LEVIR_MCI", "Forest-Change"}
 
-    if args.dataset == "LEVIR_MCI":
+    if args.dataset in ["LEVIR_MCI", "Forest-Change"]:
         with open(input_captions_json, "r") as f:
             data = json.load(f)
         # Read image paths and captions for each image
@@ -59,7 +67,7 @@ def main(args):
                     cap,
                     add_start_token=True,
                     add_end_token=True,
-                    punct_to_keep=[";", ","],
+                    punct_to_keep=[";", ",", "%"],
                     punct_to_remove=["?", "."],
                 )
                 tokens_list.append(cap_tokens)
