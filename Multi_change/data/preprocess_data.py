@@ -67,7 +67,7 @@ def main(args):
                     cap,
                     add_start_token=True,
                     add_end_token=True,
-                    punct_to_keep=[";", ",", "%"],
+                    punct_to_keep=[";", ","],
                     punct_to_remove=["?", "."],
                 )
                 tokens_list.append(cap_tokens)
@@ -199,26 +199,38 @@ def tokenize(
     splitting on the specified delimiter. Optionally keep or remove certain
     punctuation marks and add start and end tokens.
     """
-    if punct_to_keep is not None:
-        for p in punct_to_keep:
-            s = s.replace(p, "%s%s" % (delim, p))
+    s = s.lower()
 
-    if punct_to_remove is not None:
-        for p in punct_to_remove:
-            s = s.replace(p, "")
+    protected_tokens = []
+    for token in s.split():
+        if token.replace(".", "", 1).isdigit():
+            protected_tokens.append(("NUMBER", token))
+        else:
+            protected_tokens.append(("TEXT", token))
 
-    tokens = s.split(delim)
-    for q in tokens:
-        if q == "":
-            tokens.remove(q)
-    if tokens[0] == "":
-        tokens.remove(tokens[0])
-    if tokens[-1] == "":
-        tokens.remove(tokens[-1])
+    processed_parts = []
+    for type_, token in protected_tokens:
+        if type_ == "NUMBER":
+            processed_parts.append(token)
+        else:
+            if punct_to_keep is not None:
+                for p in punct_to_keep:
+                    token = token.replace(p, f"{delim}{p}{delim}")
+            if punct_to_remove is not None:
+                for p in punct_to_remove:
+                    token = token.replace(p, "")
+            processed_parts.append(token)
+
+    s_processed = " ".join(processed_parts)
+    tokens = [t for t in s_processed.split(delim) if t]
+
+    tokens = [t for t in tokens if t]
+
     if add_start_token:
         tokens.insert(0, "<START>")
     if add_end_token:
         tokens.append("<END>")
+
     return tokens
 
 

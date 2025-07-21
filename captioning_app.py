@@ -1,5 +1,6 @@
 import json
 import os
+from string import punctuation
 
 import cv2
 import numpy as np
@@ -53,7 +54,7 @@ class AutoCaption:
         return round(percentage, 2)
 
     def create_deforestation_percentage_caption(self, deforestation_rate):
-        return f"{deforestation_rate}% of the observed area has been affected by deforestation"
+        return f"{deforestation_rate} percent of the observed area has been affected by deforestation"
 
     def loss_intensity_adjective_caption(self, percentage):
         if percentage < 1:
@@ -223,6 +224,7 @@ class DatasetLoader:
     def _load_examples(self):
         if not os.path.isdir(self.base_folder):
             return
+
         split_folders = [
             name
             for name in ["train", "val", "test"]
@@ -251,20 +253,22 @@ class DatasetLoader:
             return []
 
         for filename in os.listdir(folder_A):
-            path_A = os.path.join(folder_A, filename)
-            path_B = os.path.join(folder_B, filename)
-            path_mask = os.path.join(folder_mask, filename) if has_mask else None
+            if filename.startswith("."):
+                continue
 
-            if os.path.exists(path_B):
-                examples.append(
-                    Example(
-                        split,
-                        filename,
-                        path_A,
-                        path_B,
-                        path_mask if path_mask and os.path.exists(path_mask) else None,
-                    )
+            path_B = os.path.join(folder_B, filename)
+            if not os.path.exists(path_B):
+                continue
+
+            examples.append(
+                Example(
+                    split=split,
+                    filename=filename,
+                    path_A=os.path.join(folder_A, filename),
+                    path_B=path_B,
+                    path_mask=os.path.join(folder_mask, filename) if has_mask else None,
                 )
+            )
 
         return examples
 
@@ -280,6 +284,18 @@ class CaptionManager:
             with open(self.caption_file, "r") as f:
                 return json.load(f)
         return {"images": []}
+
+    def safe_tokenize(self, text, max_length=150, max_tokens=75):
+        tokens = []
+        for word in text.strip().lower().split():
+            if word.replace(".", "", 1).isdigit():
+                tokens.append(word)
+            else:
+                clean_word = "".join([c for c in word if c.isalpha() or c == "'"])
+                if clean_word:
+                    tokens.append(clean_word)
+
+        return tokens
 
     def save_caption(self, example, caption_text):
         entry = self._get_caption(example.filename)
@@ -300,7 +316,7 @@ class CaptionManager:
         entry["sentences"].append(
             {
                 "raw": caption_text,
-                "tokens": caption_text.strip().lower().strip(".").split(),
+                "tokens": self.safe_tokenize(caption_text),
             }
         )
 
@@ -313,68 +329,96 @@ class CaptionManager:
             None,
         )
 
+    def get_labelled_examples(self):
+        return {img["filename"] for img in self.captions["images"]}
+
 
 class CaptioningApp:
     def __init__(self):
         st.set_page_config(
             layout="wide",
             page_title="ForestChat-change-captioning",
+            page_icon="🌳",
         )
-        st.header("🌏:blue[ForestChat] Change Captioning Tool ", divider="rainbow")
-        self.base_folder = self.select_base_folder()
-        self.dataset = None
-        self.caption_mgr = None
-        self.current_index = 0
+
+        st.header("🌳 :blue[ForestChat] 🌲 Change Captioning Tool ", divider="rainbow")
+        self._initialise_session_state()
+        self.base_folder = self._select_base_folder()
 
         if self.base_folder:
-            self.dataset = DatasetLoader(self.base_folder)
             self.caption_mgr = CaptionManager(self.base_folder)
-            if "current_index" not in st.session_state:
-                st.session_state.current_index = 0
-            self.current_index = st.session_state.current_index
+            self._load_dataset()
             self.run()
 
-    def select_base_folder(self, session_key="selected_dataset_folder"):
+    def _initialise_session_state(self):
         if "show_browser" not in st.session_state:
             st.session_state.show_browser = False
-        if session_key not in st.session_state:
-            st.session_state[session_key] = None
+
+        if "dataset_folder" not in st.session_state:
+            st.session_state.dataset_folder = None
+
         if "temp_selected_path" not in st.session_state:
             st.session_state.temp_selected_path = None
 
+        if "current_index" not in st.session_state:
+            st.session_state.current_index = 0
+
+        if "skip_labelled" not in st.session_state:
+            st.session_state.skip_labelled = False
+
+        if "skipped_count" not in st.session_state:
+            st.session_state.skipped_count = 0
+
+        if "use_mask_captions" not in st.session_state:
+            st.session_state.use_mask_captions = False
+
+    def _select_base_folder(self):
         if not st.session_state.show_browser:
             if st.button("Choose Folder"):
                 st.session_state.show_browser = True
                 st.rerun()
-            return st.session_state.get(session_key, None)
+            return st.session_state.get("dataset_folder", None)
+
+        st.checkbox(
+            "Skip already labeled files",
+            value=st.session_state.skip_labelled,
+            key="skip_labelled",
+            help="Will skip files that already have captions",
+        )
 
         col1, col2 = st.columns([3, 1])
         with col1:
-            if st.session_state.temp_selected_path:
-                st.success(f"Selected: {st.session_state.temp_selected_path}")
-            else:
-                st.info("No folder selected yet")
+            st.write(
+                f"Selected: `{st.session_state.temp_selected_path}`"
+                if st.session_state.temp_selected_path
+                else "No folder selected yet"
+            )
 
         with col2:
-            confirm_disabled = st.session_state.temp_selected_path is None
             if st.button(
-                "Confirm Folder", key="confirm_folder", disabled=confirm_disabled
+                "Confirm Folder", disabled=not st.session_state.temp_selected_path
             ):
-                selected_path = st.session_state.temp_selected_path
-                images_path = os.path.join(selected_path, "images")
-
-                if not os.path.isdir(selected_path):
-                    st.error("Selected path is not a directory.")
-                elif not os.path.isdir(images_path):
-                    st.error("Folder must contain an 'images/' subdirectory.")
-                else:
-                    st.session_state[session_key] = selected_path
-                    st.session_state.show_browser = False
-                    st.session_state.temp_selected_path = None
-                    st.rerun()
+                self._confirm_folder_selection()
 
         st.info("Browse and select a folder below:")
+        self._handle_file_browser()
+        return st.session_state.dataset_folder
 
+    def _confirm_folder_selection(self):
+        selected_path = st.session_state.temp_selected_path
+        images_path = os.path.join(selected_path, "images")
+
+        if not os.path.isdir(selected_path):
+            st.error("Selected path is not a directory.")
+        elif not os.path.isdir(images_path):
+            st.error("Folder must contain an 'images/' subdirectory.")
+        else:
+            st.session_state.dataset_folder = selected_path
+            st.session_state.show_browser = False
+            st.session_state.temp_selected_path = None
+            st.rerun()
+
+    def _handle_file_browser(self):
         selection = st_file_browser(
             key="dataset_folder_picker",
             path="./",
@@ -391,82 +435,89 @@ class CaptioningApp:
             st.session_state.temp_selected_path = selection["target"]["path"]
             st.rerun()
 
-        return st.session_state.get(session_key, None)
+    def _load_dataset(self):
+        loader = DatasetLoader(self.base_folder)
+        self.examples = loader.examples
+
+        if st.session_state.skip_labelled:
+            labelled = self.caption_mgr.get_labelled_examples()
+            filtered = [ex for ex in self.examples if ex.filename not in labelled]
+            st.session_state.skipped_count = len(self.examples) - len(filtered)
+            self.examples = filtered
+
+            if not self.examples:
+                st.warning("No images to label!")
+                st.stop()
 
     def run(self):
-        if not self.dataset or not self.dataset.examples:
+        if not hasattr(self, "examples") or not self.examples:
             st.error("No valid examples found.")
             return
 
-        total = len(self.dataset.examples)
-        st.sidebar.progress(self.current_index / total)
-        st.sidebar.write(f"{self.current_index} of {total} examples captioned.")
+        example = self.examples[st.session_state.current_index]
 
-        example = self.dataset.examples[self.current_index]
+        self._show_progress()
 
-        self.display_example(example)
-        self.input_caption(example)
+        with st.container(height=500):
+            self._display_example(example)
+        self._input_caption(example)
 
-    def display_example(self, example):
+    def _show_progress(self):
+        total = len(self.examples) + st.session_state.skipped_count
+        current = st.session_state.current_index + st.session_state.skipped_count
+        st.sidebar.progress(current / total)
+        st.sidebar.write(
+            f"{current}/{total} (Skipped: {st.session_state.skipped_count})"
+        )
+
+    def _display_example(self, example):
+        st.markdown(f"**Captioning:** `{example.filename}` in `{example.split}`")
+
+        cols = st.columns(3 if example.path_mask else 2)
+
+        cols[0].image(
+            Image.open(example.path_A), caption="Before", use_container_width=True
+        )
+        cols[1].image(
+            Image.open(example.path_B), caption="After", use_container_width=True
+        )
         if example.path_mask:
-            st.markdown(f"**Captioning:** `{example.filename}` in `{example.split}`")
-            col1, col2, col3 = st.columns(3)
-            col1.image(
-                Image.open(example.path_A), caption="Before", use_container_width=True
-            )
-            col2.image(
-                Image.open(example.path_B), caption="After", use_container_width=True
-            )
-            col3.image(
+            cols[2].image(
                 Image.open(example.path_mask),
                 caption="Change Mask",
                 use_container_width=True,
             )
-        else:
-            st.markdown(f"**Captioning:** `{example.filename}` in `{example.split}`")
-            col1, col2 = st.columns(2)
-            col1.image(
-                Image.open(example.path_A), caption="Before", use_container_width=True
-            )
-            col2.image(
-                Image.open(example.path_B), caption="After", use_container_width=True
-            )
 
-    def input_caption(self, example):
-        if "current_index" not in st.session_state:
-            st.session_state.current_index = 0
-        if "use_mask_captions" not in st.session_state:
-            st.session_state.use_mask_captions = False
-
+    def _input_caption(self, example):
         with st.form("caption_form", clear_on_submit=True):
             if example.path_mask:
                 st.session_state.use_mask_captions = st.checkbox(
                     "Generate automatic supplementary mask-based captions",
                     value=st.session_state.use_mask_captions,
-                    key=f"mask_cv_{st.session_state.current_index}",
+                    key=f"mask_cb_{st.session_state.current_index}",
                 )
 
             caption = st.text_input(
                 "Enter caption:", key=f"caption_{st.session_state.current_index}"
             )
 
-            submitted = st.form_submit_button("Submit Caption")
-            if submitted:
-                if caption.strip():
-                    self.caption_mgr.save_caption(example, caption.strip())
-
-                    if example.path_mask and st.session_state.use_mask_captions:
-                        auto_captioner = AutoCaption(example)
-                        auto_captions = auto_captioner.create_captions()
-                        for auto_cap in auto_captions:
-                            self.caption_mgr.save_caption(example, auto_cap)
-
-                    st.success("Caption saved!")
-                    st.session_state.current_index += 1
-                    st.rerun()
-                else:
+            if st.form_submit_button("Submit Caption"):
+                if not caption.strip():
                     st.warning("Please enter a caption.")
-                    st.session_state.current_index = st.session_state.current_index
+                    return
+
+                self.caption_mgr.save_caption(example, caption.strip())
+
+                if example.path_mask and st.session_state.use_mask_captions:
+                    auto_captions = AutoCaption(example).create_captions()
+                    for cap in auto_captions:
+                        self.caption_mgr.save_caption(example, cap)
+
+                st.session_state.current_index += 1
+                if st.session_state.current_index >= len(self.examples):
+                    st.success("Labelling complete!")
+                    st.session_state.show_browser = False
+                st.rerun()
 
 
 if __name__ == "__main__":

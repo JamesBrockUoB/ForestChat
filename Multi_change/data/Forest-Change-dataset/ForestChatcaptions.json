@@ -6,37 +6,38 @@
       "split": "train",
       "sentences": [
         {
-          "raw": "minor deforestation in small scattered patches at the peripheries of prior loss areas",
+          "raw": "a number of small patchy areas of deforestation concentrated on the left side of the region, located near prior areas of forest loss",
           "tokens": [
-            "minor",
-            "deforestation",
-            "in",
-            "small",
-            "scattered",
-            "patches",
-            "at",
-            "the",
-            "peripheries",
+            "a",
+            "number",
             "of",
+            "small",
+            "patchy",
+            "areas",
+            "of",
+            "deforestation",
+            "concentrated",
+            "on",
+            "the",
+            "left",
+            "side",
+            "of",
+            "the",
+            "region",
+            "located",
+            "near",
             "prior",
-            "loss",
-            "areas"
+            "areas",
+            "of",
+            "forest",
+            "loss"
           ]
         },
         {
-          "raw": "testing if caption will overwrite",
+          "raw": "1.22 percent of the observed area has been affected by deforestation",
           "tokens": [
-            "testing",
-            "if",
-            "caption",
-            "will",
-            "overwrite"
-          ]
-        },
-        {
-          "raw": "1.22% of the observed area has been affected by deforestation",
-          "tokens": [
-            "1.22%",
+            "1.22",
+            "percent",
             "of",
             "the",
             "observed",
@@ -65,12 +66,12 @@
             "forest",
             "loss",
             "is",
-            "visible,",
+            "visible",
             "primarily",
             "occurring",
             "in",
             "the",
-            "bottom-left",
+            "bottomleft",
             "and",
             "center",
             "regions"
@@ -83,18 +84,51 @@
             "forest",
             "loss",
             "is",
-            "visible,",
+            "visible",
             "occurring",
             "in",
             "numerous",
             "small",
-            "patches,",
+            "patches",
             "which",
             "are",
             "highly",
             "varied",
             "in",
             "size"
+          ]
+        },
+        {
+          "raw": "deforestation concentrated on the right side of the region, loss occurring near a road in the top middle in many patchy areas",
+          "tokens": [
+            "deforestation",
+            "concentrated",
+            "on",
+            "the",
+            "right",
+            "side",
+            "of",
+            "the",
+            "region",
+            "loss",
+            "occurring",
+            "near",
+            "a",
+            "road",
+            "in",
+            "the",
+            "top",
+            "middle",
+            "in",
+            "many",
+            "patchy",
+            "areas"
+          ]
+        },
+        {
+          "raw": "pish",
+          "tokens": [
+            "pish"
           ]
         }
       ]
@@ -105,14 +139,80 @@
       "split": "train",
       "sentences": [
         {
-          "raw": "new caption with only this one",
+          "raw": "test",
           "tokens": [
-            "new",
-            "caption",
-            "with",
-            "only",
-            "this",
-            "one"
+            "test"
+          ]
+        },
+        {
+          "raw": "1.52 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "1.52",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, primarily occurring in the top-center and top-right regions",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "primarily",
+            "occurring",
+            "in",
+            "the",
+            "topcenter",
+            "and",
+            "topright",
+            "regions"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, occurring in numerous small patches, which are highly varied in size",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "occurring",
+            "in",
+            "numerous",
+            "small",
+            "patches",
+            "which",
+            "are",
+            "highly",
+            "varied",
+            "in",
+            "size"
+          ]
+        },
+        {
+          "raw": "bash",
+          "tokens": [
+            "bash"
           ]
         }
       ]
