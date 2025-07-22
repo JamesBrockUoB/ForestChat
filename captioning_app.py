@@ -443,10 +443,15 @@ class CaptioningApp:
             labelled = self.caption_mgr.get_labelled_examples()
             filtered = [ex for ex in self.examples if ex.filename not in labelled]
             st.session_state.skipped_count = len(self.examples) - len(filtered)
+            st.session_state.current_index = self._get_true_current_index()
             self.examples = filtered
 
             if not self.examples:
-                st.warning("No images to label!")
+                st.warning(
+                    "No images to label!"
+                    if not st.session_state.skip_labelled
+                    else "All images are already labeled!"
+                )
                 st.stop()
 
     def run(self):
@@ -464,11 +469,14 @@ class CaptioningApp:
 
     def _show_progress(self):
         total = len(self.examples) + st.session_state.skipped_count
-        current = st.session_state.current_index + st.session_state.skipped_count
+        current = st.session_state.current_index
         st.sidebar.progress(current / total)
         st.sidebar.write(
             f"{current}/{total} (Skipped: {st.session_state.skipped_count})"
         )
+
+    def _get_true_current_index(self):
+        return st.session_state.current_index + st.session_state.skipped_count
 
     def _display_example(self, example):
         st.markdown(f"**Captioning:** `{example.filename}` in `{example.split}`")
