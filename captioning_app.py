@@ -463,7 +463,7 @@ class CaptioningApp:
 
         self._show_progress()
 
-        with st.container(height=500):
+        with st.container(height=525):
             self._display_example(example)
         self._input_caption(example)
 
