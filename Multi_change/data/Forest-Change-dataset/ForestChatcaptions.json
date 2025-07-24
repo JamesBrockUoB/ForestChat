@@ -21244,6 +21244,2248 @@
           ]
         }
       ]
+    },
+    {
+      "filename": "train_000059.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "right side of the scene sees minor canopy reduction through several smaller and moderate patches near existing clearances by a road with wetland in the bottom left also with reduced trees",
+          "tokens": [
+            "right",
+            "side",
+            "of",
+            "the",
+            "scene",
+            "sees",
+            "minor",
+            "canopy",
+            "reduction",
+            "through",
+            "several",
+            "smaller",
+            "and",
+            "moderate",
+            "patches",
+            "near",
+            "existing",
+            "clearances",
+            "by",
+            "a",
+            "road",
+            "with",
+            "wetland",
+            "in",
+            "the",
+            "bottom",
+            "left",
+            "also",
+            "with",
+            "reduced",
+            "trees"
+          ]
+        },
+        {
+          "raw": "1.55 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "1.55",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, primarily occurring in the top-right and center regions",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "primarily",
+            "occurring",
+            "in",
+            "the",
+            "top-right",
+            "and",
+            "center",
+            "regions"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, occurring in numerous small patches, which are highly varied in size",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "occurring",
+            "in",
+            "numerous",
+            "small",
+            "patches",
+            "which",
+            "are",
+            "highly",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000016.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "noticeable reduction in forest cover mainly on the right side of the scene with patches of loss moderate in size that increase the size of existing loss areas",
+          "tokens": [
+            "noticeable",
+            "reduction",
+            "in",
+            "forest",
+            "cover",
+            "mainly",
+            "on",
+            "the",
+            "right",
+            "side",
+            "of",
+            "the",
+            "scene",
+            "with",
+            "patches",
+            "of",
+            "loss",
+            "moderate",
+            "in",
+            "size",
+            "that",
+            "increase",
+            "the",
+            "size",
+            "of",
+            "existing",
+            "loss",
+            "areas"
+          ]
+        },
+        {
+          "raw": "3.69 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "3.69",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, scattered across the image in multiple regions",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "scattered",
+            "across",
+            "the",
+            "image",
+            "in",
+            "multiple",
+            "regions"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, occurring in numerous small patches, which are highly varied in size",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "occurring",
+            "in",
+            "numerous",
+            "small",
+            "patches",
+            "which",
+            "are",
+            "highly",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000002.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "five very small areas of canopy lost in the top left of the scene which slightly enlarge prior clearings in an otherwise completely untouched forest",
+          "tokens": [
+            "five",
+            "very",
+            "small",
+            "areas",
+            "of",
+            "canopy",
+            "lost",
+            "in",
+            "the",
+            "top",
+            "left",
+            "of",
+            "the",
+            "scene",
+            "which",
+            "slightly",
+            "enlarge",
+            "prior",
+            "clearings",
+            "in",
+            "an",
+            "otherwise",
+            "completely",
+            "untouched",
+            "forest"
+          ]
+        },
+        {
+          "raw": "0.08 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "0.08",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "negligible forest loss is detected",
+          "tokens": [
+            "negligible",
+            "forest",
+            "loss",
+            "is",
+            "detected"
+          ]
+        },
+        {
+          "raw": "negligible forest loss is detected, concentrated in the top-left",
+          "tokens": [
+            "negligible",
+            "forest",
+            "loss",
+            "is",
+            "detected",
+            "concentrated",
+            "in",
+            "the",
+            "top-left"
+          ]
+        },
+        {
+          "raw": "negligible forest loss is detected, occurring in many tiny patches, which are uniform in size",
+          "tokens": [
+            "negligible",
+            "forest",
+            "loss",
+            "is",
+            "detected",
+            "occurring",
+            "in",
+            "many",
+            "tiny",
+            "patches",
+            "which",
+            "are",
+            "uniform",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000214.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "significant areas of forest cleared in a series of medium sized clearances spreading from the left of the scene into the right from areas of previous fellings with most forest still remaining",
+          "tokens": [
+            "significant",
+            "areas",
+            "of",
+            "forest",
+            "cleared",
+            "in",
+            "a",
+            "series",
+            "of",
+            "medium",
+            "sized",
+            "clearances",
+            "spreading",
+            "from",
+            "the",
+            "left",
+            "of",
+            "the",
+            "scene",
+            "into",
+            "the",
+            "right",
+            "from",
+            "areas",
+            "of",
+            "previous",
+            "fellings",
+            "with",
+            "most",
+            "forest",
+            "still",
+            "remaining"
+          ]
+        },
+        {
+          "raw": "7.21 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "7.21",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "low levels of forest degradation are observed",
+          "tokens": [
+            "low",
+            "levels",
+            "of",
+            "forest",
+            "degradation",
+            "are",
+            "observed"
+          ]
+        },
+        {
+          "raw": "low levels of forest degradation are observed, primarily occurring in the top-left and bottom-center regions",
+          "tokens": [
+            "low",
+            "levels",
+            "of",
+            "forest",
+            "degradation",
+            "are",
+            "observed",
+            "primarily",
+            "occurring",
+            "in",
+            "the",
+            "top-left",
+            "and",
+            "bottom-center",
+            "regions"
+          ]
+        },
+        {
+          "raw": "low levels of forest degradation are observed, occurring in numerous small patches, which are highly varied in size",
+          "tokens": [
+            "low",
+            "levels",
+            "of",
+            "forest",
+            "degradation",
+            "are",
+            "observed",
+            "occurring",
+            "in",
+            "numerous",
+            "small",
+            "patches",
+            "which",
+            "are",
+            "highly",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000200.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "large agricultural area in the middle and right hand side of the scene expands in the central region through two notable clearings pushing remaining forest further to the edges of the area",
+          "tokens": [
+            "large",
+            "agricultural",
+            "area",
+            "in",
+            "the",
+            "middle",
+            "and",
+            "right",
+            "hand",
+            "side",
+            "of",
+            "the",
+            "scene",
+            "expands",
+            "in",
+            "the",
+            "central",
+            "region",
+            "through",
+            "two",
+            "notable",
+            "clearings",
+            "pushing",
+            "remaining",
+            "forest",
+            "further",
+            "to",
+            "the",
+            "edges",
+            "of",
+            "the",
+            "area"
+          ]
+        },
+        {
+          "raw": "2.43 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "2.43",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, primarily occurring in the middle-left and middle-right regions",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "primarily",
+            "occurring",
+            "in",
+            "the",
+            "middle-left",
+            "and",
+            "middle-right",
+            "regions"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, occurring in a few patches that are moderately varied in size",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "occurring",
+            "in",
+            "a",
+            "few",
+            "patches",
+            "that",
+            "are",
+            "moderately",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000228.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "disturbed forest scene with wetland in the bottom left hardly changes apart from a few small clearings made near existing fields on the central and bottom right of the area",
+          "tokens": [
+            "disturbed",
+            "forest",
+            "scene",
+            "with",
+            "wetland",
+            "in",
+            "the",
+            "bottom",
+            "left",
+            "hardly",
+            "changes",
+            "apart",
+            "from",
+            "a",
+            "few",
+            "small",
+            "clearings",
+            "made",
+            "near",
+            "existing",
+            "fields",
+            "on",
+            "the",
+            "central",
+            "and",
+            "bottom",
+            "right",
+            "of",
+            "the",
+            "area"
+          ]
+        },
+        {
+          "raw": "0.08 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "0.08",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "negligible forest loss is detected",
+          "tokens": [
+            "negligible",
+            "forest",
+            "loss",
+            "is",
+            "detected"
+          ]
+        },
+        {
+          "raw": "negligible forest loss is detected, primarily occurring in the center and bottom-right regions",
+          "tokens": [
+            "negligible",
+            "forest",
+            "loss",
+            "is",
+            "detected",
+            "primarily",
+            "occurring",
+            "in",
+            "the",
+            "center",
+            "and",
+            "bottom-right",
+            "regions"
+          ]
+        },
+        {
+          "raw": "negligible forest loss is detected, occurring in many tiny patches, which are moderately varied in size",
+          "tokens": [
+            "negligible",
+            "forest",
+            "loss",
+            "is",
+            "detected",
+            "occurring",
+            "in",
+            "many",
+            "tiny",
+            "patches",
+            "which",
+            "are",
+            "moderately",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000162.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "very significant areas of forest removed in the bottom-left bottom-right and middle-right areas near roads and agricultural land across several medium to large areas",
+          "tokens": [
+            "very",
+            "significant",
+            "areas",
+            "of",
+            "forest",
+            "removed",
+            "in",
+            "the",
+            "bottom-left",
+            "bottom-right",
+            "and",
+            "middle-right",
+            "areas",
+            "near",
+            "roads",
+            "and",
+            "agricultural",
+            "land",
+            "across",
+            "several",
+            "medium",
+            "to",
+            "large",
+            "areas"
+          ]
+        },
+        {
+          "raw": "11.8 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "11.8",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "moderate forest loss is present",
+          "tokens": [
+            "moderate",
+            "forest",
+            "loss",
+            "is",
+            "present"
+          ]
+        },
+        {
+          "raw": "moderate forest loss is present, primarily occurring in the middle-right and bottom-right regions",
+          "tokens": [
+            "moderate",
+            "forest",
+            "loss",
+            "is",
+            "present",
+            "primarily",
+            "occurring",
+            "in",
+            "the",
+            "middle-right",
+            "and",
+            "bottom-right",
+            "regions"
+          ]
+        },
+        {
+          "raw": "moderate forest loss is present, occurring in multiple patches, including some notable regions, which are highly varied in size",
+          "tokens": [
+            "moderate",
+            "forest",
+            "loss",
+            "is",
+            "present",
+            "occurring",
+            "in",
+            "multiple",
+            "patches",
+            "including",
+            "some",
+            "notable",
+            "regions",
+            "which",
+            "are",
+            "highly",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000176.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "initial disturbances to a completely untouched forest that covers the entire scene in the top left corner with a few small negligible clearances",
+          "tokens": [
+            "initial",
+            "disturbances",
+            "to",
+            "a",
+            "completely",
+            "untouched",
+            "forest",
+            "that",
+            "covers",
+            "the",
+            "entire",
+            "scene",
+            "in",
+            "the",
+            "top",
+            "left",
+            "corner",
+            "with",
+            "a",
+            "few",
+            "small",
+            "negligible",
+            "clearances"
+          ]
+        },
+        {
+          "raw": "0.29 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "0.29",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "negligible forest loss is detected",
+          "tokens": [
+            "negligible",
+            "forest",
+            "loss",
+            "is",
+            "detected"
+          ]
+        },
+        {
+          "raw": "negligible forest loss is detected, concentrated in the top-left",
+          "tokens": [
+            "negligible",
+            "forest",
+            "loss",
+            "is",
+            "detected",
+            "concentrated",
+            "in",
+            "the",
+            "top-left"
+          ]
+        },
+        {
+          "raw": "negligible forest loss is detected, occurring in numerous small patches, which are highly varied in size",
+          "tokens": [
+            "negligible",
+            "forest",
+            "loss",
+            "is",
+            "detected",
+            "occurring",
+            "in",
+            "numerous",
+            "small",
+            "patches",
+            "which",
+            "are",
+            "highly",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000189.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "noted increase of land converted to agriculture in the mid right of the scene and towards the mid bottom spreading out in many small to medium patches with most forest still remaining",
+          "tokens": [
+            "noted",
+            "increase",
+            "of",
+            "land",
+            "converted",
+            "to",
+            "agriculture",
+            "in",
+            "the",
+            "mid",
+            "right",
+            "of",
+            "the",
+            "scene",
+            "and",
+            "towards",
+            "the",
+            "mid",
+            "bottom",
+            "spreading",
+            "out",
+            "in",
+            "many",
+            "small",
+            "to",
+            "medium",
+            "patches",
+            "with",
+            "most",
+            "forest",
+            "still",
+            "remaining"
+          ]
+        },
+        {
+          "raw": "4.55 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "4.55",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, primarily occurring in the top-right and center regions",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "primarily",
+            "occurring",
+            "in",
+            "the",
+            "top-right",
+            "and",
+            "center",
+            "regions"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, occurring in numerous small patches, which are highly varied in size",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "occurring",
+            "in",
+            "numerous",
+            "small",
+            "patches",
+            "which",
+            "are",
+            "highly",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000188.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "huge areas of forest cleared across the north of the scene and some in the bottom right quadrant with near total removal of forest in upper left quadrant with most of the bottom still covered in forest",
+          "tokens": [
+            "huge",
+            "areas",
+            "of",
+            "forest",
+            "cleared",
+            "across",
+            "the",
+            "north",
+            "of",
+            "the",
+            "scene",
+            "and",
+            "some",
+            "in",
+            "the",
+            "bottom",
+            "right",
+            "quadrant",
+            "with",
+            "near",
+            "total",
+            "removal",
+            "of",
+            "forest",
+            "in",
+            "upper",
+            "left",
+            "quadrant",
+            "with",
+            "most",
+            "of",
+            "the",
+            "bottom",
+            "still",
+            "covered",
+            "in",
+            "forest"
+          ]
+        },
+        {
+          "raw": "27.03 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "27.03",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "substantial deforestation has occurred",
+          "tokens": [
+            "substantial",
+            "deforestation",
+            "has",
+            "occurred"
+          ]
+        },
+        {
+          "raw": "substantial deforestation has occurred, primarily occurring in the top-left and top-right regions",
+          "tokens": [
+            "substantial",
+            "deforestation",
+            "has",
+            "occurred",
+            "primarily",
+            "occurring",
+            "in",
+            "the",
+            "top-left",
+            "and",
+            "top-right",
+            "regions"
+          ]
+        },
+        {
+          "raw": "substantial deforestation has occurred, occurring in several patches, including one or more extensive regions, which are highly varied in size",
+          "tokens": [
+            "substantial",
+            "deforestation",
+            "has",
+            "occurred",
+            "occurring",
+            "in",
+            "several",
+            "patches",
+            "including",
+            "one",
+            "or",
+            "more",
+            "extensive",
+            "regions",
+            "which",
+            "are",
+            "highly",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000177.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "sprawling agricultural land spreads towards the left side of the scene removing significant portions of the remaining trees in several small to large fellings with nearly no forest remaining",
+          "tokens": [
+            "sprawling",
+            "agricultural",
+            "land",
+            "spreads",
+            "towards",
+            "the",
+            "left",
+            "side",
+            "of",
+            "the",
+            "scene",
+            "removing",
+            "significant",
+            "portions",
+            "of",
+            "the",
+            "remaining",
+            "trees",
+            "in",
+            "several",
+            "small",
+            "to",
+            "large",
+            "fellings",
+            "with",
+            "nearly",
+            "no",
+            "forest",
+            "remaining"
+          ]
+        },
+        {
+          "raw": "3.32 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "3.32",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, primarily occurring in the middle-left and top-left regions",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "primarily",
+            "occurring",
+            "in",
+            "the",
+            "middle-left",
+            "and",
+            "top-left",
+            "regions"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, occurring in numerous small patches, which are highly varied in size",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "occurring",
+            "in",
+            "numerous",
+            "small",
+            "patches",
+            "which",
+            "are",
+            "highly",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000163.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "continued spreading of existing clearances in the left of the scene and expansion into the bottom right through many small to medium fellings contributing to moderate degree of new felling",
+          "tokens": [
+            "continued",
+            "spreading",
+            "of",
+            "existing",
+            "clearances",
+            "in",
+            "the",
+            "left",
+            "of",
+            "the",
+            "scene",
+            "and",
+            "expansion",
+            "into",
+            "the",
+            "bottom",
+            "right",
+            "through",
+            "many",
+            "small",
+            "to",
+            "medium",
+            "fellings",
+            "contributing",
+            "to",
+            "moderate",
+            "degree",
+            "of",
+            "new",
+            "felling"
+          ]
+        },
+        {
+          "raw": "5.88 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "5.88",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "low levels of forest degradation are observed",
+          "tokens": [
+            "low",
+            "levels",
+            "of",
+            "forest",
+            "degradation",
+            "are",
+            "observed"
+          ]
+        },
+        {
+          "raw": "low levels of forest degradation are observed, scattered across the image in multiple regions",
+          "tokens": [
+            "low",
+            "levels",
+            "of",
+            "forest",
+            "degradation",
+            "are",
+            "observed",
+            "scattered",
+            "across",
+            "the",
+            "image",
+            "in",
+            "multiple",
+            "regions"
+          ]
+        },
+        {
+          "raw": "low levels of forest degradation are observed, occurring in numerous small patches, which are highly varied in size",
+          "tokens": [
+            "low",
+            "levels",
+            "of",
+            "forest",
+            "degradation",
+            "are",
+            "observed",
+            "occurring",
+            "in",
+            "numerous",
+            "small",
+            "patches",
+            "which",
+            "are",
+            "highly",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000229.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "growing agricultural land in the centre and right of the image reduces canopy cover in the centre and top middle area via two large fellings with over half of the total trees in the scene gone",
+          "tokens": [
+            "growing",
+            "agricultural",
+            "land",
+            "in",
+            "the",
+            "centre",
+            "and",
+            "right",
+            "of",
+            "the",
+            "image",
+            "reduces",
+            "canopy",
+            "cover",
+            "in",
+            "the",
+            "centre",
+            "and",
+            "top",
+            "middle",
+            "area",
+            "via",
+            "two",
+            "large",
+            "fellings",
+            "with",
+            "over",
+            "half",
+            "of",
+            "the",
+            "total",
+            "trees",
+            "in",
+            "the",
+            "scene",
+            "gone"
+          ]
+        },
+        {
+          "raw": "4.38 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "4.38",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, primarily occurring in the top-center and center regions",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "primarily",
+            "occurring",
+            "in",
+            "the",
+            "top-center",
+            "and",
+            "center",
+            "regions"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, occurring in a few patches that are highly varied in size",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "occurring",
+            "in",
+            "a",
+            "few",
+            "patches",
+            "that",
+            "are",
+            "highly",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000201.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "small patch of trees cleared in the top left with an overall negligible reduction in near-total canopy cover in the scene",
+          "tokens": [
+            "small",
+            "patch",
+            "of",
+            "trees",
+            "cleared",
+            "in",
+            "the",
+            "top",
+            "left",
+            "with",
+            "an",
+            "overall",
+            "negligible",
+            "reduction",
+            "in",
+            "near-total",
+            "canopy",
+            "cover",
+            "in",
+            "the",
+            "scene"
+          ]
+        },
+        {
+          "raw": "0.07 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "0.07",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "negligible forest loss is detected",
+          "tokens": [
+            "negligible",
+            "forest",
+            "loss",
+            "is",
+            "detected"
+          ]
+        },
+        {
+          "raw": "negligible forest loss is detected, concentrated in the top-left",
+          "tokens": [
+            "negligible",
+            "forest",
+            "loss",
+            "is",
+            "detected",
+            "concentrated",
+            "in",
+            "the",
+            "top-left"
+          ]
+        },
+        {
+          "raw": "negligible forest loss is detected, occurring in a few patches that are uniform in size",
+          "tokens": [
+            "negligible",
+            "forest",
+            "loss",
+            "is",
+            "detected",
+            "occurring",
+            "in",
+            "a",
+            "few",
+            "patches",
+            "that",
+            "are",
+            "uniform",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000215.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "severe destruction of tree canopy in top left and top right of the scene due to two large fellings near roads and previously cleared land with most of the south still covered in forest",
+          "tokens": [
+            "severe",
+            "destruction",
+            "of",
+            "tree",
+            "canopy",
+            "in",
+            "top",
+            "left",
+            "and",
+            "top",
+            "right",
+            "of",
+            "the",
+            "scene",
+            "due",
+            "to",
+            "two",
+            "large",
+            "fellings",
+            "near",
+            "roads",
+            "and",
+            "previously",
+            "cleared",
+            "land",
+            "with",
+            "most",
+            "of",
+            "the",
+            "south",
+            "still",
+            "covered",
+            "in",
+            "forest"
+          ]
+        },
+        {
+          "raw": "8.09 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "8.09",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "low levels of forest degradation are observed",
+          "tokens": [
+            "low",
+            "levels",
+            "of",
+            "forest",
+            "degradation",
+            "are",
+            "observed"
+          ]
+        },
+        {
+          "raw": "low levels of forest degradation are observed, concentrated in the top-left",
+          "tokens": [
+            "low",
+            "levels",
+            "of",
+            "forest",
+            "degradation",
+            "are",
+            "observed",
+            "concentrated",
+            "in",
+            "the",
+            "top-left"
+          ]
+        },
+        {
+          "raw": "low levels of forest degradation are observed, occurring in a few patches that are highly varied in size",
+          "tokens": [
+            "low",
+            "levels",
+            "of",
+            "forest",
+            "degradation",
+            "are",
+            "observed",
+            "occurring",
+            "in",
+            "a",
+            "few",
+            "patches",
+            "that",
+            "are",
+            "highly",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000003.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "very large irregularly shaped area of loss in the centre with two other notable clearings in the mid left and bottom right with overall forest canopy severely reduced in the scene",
+          "tokens": [
+            "very",
+            "large",
+            "irregularly",
+            "shaped",
+            "area",
+            "of",
+            "loss",
+            "in",
+            "the",
+            "centre",
+            "with",
+            "two",
+            "other",
+            "notable",
+            "clearings",
+            "in",
+            "the",
+            "mid",
+            "left",
+            "and",
+            "bottom",
+            "right",
+            "with",
+            "overall",
+            "forest",
+            "canopy",
+            "severely",
+            "reduced",
+            "in",
+            "the",
+            "scene"
+          ]
+        },
+        {
+          "raw": "16.37 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "16.37",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "moderate forest loss is present",
+          "tokens": [
+            "moderate",
+            "forest",
+            "loss",
+            "is",
+            "present"
+          ]
+        },
+        {
+          "raw": "moderate forest loss is present, primarily occurring in the top-center and middle-left regions",
+          "tokens": [
+            "moderate",
+            "forest",
+            "loss",
+            "is",
+            "present",
+            "primarily",
+            "occurring",
+            "in",
+            "the",
+            "top-center",
+            "and",
+            "middle-left",
+            "regions"
+          ]
+        },
+        {
+          "raw": "moderate forest loss is present, occurring in a few patches that are highly varied in size",
+          "tokens": [
+            "moderate",
+            "forest",
+            "loss",
+            "is",
+            "present",
+            "occurring",
+            "in",
+            "a",
+            "few",
+            "patches",
+            "that",
+            "are",
+            "highly",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000017.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "lots of small areas of forest cleared at the edges of existing deforestation concentrated in the middle right area now spreading to the top and bottom right with a wetland in the bottom left",
+          "tokens": [
+            "lots",
+            "of",
+            "small",
+            "areas",
+            "of",
+            "forest",
+            "cleared",
+            "at",
+            "the",
+            "edges",
+            "of",
+            "existing",
+            "deforestation",
+            "concentrated",
+            "in",
+            "the",
+            "middle",
+            "right",
+            "area",
+            "now",
+            "spreading",
+            "to",
+            "the",
+            "top",
+            "and",
+            "bottom",
+            "right",
+            "with",
+            "a",
+            "wetland",
+            "in",
+            "the",
+            "bottom",
+            "left"
+          ]
+        },
+        {
+          "raw": "2.59 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "2.59",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, primarily occurring in the top-center and center regions",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "primarily",
+            "occurring",
+            "in",
+            "the",
+            "top-center",
+            "and",
+            "center",
+            "regions"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, occurring in numerous small patches, which are highly varied in size",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "occurring",
+            "in",
+            "numerous",
+            "small",
+            "patches",
+            "which",
+            "are",
+            "highly",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000001.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "three noted areas of loss in the top left top right and centre on the edge of previous clearings new loss is moderate whilst overall loss is considerable",
+          "tokens": [
+            "three",
+            "noted",
+            "areas",
+            "of",
+            "loss",
+            "in",
+            "the",
+            "top",
+            "left",
+            "top",
+            "right",
+            "and",
+            "centre",
+            "on",
+            "the",
+            "edge",
+            "of",
+            "previous",
+            "clearings",
+            "new",
+            "loss",
+            "is",
+            "moderate",
+            "whilst",
+            "overall",
+            "loss",
+            "is",
+            "considerable"
+          ]
+        },
+        {
+          "raw": "1.74 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "1.74",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, concentrated in the top-left",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "concentrated",
+            "in",
+            "the",
+            "top-left"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, occurring in a few patches that are moderately varied in size",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "occurring",
+            "in",
+            "a",
+            "few",
+            "patches",
+            "that",
+            "are",
+            "moderately",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000015.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "incredibly fragmented woodland landscape impacted by a few moderate additional clearings in the centre and top middle with the woods near the southern river largely intact",
+          "tokens": [
+            "incredibly",
+            "fragmented",
+            "woodland",
+            "landscape",
+            "impacted",
+            "by",
+            "a",
+            "few",
+            "moderate",
+            "additional",
+            "clearings",
+            "in",
+            "the",
+            "centre",
+            "and",
+            "top",
+            "middle",
+            "with",
+            "the",
+            "woods",
+            "near",
+            "the",
+            "southern",
+            "river",
+            "largely",
+            "intact"
+          ]
+        },
+        {
+          "raw": "2.72 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "2.72",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, primarily occurring in the center and top-center regions",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "primarily",
+            "occurring",
+            "in",
+            "the",
+            "center",
+            "and",
+            "top-center",
+            "regions"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, occurring in numerous small patches, which are highly varied in size",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "occurring",
+            "in",
+            "numerous",
+            "small",
+            "patches",
+            "which",
+            "are",
+            "highly",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000029.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "three small clearings in the far bottom right corner which connect two previously made clearings however overall loss is still negligible in the near fully covered forest landscape",
+          "tokens": [
+            "three",
+            "small",
+            "clearings",
+            "in",
+            "the",
+            "far",
+            "bottom",
+            "right",
+            "corner",
+            "which",
+            "connect",
+            "two",
+            "previously",
+            "made",
+            "clearings",
+            "however",
+            "overall",
+            "loss",
+            "is",
+            "still",
+            "negligible",
+            "in",
+            "the",
+            "near",
+            "fully",
+            "covered",
+            "forest",
+            "landscape"
+          ]
+        },
+        {
+          "raw": "0.42 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "0.42",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "negligible forest loss is detected",
+          "tokens": [
+            "negligible",
+            "forest",
+            "loss",
+            "is",
+            "detected"
+          ]
+        },
+        {
+          "raw": "negligible forest loss is detected, primarily occurring in the bottom-right and bottom-center regions",
+          "tokens": [
+            "negligible",
+            "forest",
+            "loss",
+            "is",
+            "detected",
+            "primarily",
+            "occurring",
+            "in",
+            "the",
+            "bottom-right",
+            "and",
+            "bottom-center",
+            "regions"
+          ]
+        },
+        {
+          "raw": "negligible forest loss is detected, occurring in a few patches that are uniform in size",
+          "tokens": [
+            "negligible",
+            "forest",
+            "loss",
+            "is",
+            "detected",
+            "occurring",
+            "in",
+            "a",
+            "few",
+            "patches",
+            "that",
+            "are",
+            "uniform",
+            "in",
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "filename": "train_000203.png",
+      "filepath": "train",
+      "split": "train",
+      "sentences": [
+        {
+          "raw": "logging activity footprint in the left side of the scene is enlarged through several small to medium patches of strip clearing with the rest of the scene largely wooded but disturbed with wetland in the centre",
+          "tokens": [
+            "logging",
+            "activity",
+            "footprint",
+            "in",
+            "the",
+            "left",
+            "side",
+            "of",
+            "the",
+            "scene",
+            "is",
+            "enlarged",
+            "through",
+            "several",
+            "small",
+            "to",
+            "medium",
+            "patches",
+            "of",
+            "strip",
+            "clearing",
+            "with",
+            "the",
+            "rest",
+            "of",
+            "the",
+            "scene",
+            "largely",
+            "wooded",
+            "but",
+            "disturbed",
+            "with",
+            "wetland",
+            "in",
+            "the",
+            "centre"
+          ]
+        },
+        {
+          "raw": "1.92 percent of the observed area has been affected by deforestation",
+          "tokens": [
+            "1.92",
+            "percent",
+            "of",
+            "the",
+            "observed",
+            "area",
+            "has",
+            "been",
+            "affected",
+            "by",
+            "deforestation"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, primarily occurring in the bottom-left and top-left regions",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "primarily",
+            "occurring",
+            "in",
+            "the",
+            "bottom-left",
+            "and",
+            "top-left",
+            "regions"
+          ]
+        },
+        {
+          "raw": "minor forest loss is visible, occurring in numerous small patches, which are highly varied in size",
+          "tokens": [
+            "minor",
+            "forest",
+            "loss",
+            "is",
+            "visible",
+            "occurring",
+            "in",
+            "numerous",
+            "small",
+            "patches",
+            "which",
+            "are",
+            "highly",
+            "varied",
+            "in",
+            "size"
+          ]
+        }
+      ]
     }
   ]
 }

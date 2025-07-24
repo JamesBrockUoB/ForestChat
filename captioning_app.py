@@ -285,7 +285,7 @@ class CaptionManager:
                 return json.load(f)
         return {"images": []}
 
-    def safe_tokenize(self, text, max_length=150, max_tokens=75):
+    def safe_tokenize(self, text, max_length=200, max_tokens=75):
         tokens = []
         for word in text[:max_length].strip().lower().split():
             if word.replace(".", "", 1).isdigit():
