@@ -287,15 +287,17 @@ class CaptionManager:
 
     def safe_tokenize(self, text, max_length=150, max_tokens=75):
         tokens = []
-        for word in text.strip().lower().split():
+        for word in text[:max_length].strip().lower().split():
             if word.replace(".", "", 1).isdigit():
                 tokens.append(word)
             else:
-                clean_word = "".join([c for c in word if c.isalpha() or c == "'"])
+                clean_word = "".join(
+                    [c for c in word if c.isalpha() or c in ["'", "-"]]
+                )
                 if clean_word:
                     tokens.append(clean_word)
 
-        return tokens
+        return tokens[:max_tokens]
 
     def save_caption(self, example, caption_text):
         entry = self._get_caption(example.filename)
@@ -369,8 +371,14 @@ class CaptioningApp:
         if "skipped_count" not in st.session_state:
             st.session_state.skipped_count = 0
 
+        if "total_examples_count" not in st.session_state:
+            st.session_state.total_examples_count = 0
+
         if "use_mask_captions" not in st.session_state:
             st.session_state.use_mask_captions = False
+
+        if "examples" not in st.session_state:
+            st.session_state.examples = []
 
     def _select_base_folder(self):
         if not st.session_state.show_browser:
@@ -436,17 +444,24 @@ class CaptioningApp:
             st.rerun()
 
     def _load_dataset(self):
-        loader = DatasetLoader(self.base_folder)
-        self.examples = loader.examples
+        if len(st.session_state.examples) == 0:
+            loader = DatasetLoader(self.base_folder)
+            st.session_state.examples = loader.examples
+            st.session_state.total_examples_count = len(st.session_state.examples)
 
         if st.session_state.skip_labelled:
-            labelled = self.caption_mgr.get_labelled_examples()
-            filtered = [ex for ex in self.examples if ex.filename not in labelled]
-            st.session_state.skipped_count = len(self.examples) - len(filtered)
-            st.session_state.current_index = self._get_true_current_index()
-            self.examples = filtered
+            labelled_names = self.caption_mgr.get_labelled_examples()
+            filtered = [
+                ex
+                for ex in st.session_state.examples
+                if ex.filename not in labelled_names
+            ]
+            st.session_state.skipped_count = len(st.session_state.examples) - len(
+                filtered
+            )
+            st.session_state.examples = filtered
 
-            if not self.examples:
+            if not st.session_state.examples:
                 st.warning(
                     "No images to label!"
                     if not st.session_state.skip_labelled
@@ -455,11 +470,11 @@ class CaptioningApp:
                 st.stop()
 
     def run(self):
-        if not hasattr(self, "examples") or not self.examples:
+        if len(st.session_state.examples) == 0:
             st.error("No valid examples found.")
             return
 
-        example = self.examples[st.session_state.current_index]
+        example = st.session_state.examples[st.session_state.current_index]
 
         self._show_progress()
 
@@ -468,15 +483,11 @@ class CaptioningApp:
         self._input_caption(example)
 
     def _show_progress(self):
-        total = len(self.examples) + st.session_state.skipped_count
-        current = st.session_state.current_index
-        st.sidebar.progress(current / total)
+        current = st.session_state.current_index + st.session_state.skipped_count
+        st.sidebar.progress(current / st.session_state.total_examples_count)
         st.sidebar.write(
-            f"{current}/{total} (Skipped: {st.session_state.skipped_count})"
+            f"{current}/{st.session_state.total_examples_count} (Skipped: {st.session_state.skipped_count})"
         )
-
-    def _get_true_current_index(self):
-        return st.session_state.current_index + st.session_state.skipped_count
 
     def _display_example(self, example):
         st.markdown(f"**Captioning:** `{example.filename}` in `{example.split}`")
@@ -522,7 +533,7 @@ class CaptioningApp:
                         self.caption_mgr.save_caption(example, cap)
 
                 st.session_state.current_index += 1
-                if st.session_state.current_index >= len(self.examples):
+                if st.session_state.current_index >= len(st.session_state.examples):
                     st.success("Labelling complete!")
                     st.session_state.show_browser = False
                 st.rerun()
