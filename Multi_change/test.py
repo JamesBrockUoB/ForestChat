@@ -4,13 +4,14 @@ from itertools import islice
 
 import cv2
 import torch.optim
-from data.LEVIR_MCI import LEVIRCCDataset
 from model.model_decoder import DecoderTransformer
 from model.model_encoder_att import AttentiveEncoder, Encoder
 from torch.utils import data
 from tqdm import tqdm
 from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
+
+from Multi_change.data.ForestChange import ForestChangeDataset
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -141,7 +142,7 @@ def main(args):
     decoder = decoder.to(DEVICE)
 
     # Custom dataloaders
-    if args.data_name == "LEVIR_MCI":
+    if args.data_name in ["LEVIR_MCI", "Forest-Change"]:
         nochange_list = [
             "the scene is the same as before ",
             "there is no difference ",
@@ -150,7 +151,7 @@ def main(args):
             "almost nothing has changed ",
         ]
         test_loader = data.DataLoader(
-            LEVIRCCDataset(
+            ForestChangeDataset(
                 args.data_folder,
                 args.list_path,
                 "test",
@@ -373,32 +374,34 @@ if __name__ == "__main__":
     parser.add_argument("--sys", default="linux", help="system win or linux")
     parser.add_argument(
         "--data_folder",
-        default="./data/Levir-MCI-dataset/images",
+        default="./data/Forest-Change-dataset/images",
         help="folder with image files",
     )
     parser.add_argument(
-        "--list_path", default="./data/LEVIR_MCI/", help="path of the data lists"
+        "--list_path", default="./data/Forest-Change/", help="path of the data lists"
     )
     parser.add_argument(
         "--token_folder",
-        default="./data/LEVIR_MCI/tokens/",
+        default="./data/Forest-Change/tokens/",
         help="folder with token files",
     )
     parser.add_argument("--vocab_file", default="vocab", help="path of the data lists")
     parser.add_argument(
-        "--max_length", type=int, default=41, help="path of the data lists"
-    )
+        "--max_length", type=int, default=42, help="path of the data lists"
+    )  # 42 for Forest-Change, 41 for LEVIR-MCI
     parser.add_argument(
         "--allow_unk", type=int, default=1, help="if unknown token is allowed"
     )
     parser.add_argument(
-        "--data_name", default="LEVIR_MCI", help="base name shared by data files."
+        "--data_name", default="Forest-Change", help="base name shared by data files."
     )
 
     # Test
     parser.add_argument("--gpu_id", type=int, default=0, help="gpu id in the training.")
     parser.add_argument(
-        "--checkpoint", default="./models_ckpt/MCI_model.pth", help="path to checkpoint"
+        "--checkpoint",
+        default="./models_ckpt/Forest-Change_model.pth",
+        help="path to checkpoint",
     )
     parser.add_argument(
         "--print_freq",

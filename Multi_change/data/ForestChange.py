@@ -7,11 +7,12 @@ import torch
 
 # import cv2 as cv
 from imageio import imread
-from preprocess_data import encode
 from torch.utils.data import DataLoader, Dataset
 
+from Multi_change.preprocess_data import encode
 
-class LEVIRCCDataset(Dataset):
+
+class ForestChangeDataset(Dataset):
     """
     A PyTorch Dataset class to be used in a PyTorch DataLoader to create batches.
     """

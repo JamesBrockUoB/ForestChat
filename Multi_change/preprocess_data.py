@@ -12,6 +12,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--dataset", type=str, default="LEVIR_MCI", help="the name of the dataset"
 )
+parser.add_argument(
+    "--captions_json",
+    type=str,
+    default="LevirCCcaptions.json",
+    help="the name of json file with the captions",
+)
 parser.add_argument("--word_count_threshold", default=5, type=int)
 parser.add_argument("--keep_only_trees", default=False, type=bool)
 
@@ -25,26 +31,25 @@ DATA_PATH_ROOT = "data"
 
 
 def main(args):
-    if args.dataset == "LEVIR_MCI":
+    if args.dataset in ["LEVIR_MCI", "Forest-Change"]:
         input_captions_json = os.path.join(
-            DATA_PATH_ROOT, "LEVIR-MCI-dataset", "LevirCCcaptions.json"
+            DATA_PATH_ROOT, f"{args.dataset}-dataset", args.captions_json
         )
-        input_image_dir = os.path.join(DATA_PATH_ROOT, "LEVIR-MCI-dataset", "images")
+        input_image_dir = os.path.join(
+            DATA_PATH_ROOT, f"{args.dataset}-dataset", "images"
+        )
         input_vocab_json = ""
         output_vocab_json = "vocab.json"
-        save_dir = "./data/LEVIR_MCI/"
-
-        if args.keep_only_trees:
-            filter_forest_images(os.path.join(DATA_PATH_ROOT, "LEVIR-MCI-dataset"))
+        save_dir = f"./data/{args.dataset}/"
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     if not os.path.exists(os.path.join(save_dir + "tokens/")):
         os.makedirs(os.path.join(save_dir + "tokens/"))
     print("Loading captions")
-    assert args.dataset in {"LEVIR_MCI"}
+    assert args.dataset in {"LEVIR_MCI", "Forest-Change"}
 
-    if args.dataset == "LEVIR_MCI":
+    if args.dataset in ["LEVIR_MCI", "Forest-Change"]:
         with open(input_captions_json, "r") as f:
             data = json.load(f)
         # Read image paths and captions for each image
@@ -68,6 +73,8 @@ def main(args):
                 tokens_list.append(cap_tokens)
                 max_length = max(max_length, len(cap_tokens))
             all_cap_tokens.append((img["filename"], tokens_list))
+
+        all_cap_tokens.sort()
 
         # Then save the tokenized captions in txt
         print("Saving captions")
@@ -115,6 +122,9 @@ def main(args):
     if output_vocab_json != "":
         with open(os.path.join(save_dir + output_vocab_json), "w") as f:
             json.dump(word_freq, f)
+
+    if args.keep_only_trees:
+        filter_forest_images(os.path.join(DATA_PATH_ROOT, "LEVIR-MCI-dataset"))
 
 
 def filter_forest_images(dataset_root):
@@ -191,26 +201,38 @@ def tokenize(
     splitting on the specified delimiter. Optionally keep or remove certain
     punctuation marks and add start and end tokens.
     """
-    if punct_to_keep is not None:
-        for p in punct_to_keep:
-            s = s.replace(p, "%s%s" % (delim, p))
+    s = s.lower()
 
-    if punct_to_remove is not None:
-        for p in punct_to_remove:
-            s = s.replace(p, "")
+    protected_tokens = []
+    for token in s.split():
+        if token.replace(".", "", 1).isdigit():
+            protected_tokens.append(("NUMBER", token))
+        else:
+            protected_tokens.append(("TEXT", token))
 
-    tokens = s.split(delim)
-    for q in tokens:
-        if q == "":
-            tokens.remove(q)
-    if tokens[0] == "":
-        tokens.remove(tokens[0])
-    if tokens[-1] == "":
-        tokens.remove(tokens[-1])
+    processed_parts = []
+    for type_, token in protected_tokens:
+        if type_ == "NUMBER":
+            processed_parts.append(token)
+        else:
+            if punct_to_keep is not None:
+                for p in punct_to_keep:
+                    token = token.replace(p, f"{delim}{p}{delim}")
+            if punct_to_remove is not None:
+                for p in punct_to_remove:
+                    token = token.replace(p, "")
+            processed_parts.append(token)
+
+    s_processed = " ".join(processed_parts)
+    tokens = [t for t in s_processed.split(delim) if t]
+
+    tokens = [t for t in tokens if t]
+
     if add_start_token:
         tokens.insert(0, "<START>")
     if add_end_token:
         tokens.append("<END>")
+
     return tokens
 
 
