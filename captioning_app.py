@@ -536,6 +536,7 @@ class CaptioningApp:
                 if st.session_state.current_index >= len(st.session_state.examples):
                     st.success("Labelling complete!")
                     st.session_state.show_browser = False
+                    st.stop()
                 st.rerun()
 
 
