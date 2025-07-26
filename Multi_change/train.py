@@ -2,6 +2,8 @@ import argparse
 import json
 
 import torch.optim
+from data.ForestChange import ForestChangeDataset
+from data.LEVIR_MCI import LEVIRCCDataset
 from model.model_decoder import DecoderTransformer
 from model.model_encoder_att import AttentiveEncoder, Encoder
 from regex import D
@@ -11,9 +13,8 @@ from tqdm import tqdm
 from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
 
-from Multi_change.data.ForestChange import ForestChangeDataset
-
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+NUM_CLASS = 2  # 3 for LEVIR-MCI
 
 
 class Trainer(object):
@@ -35,7 +36,7 @@ class Trainer(object):
         if os.path.exists(self.args.savepath) == False:
             os.makedirs(self.args.savepath)
         self.log = open(os.path.join(self.args.savepath, "{}.log".format(name)), "w")
-        print_log("=>datset: {}".format(args.data_name), self.log)
+        print_log("=>dataset: {}".format(args.data_name), self.log)
         print_log("=>network: {}".format(args.network), self.log)
         print_log("=>encoder_lr: {}".format(args.encoder_lr), self.log)
         print_log("=>decoder_lr: {}".format(args.decoder_lr), self.log)
@@ -57,31 +58,39 @@ class Trainer(object):
 
         # Custom dataloaders
         if args.data_name in ["LEVIR_MCI", "Forest-Change"]:
+            datasets = []
+            for split in ["train", "val"]:
+                dataset = (
+                    ForestChangeDataset(
+                        args.data_folder,
+                        args.list_path,
+                        split,
+                        args.token_folder,
+                        args.vocab_file,
+                        args.max_length,
+                        args.allow_unk,
+                    )
+                    if "Forest-Change" in args.data_name
+                    else LEVIRCCDataset(
+                        args.data_folder,
+                        args.list_path,
+                        split,
+                        args.token_folder,
+                        args.vocab_file,
+                        args.max_length,
+                        args.allow_unk,
+                    )
+                )
+                datasets.append(dataset)
             self.train_loader = data.DataLoader(
-                ForestChangeDataset(
-                    args.data_folder,
-                    args.list_path,
-                    "train",
-                    args.token_folder,
-                    args.vocab_file,
-                    args.max_length,
-                    args.allow_unk,
-                ),
+                datasets[0],
                 batch_size=args.train_batchsize,
                 shuffle=True,
                 num_workers=args.workers,
                 pin_memory=True,
             )
             self.val_loader = data.DataLoader(
-                ForestChangeDataset(
-                    args.data_folder,
-                    args.list_path,
-                    "val",
-                    args.token_folder,
-                    args.vocab_file,
-                    args.max_length,
-                    args.allow_unk,
-                ),
+                datasets[1],
                 batch_size=args.val_batchsize,
                 shuffle=False,
                 num_workers=args.workers,
@@ -92,7 +101,7 @@ class Trainer(object):
         self.hist = np.zeros((args.num_epochs * 2 * len(self.train_loader), 5))
         # Epochs
 
-        self.evaluator = Evaluator(num_class=3)
+        self.evaluator = Evaluator(num_class=NUM_CLASS)
 
         self.best_model_path = None
         self.best_epoch = 0

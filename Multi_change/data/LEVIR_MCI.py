@@ -11,7 +11,7 @@ from preprocess_data import encode
 from torch.utils.data import DataLoader, Dataset
 
 
-class ForestChangeDataset(Dataset):
+class LEVIRCCDataset(Dataset):
     """
     A PyTorch Dataset class to be used in a PyTorch DataLoader to create batches.
     """
@@ -23,7 +23,7 @@ class ForestChangeDataset(Dataset):
         split,
         token_folder=None,
         vocab_file=None,
-        max_length=42,
+        max_length=41,
         allow_unk=0,
         max_iters=None,
     ):
@@ -37,8 +37,8 @@ class ForestChangeDataset(Dataset):
         :param max_iters: the maximum iteration when loading the data
         :param allow_unk: whether to allow the tokens have unknow word or not
         """
-        self.mean = [0.2267 * 255, 0.29982 * 255, 0.22058 * 255]
-        self.std = [0.0923 * 255, 0.06658 * 255, 0.05681 * 255]
+        self.mean = [0.39073 * 255, 0.38623 * 255, 0.32989 * 255]
+        self.std = [0.15329 * 255, 0.14628 * 255, 0.13648 * 255]
         self.list_path = list_path
         self.split = split
         self.max_length = max_length
@@ -157,9 +157,9 @@ class ForestChangeDataset(Dataset):
         imgB = np.asarray(imgB, np.float32)
         imgA = imgA.transpose(2, 0, 1)
         imgB = imgB.transpose(2, 0, 1)
-        seg_label[seg_label != 0] = 1
-
-        print(np.unique(seg_label))
+        seg_label = seg_label.transpose(2, 0, 1)[0]
+        seg_label[seg_label == 255] = 2
+        seg_label[seg_label == 128] = 1
 
         for i in range(len(self.mean)):
             imgA[i, :, :] -= self.mean[i]

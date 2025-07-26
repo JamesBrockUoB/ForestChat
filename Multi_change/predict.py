@@ -71,16 +71,20 @@ class Change_Perception(object):
 
         parser.add_argument(
             "--data_folder",
-            default="./data/LEVIR-MCI-dataset/images",
+            default="./data/Forest-Change-dataset/images",
         )
         parser.add_argument(
             "--list_path",
-            default="./data/LEVIR_MCI/",
+            default="./data/Forest-Change/",
         )
         parser.add_argument("--vocab_file", default="vocab")
-        parser.add_argument("--max_length", type=int, default=41)
+        parser.add_argument(
+            "--max_length", type=int, default=42
+        )  # 42 for Forest-Change, 41 for LEVIR-MCI
         parser.add_argument("--gpu_id", type=int, default=0)
-        parser.add_argument("--checkpoint", default="./models_ckpt/MCI_model.pth")
+        parser.add_argument(
+            "--checkpoint", default="./models_ckpt/Forest-Change_model.pth"
+        )
         parser.add_argument("--result_path", default="./predict_results/")
         parser.add_argument("--network", default="segformer-mit_b1")
         parser.add_argument("--encoder_dim", type=int, default=512)
@@ -100,8 +104,12 @@ class Change_Perception(object):
         Training and validation.
         """
         args = self.define_args(parent_parser=parent_parser)
-        self.mean = [0.39073 * 255, 0.38623 * 255, 0.32989 * 255]
-        self.std = [0.15329 * 255, 0.14628 * 255, 0.13648 * 255]
+        if "Forest-Change" in args.data_folder:
+            self.mean = [0.2267 * 255, 0.29982 * 255, 0.22058 * 255]
+            self.std = [0.0923 * 255, 0.06658 * 255, 0.05681 * 255]
+        else:
+            self.mean = [0.39073 * 255, 0.38623 * 255, 0.32989 * 255]
+            self.std = [0.15329 * 255, 0.14628 * 255, 0.13648 * 255]
 
         with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
             self.word_vocab = json.load(f)

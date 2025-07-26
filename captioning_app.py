@@ -49,7 +49,7 @@ class AutoCaption:
 
     def check_percentage_of_image_contains_deforestation(self):
         total_pixels = self.img.shape[0] * self.img.shape[1]
-        deforestation_pixels = np.sum(self.img == 255)
+        deforestation_pixels = np.sum(self.img != 0)
         percentage = (deforestation_pixels / total_pixels) * 100.0
         return round(percentage, 2)
 

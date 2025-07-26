@@ -4,6 +4,8 @@ from itertools import islice
 
 import cv2
 import torch.optim
+from data.ForestChange import ForestChangeDataset
+from data.LEVIR_MCI import LEVIRCCDataset
 from model.model_decoder import DecoderTransformer
 from model.model_encoder_att import AttentiveEncoder, Encoder
 from torch.utils import data
@@ -11,16 +13,15 @@ from tqdm import tqdm
 from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
 
-from Multi_change.data.ForestChange import ForestChangeDataset
-
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+NUM_CLASS = 2  # 3 for LEVIR-MCI
 
 
 def save_mask(pred, gt, name, save_path, args):
     # pred value: 0,1,2; map to black, yellow, red
     # gt value: 0,1,2; map to black, yellow, red
     name = name[0]
-    evaluator = Evaluator(num_class=3)
+    evaluator = Evaluator(num_class=NUM_CLASS)
     evaluator.add_batch(gt, pred)
     mIoU_seg, IoU = evaluator.Mean_Intersection_over_Union()
     Miou_str = round(mIoU_seg, 4)
@@ -150,7 +151,7 @@ def main(args):
             "no change has occurred ",
             "almost nothing has changed ",
         ]
-        test_loader = data.DataLoader(
+        dataset = (
             ForestChangeDataset(
                 args.data_folder,
                 args.list_path,
@@ -159,7 +160,20 @@ def main(args):
                 args.vocab_file,
                 args.max_length,
                 args.allow_unk,
-            ),
+            )
+            if "Forest-Change" in args.data_name
+            else LEVIRCCDataset(
+                args.data_folder,
+                args.list_path,
+                "test",
+                args.token_folder,
+                args.vocab_file,
+                args.max_length,
+                args.allow_unk,
+            )
+        )
+        test_loader = data.DataLoader(
+            dataset,
             batch_size=args.test_batchsize,
             shuffle=False,
             num_workers=args.workers,
@@ -176,7 +190,7 @@ def main(args):
     nochange_hypotheses = list()
     change_acc = 0
     nochange_acc = 0
-    evaluator = Evaluator(num_class=3)
+    evaluator = Evaluator(num_class=NUM_CLASS)
     with torch.no_grad():
         for ind, (
             imgA,
