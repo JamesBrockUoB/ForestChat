@@ -37,8 +37,6 @@ class LEVIRCCDataset(Dataset):
         :param max_iters: the maximum iteration when loading the data
         :param allow_unk: whether to allow the tokens have unknow word or not
         """
-        self.mean = [0.39073 * 255, 0.38623 * 255, 0.32989 * 255]
-        self.std = [0.15329 * 255, 0.14628 * 255, 0.13648 * 255]
         self.list_path = list_path
         self.split = split
         self.max_length = max_length
@@ -161,11 +159,13 @@ class LEVIRCCDataset(Dataset):
         seg_label[seg_label == 255] = 2
         seg_label[seg_label == 128] = 1
 
-        for i in range(len(self.mean)):
-            imgA[i, :, :] -= self.mean[i]
-            imgA[i, :, :] /= self.std[i]
-            imgB[i, :, :] -= self.mean[i]
-            imgB[i, :, :] /= self.std[i]
+        mean = [0.39073 * 255, 0.38623 * 255, 0.32989 * 255]
+        std = [0.15329 * 255, 0.14628 * 255, 0.13648 * 255]
+        for i, _ in enumerate(mean):
+            imgA[i, :, :] -= mean[i]
+            imgA[i, :, :] /= std[i]
+            imgB[i, :, :] -= mean[i]
+            imgB[i, :, :] /= std[i]
         if datafiles["token"] is not None:
             caption = open(datafiles["token"])
             caption = caption.read()

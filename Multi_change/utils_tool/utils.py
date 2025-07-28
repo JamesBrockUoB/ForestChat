@@ -2,12 +2,39 @@ import os
 import random
 import time
 
+import albumentations as A
 import numpy as np
 import torch
 from eval_func.bleu.bleu import Bleu
 from eval_func.cider.cider import Cider
 from eval_func.meteor.meteor import Meteor
 from eval_func.rouge.rouge import Rouge
+
+
+def get_image_transforms():
+    transform = A.Compose(
+        [
+            A.RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1, p=0.8),
+            A.RandomGamma(gamma_limit=(80, 120), p=0.8),
+            A.ColorJitter(
+                brightness=0.1, contrast=0.1, saturation=0.1, hue=0.02, p=0.9
+            ),
+            A.GaussianBlur(blur_limit=(3, 3), sigma_limit=0.5, p=0.6),
+            A.GaussNoise(
+                std_range=(5.0, 15.0),
+                mean_range=(0, 0),
+                per_channel=True,
+                noise_scale_factor=1.0,
+                p=0.6,
+            ),
+            A.Normalize(
+                mean=[0.2267 * 255, 0.29982 * 255, 0.22058 * 255],
+                std=[0.0923 * 255, 0.06658 * 255, 0.05681 * 255],
+                max_pixel_value=255.0,
+            ),
+        ]
+    )
+    return transform
 
 
 def save_checkpoint(

@@ -25,6 +25,7 @@ class ForestChangeDataset(Dataset):
         vocab_file=None,
         max_length=42,
         allow_unk=0,
+        transform=None,
         max_iters=None,
     ):
         """
@@ -34,14 +35,14 @@ class ForestChangeDataset(Dataset):
         :param token_folder: folder where token files are stored
         :param vocab_file: the name of vocab file
         :param max_length: the maximum length of each caption sentence
-        :param max_iters: the maximum iteration when loading the data
         :param allow_unk: whether to allow the tokens have unknow word or not
+        :param transform: list of transformations applied to each example for augmentation
+        :param max_iters: the maximum iteration when loading the data
         """
-        self.mean = [0.2267 * 255, 0.29982 * 255, 0.22058 * 255]
-        self.std = [0.0923 * 255, 0.06658 * 255, 0.05681 * 255]
         self.list_path = list_path
         self.split = split
         self.max_length = max_length
+        self.transform = transform
 
         assert self.split in {"train", "val", "test"}
         self.img_ids = [
@@ -155,19 +156,27 @@ class ForestChangeDataset(Dataset):
 
         imgA = np.asarray(imgA, np.float32)
         imgB = np.asarray(imgB, np.float32)
+
+        if self.transform:
+            augmented = self.transform(image_A=imgA, image_B=imgB)
+            imgA = augmented["image_A"]
+            imgB = augmented["image_B"]
+        else:
+            mean = [0.2267 * 255, 0.29982 * 255, 0.22058 * 255]
+            std = [0.0923 * 255, 0.06658 * 255, 0.05681 * 255]
+            for i, _ in enumerate(mean):
+                imgA[:, :, i] -= mean[i]
+                imgA[:, :, i] /= std[i]
+                imgB[:, :, i] -= mean[i]
+                imgB[:, :, i] /= std[i]
+
         imgA = imgA.transpose(2, 0, 1)
         imgB = imgB.transpose(2, 0, 1)
         seg_label[seg_label != 0] = 1
 
-        for i in range(len(self.mean)):
-            imgA[i, :, :] -= self.mean[i]
-            imgA[i, :, :] /= self.std[i]
-            imgB[i, :, :] -= self.mean[i]
-            imgB[i, :, :] /= self.std[i]
         if datafiles["token"] is not None:
-            caption = open(datafiles["token"])
-            caption = caption.read()
-            caption_list = json.loads(caption)
+            with open(datafiles["token"], "r") as caption_file:
+                caption_list = json.load(caption_file)
 
             token_all = np.zeros((len(caption_list), self.max_length), dtype=int)
             token_all_len = np.zeros((len(caption_list), 1), dtype=int)

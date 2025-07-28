@@ -165,7 +165,7 @@ class Change_Perception(object):
         imgA = imgA.transpose(2, 0, 1)
         imgB = imgB.transpose(2, 0, 1)
 
-        for i in range(len(self.mean)):
+        for i, _ in enumerate(self.mean):
             imgA[i, :, :] -= self.mean[i]
             imgA[i, :, :] /= self.std[i]
             imgB[i, :, :] -= self.mean[i]
