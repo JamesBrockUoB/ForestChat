@@ -83,7 +83,7 @@ class Change_Perception(object):
         )  # 42 for Forest-Change, 41 for LEVIR-MCI
         parser.add_argument("--gpu_id", type=int, default=0)
         parser.add_argument(
-            "--checkpoint", default="./models_ckpt/Forest-Change_model.pth"
+            "--checkpoint", default="./models_ckpt/temp_best_Forest_Change_model.pth"
         )
         parser.add_argument("--result_path", default="./predict_results/")
         parser.add_argument("--network", default="segformer-mit_b1")
@@ -104,6 +104,7 @@ class Change_Perception(object):
         Training and validation.
         """
         args = self.define_args(parent_parser=parent_parser)
+        self.args = args
         if "Forest-Change" in args.data_folder:
             self.mean = [0.2267 * 255, 0.29982 * 255, 0.22058 * 255]
             self.std = [0.0923 * 255, 0.06658 * 255, 0.05681 * 255]
@@ -157,17 +158,18 @@ class Change_Perception(object):
         imgA = np.asarray(imgA, np.float32)
         imgB = np.asarray(imgB, np.float32)
 
+        if imgA.shape[1] != 256 or imgA.shape[2] != 256:
+            imgA = cv2.resize(imgA, (256, 256))
+            imgB = cv2.resize(imgB, (256, 256))
+
         imgA = imgA.transpose(2, 0, 1)
         imgB = imgB.transpose(2, 0, 1)
+
         for i in range(len(self.mean)):
             imgA[i, :, :] -= self.mean[i]
             imgA[i, :, :] /= self.std[i]
             imgB[i, :, :] -= self.mean[i]
             imgB[i, :, :] /= self.std[i]
-
-        if imgA.shape[1] != 256 or imgA.shape[2] != 256:
-            imgA = cv2.resize(imgA, (256, 256))
-            imgB = cv2.resize(imgB, (256, 256))
 
         imgA = torch.FloatTensor(imgA)
         imgB = torch.FloatTensor(imgB)
@@ -218,9 +220,13 @@ class Change_Perception(object):
         pred_seg = np.argmax(pred_seg, axis=1)
         # 保存图片
         pred = pred_seg[0].astype(np.uint8)
+
         pred_rgb = np.zeros((pred.shape[0], pred.shape[1], 3), dtype=np.uint8)
-        pred_rgb[pred == 1] = [0, 255, 255]
-        pred_rgb[pred == 2] = [0, 0, 255]
+        if "Forest-Change" in self.args.data_folder:
+            pred_rgb = pred
+        else:
+            pred_rgb[pred == 1] = [0, 255, 255]
+            pred_rgb[pred == 2] = [0, 0, 255]
 
         cv2.imwrite(savepath_mask, pred_rgb)
         print("model_infer: mask saved in", savepath_mask)
@@ -391,6 +397,18 @@ class Change_Perception(object):
         return num_str
 
     # design more tool functions:
+    def compute_deforestation_percentage(self, mask_path):
+        """Calculate percentage from mask with error handling"""
+        try:
+            img = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+            if img is None:
+                return None
+            total_pixels = img.shape[0] * img.shape[1]
+            deforestation_pixels = np.sum(img != 0)
+            percentage = round((deforestation_pixels / total_pixels) * 100.0, 2)
+            return f"{percentage} percent of the observed area has been affected by deforestation"
+        except Exception:
+            return "Problem loading the change mask"
 
 
 if __name__ == "__main__":

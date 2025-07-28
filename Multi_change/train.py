@@ -325,45 +325,57 @@ class Trainer(object):
             self.index_i += 1
             # Print status
             if self.index_i % args.print_freq == 0:
-                print_log(
-                    "Training Epoch: [{0}][{1}/{2}]\t"
-                    "Batch Time: {3:.3f}\t"
-                    "Det_Loss: {4:.4f}\t"
-                    "Det Acc: {5:.3f}\t"
-                    "Cap_loss: {6:.5f}\t"
-                    "Text_Top-5 Acc: {7:.3f}".format(
-                        epoch,
-                        id,
-                        len(self.train_loader),
-                        np.mean(
-                            self.hist[
-                                self.index_i - args.print_freq : self.index_i - 1, 0
-                            ]
-                        )
-                        * args.print_freq,
-                        np.mean(
-                            self.hist[
-                                self.index_i - args.print_freq : self.index_i - 1, 1
-                            ]
-                        ),
-                        np.mean(
-                            self.hist[
-                                self.index_i - args.print_freq : self.index_i - 1, 2
-                            ]
-                        ),
-                        np.mean(
-                            self.hist[
-                                self.index_i - args.print_freq : self.index_i - 1, 3
-                            ]
-                        ),
-                        np.mean(
-                            self.hist[
-                                self.index_i - args.print_freq : self.index_i - 1, 4
-                            ]
-                        ),
+                print_vals = (
+                    epoch,
+                    id,
+                    len(self.train_loader),
+                    np.mean(
+                        self.hist[self.index_i - args.print_freq : self.index_i - 1, 0]
+                    )
+                    * args.print_freq,
+                    np.mean(
+                        self.hist[self.index_i - args.print_freq : self.index_i - 1, 1]
                     ),
-                    self.log,
+                    np.mean(
+                        self.hist[self.index_i - args.print_freq : self.index_i - 1, 2]
+                    ),
+                    np.mean(
+                        self.hist[self.index_i - args.print_freq : self.index_i - 1, 3]
+                    ),
+                    np.mean(
+                        self.hist[self.index_i - args.print_freq : self.index_i - 1, 4]
+                    ),
                 )
+            elif args.print_freq == 1:
+                print_vals = (
+                    epoch,
+                    id,
+                    len(self.train_loader),
+                    self.hist[self.index_i - 1, 0],
+                    self.hist[self.index_i - 1, 1],
+                    self.hist[self.index_i - 1, 2],
+                    self.hist[self.index_i - 1, 3],
+                    self.hist[self.index_i - 1, 4],
+                )
+
+            print_log(
+                "Training Epoch: [{0}][{1}/{2}]\t"
+                "Batch Time: {3:.3f}\t"
+                "Det_Loss: {4:.4f}\t"
+                "Det Acc: {5:.3f}\t"
+                "Cap_loss: {6:.5f}\t"
+                "Text_Top-5 Acc: {7:.3f}".format(
+                    print_vals[0],
+                    print_vals[1],
+                    print_vals[2],
+                    print_vals[3],
+                    print_vals[4],
+                    print_vals[5],
+                    print_vals[6],
+                    print_vals[7],
+                ),
+                self.log,
+            )
 
     # One epoch's validation
     def validation(self, epoch):
@@ -601,7 +613,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--print_freq",
         type=int,
-        default=10,
+        default=1,
         help="print training/validation stats every __ batches",
     )
     # Training parameters
@@ -628,6 +640,12 @@ if __name__ == "__main__":
         type=int,
         default=250,
         help="number of epochs to train for (if early stopping is not triggered).",
+    )
+    parser.add_argument(
+        "--patience",
+        type=int,
+        default=10,
+        help="number of epochs model doesn't improve by until training is ended early",
     )
     parser.add_argument("--workers", type=int, default=0, help="for data-loading")
     parser.add_argument(
@@ -697,7 +715,11 @@ if __name__ == "__main__":
                 for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
                     trainer.training(trainer.args, epoch)
                     trainer.validation(epoch)
-                    if epoch - trainer.best_epoch > 50:
+                    if epoch - trainer.best_epoch > trainer.args.patience:
+                        print_log(
+                            f"Model did not improve after {trainer.args.patience}. Stop training early.",
+                            trainer.log,
+                        )
                         trainer.start_epoch = trainer.best_epoch + 1
                         break
                     elif epoch == trainer.args.num_epochs - 1:
@@ -710,10 +732,17 @@ if __name__ == "__main__":
                 for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
                     trainer.training(trainer.args, epoch)
                     trainer.validation(epoch)
-                    if trainer.args.train_goal == 1 and epoch - trainer.best_epoch > 50:
+                    if (
+                        trainer.args.train_goal == 1
+                        and epoch - trainer.best_epoch > trainer.args.patience
+                    ):
                         trainer.start_epoch = trainer.best_epoch + 1
                         trainer.args.num_epochs = (
                             trainer.start_epoch + trainer.args.num_epochs
+                        )
+                        print_log(
+                            f"Model did not improve after {trainer.args.patience}. Stop training early.",
+                            trainer.log,
                         )
                         break
                 # trainer.args.num_epochs = trainer.start_epoch + trainer.args.num_epochs

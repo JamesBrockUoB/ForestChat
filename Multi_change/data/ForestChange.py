@@ -159,8 +159,6 @@ class ForestChangeDataset(Dataset):
         imgB = imgB.transpose(2, 0, 1)
         seg_label[seg_label != 0] = 1
 
-        print(np.unique(seg_label))
-
         for i in range(len(self.mean)):
             imgA[i, :, :] -= self.mean[i]
             imgA[i, :, :] /= self.std[i]

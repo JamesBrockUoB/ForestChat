@@ -108,9 +108,15 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
            - **Returns**:
              - The number of changed objects.
 
+        4. **`compute_deforestation_percentage(saveoath_mask)`**:
+           - **Parameters**:
+             - `savepath_mask`: Path to the saved mask image
+           - **Returns**:
+             - A caption that includes the deforestation rate percentage observed in the mask.
+
         NOTE: The code of Action Input must be placed in def solution()!!
         For example:
-        When the user wants to detect the changed buildings and save the changed building areas in red, "Action Input" should be as follows:
+        When the user wants to know what percentage of the image has new deforestation and to save the deforestation areas in red, "Action Input" should be as follows:
         ``python
         def solution():
             from tools import Change_Perception
@@ -123,12 +129,11 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             Change_Perception_model = Change_Perception()
             mask = Change_Perception_model.change_detection(path_A, path_B, savepath_mask)
             mask_bgr = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
-            mask_bgr[mask == 2] = [0, 0, 255] # '2' stands for changed building (red)
+            mask_bgr[mask == 1] = [0, 0, 255] # '1' stands for changed building (red)
             cv2.imwrite(savepath_mask, mask_bgr)
-            return savepath_mask
+            deforestation_percent_caption = Change_Perception_model.compute_deforestation_percentage(savepath_mask)
+            return deforestation_percent_caption
         ```
-
-
 
         Args:
             command (:class:`str`): Python code snippet

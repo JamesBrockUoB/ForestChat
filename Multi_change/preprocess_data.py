@@ -253,7 +253,7 @@ def build_vocab(
     for token, count in sorted(token_to_count.items()):
         if token in token_to_idx.keys():
             continue
-        if count > min_token_count:
+        if count >= min_token_count:
             token_to_idx[token] = len(token_to_idx)
 
     return token_to_idx

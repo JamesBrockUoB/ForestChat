@@ -27,14 +27,17 @@ class Evaluator(object):
         return Recall
 
     def Mean_Intersection_over_Union(self):
-        IoU = np.diag(self.confusion_matrix) / (
-            np.sum(self.confusion_matrix, axis=1)
-            + np.sum(self.confusion_matrix, axis=0)
-            - np.diag(self.confusion_matrix)
-        )
-        # print("IOU:", IoU)
+        cm = self.confusion_matrix
+        intersection = np.diag(cm)
+        union = np.sum(cm, axis=1) + np.sum(cm, axis=0) - intersection
+
+        IoU = intersection / np.maximum(union, 1e-6)  # avoid division by zero
         MIoU = np.nanmean(IoU)
-        return MIoU, f"{IoU[0]}   {IoU[1]}  {IoU[2]}"
+
+        # Format IoU values for each class into a readable string
+        IoU_per_class_str = "  ".join([f"{iou:.4f}" for iou in IoU])
+
+        return MIoU, IoU_per_class_str
 
     def Frequency_Weighted_Intersection_over_Union(self):
         freq = np.sum(self.confusion_matrix, axis=1) / np.sum(self.confusion_matrix)
