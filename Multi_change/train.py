@@ -526,7 +526,6 @@ class Trainer(object):
                 self.MIou = max(mIoU_seg, self.MIou)
                 self.Sum_Metric = max(Bleu_4 + mIoU_seg, self.Sum_Metric)
                 # save_checkpoint
-                print("Save Model")
                 state = {
                     "encoder_dict": self.encoder.state_dict(),
                     "encoder_trans_dict": self.encoder_trans.state_dict(),
@@ -535,6 +534,7 @@ class Trainer(object):
                 metric = f"Sum_{round(100000 * self.Sum_Metric)}_MIou_{round(100000 * self.MIou)}_Bleu4_{round(100000 * self.best_bleu4)}"
                 model_name = f"{args.data_name}_bts_{args.train_batchsize}_{args.network}_epo_{epoch}_{metric}.pth"
                 if epoch > 10:
+                    print("Save Model")
                     torch.save(state, os.path.join(args.savepath, model_name))
         # if True:
         elif self.start_train_goal == 2:
