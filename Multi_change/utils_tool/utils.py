@@ -21,7 +21,7 @@ def get_image_transforms():
             ),
             A.GaussianBlur(blur_limit=(3, 3), sigma_limit=0.5, p=0.6),
             A.GaussNoise(
-                std_range=(5.0, 15.0),
+                std_range=(0.02, 0.06),
                 mean_range=(0, 0),
                 per_channel=True,
                 noise_scale_factor=1.0,
@@ -32,7 +32,8 @@ def get_image_transforms():
                 std=[0.0923 * 255, 0.06658 * 255, 0.05681 * 255],
                 max_pixel_value=255.0,
             ),
-        ]
+        ],
+        additional_targets={"image_B": "image"},
     )
     return transform
 

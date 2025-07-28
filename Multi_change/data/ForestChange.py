@@ -158,8 +158,8 @@ class ForestChangeDataset(Dataset):
         imgB = np.asarray(imgB, np.float32)
 
         if self.transform:
-            augmented = self.transform(image_A=imgA, image_B=imgB)
-            imgA = augmented["image_A"]
+            augmented = self.transform(image=imgA, image_B=imgB)
+            imgA = augmented["image"]
             imgB = augmented["image_B"]
         else:
             mean = [0.2267 * 255, 0.29982 * 255, 0.22058 * 255]
