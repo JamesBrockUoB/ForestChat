@@ -264,11 +264,11 @@ class Trainer(object):
             else:
                 # balance two losses
                 if args.train_stage == "s1":
-                    det_loss = (
-                        det_loss / det_loss.detach().item()
-                    )  # * cap_loss.detach().item()
-                    cap_loss = cap_loss / cap_loss.detach().item()
-                loss = det_loss + cap_loss
+                    scaling = det_loss.detach() / (cap_loss.detach() + 1e-8)
+                    scaled_cap_loss = cap_loss * scaling
+                    loss = det_loss + scaled_cap_loss
+                else:
+                    loss = det_loss + cap_loss
             # Back prop.
             loss = loss / accum_steps
             loss.backward()
@@ -325,7 +325,7 @@ class Trainer(object):
 
             self.index_i += 1
             # Print status
-            if self.index_i % args.print_freq == 0:
+            if self.index_i % args.print_freq == 0 and args.print_freq > 1:
                 print_vals = (
                     epoch,
                     id,
@@ -364,7 +364,7 @@ class Trainer(object):
                 "Batch Time: {3:.3f}\t"
                 "Det_Loss: {4:.4f}\t"
                 "Det Acc: {5:.3f}\t"
-                "Cap_loss: {6:.5f}\t"
+                "Cap_Loss: {6:.5f}\t"
                 "Text_Top-5 Acc: {7:.3f}".format(
                     print_vals[0],
                     print_vals[1],
@@ -634,7 +634,7 @@ if __name__ == "__main__":
         help="whether fine-tune encoder or not",
     )
     parser.add_argument(
-        "--train_batchsize", type=int, default=16, help="batch_size for training"
+        "--train_batchsize", type=int, default=32, help="batch_size for training"
     )
     parser.add_argument(
         "--num_epochs",
@@ -648,7 +648,7 @@ if __name__ == "__main__":
         default=10,
         help="number of epochs model doesn't improve by until training is ended early",
     )
-    parser.add_argument("--workers", type=int, default=0, help="for data-loading")
+    parser.add_argument("--workers", type=int, default=4, help="for data-loading")
     parser.add_argument(
         "--encoder_lr",
         type=float,
