@@ -10,3 +10,4 @@ models_ckpt/
 predict_results/
 tmp_dir/
 .vscode/
+wandb/

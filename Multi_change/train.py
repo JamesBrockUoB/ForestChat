@@ -2,6 +2,7 @@ import argparse
 import json
 
 import torch.optim
+import wandb
 from data.ForestChange import ForestChangeDataset
 from data.LEVIR_MCI import LEVIRCCDataset
 from model.model_decoder import DecoderTransformer
@@ -24,6 +25,27 @@ class Trainer(object):
         """
         self.start_train_goal = args.train_goal
         self.args = args
+        self.run = wandb.init(
+            project="forest-chat",
+            config={
+                "dataset_name": args.data_name,
+                "train_goal": args.train_goal,
+                "train_state": args.train_stage,
+                "fine_tune_encoder": args.fine_tune_encoder,
+                "train_batchsize": args.train_batchsize,
+                "num_epochs": args.num_epochs,
+                "patience": args.patience,
+                "encoder_lr": args.encoder_lr,
+                "decoder_lr": args.decoder_lr,
+                "network": args.network,
+                "encoder_dim": args.encoder_dim,
+                "feat_size": args.feat_size,
+                "n_heads": args.n_heads,
+                "n_layers": args.n_layers,
+                "decoder_n_layers": args.decoder_n_layers,
+                "feature_dim": args.feature_dim,
+            },
+        )
         random_str = str(random.randint(10, 100))
         name = (
             "baseline_"
@@ -377,6 +399,16 @@ class Trainer(object):
                 ),
                 self.log,
             )
+            wandb.log(
+                {
+                    "epoch": print_vals[0],
+                    "batch_id": print_vals[1],
+                    "detection_train_loss": print_vals[4],
+                    "detection_train_accuracy": print_vals[5],
+                    "caption_train_loss": print_vals[6],
+                    "text_top_5_train_accuracy": print_vals[7],
+                }
+            )
 
     # One epoch's validation
     def validation(self, epoch):
@@ -484,7 +516,16 @@ class Trainer(object):
                     ),
                     self.log,
                 )
-                print_log("Iou: {}".format(IoU), self.log)
+                print_log("IoU: {}".format(IoU), self.log)
+                wandb.log(
+                    {
+                        "acc_seg_val": Acc_seg,
+                        "acc_class_seg_val": Acc_class_seg,
+                        "mIoU seg val": mIoU_seg,
+                        "FWIoU seg": FWIoU_seg,
+                        "IoU": IoU,
+                    }
+                )
 
             # Calculate evaluation scores
             if self.args.train_goal != 0 or self.start_train_goal == 2:
@@ -509,6 +550,17 @@ class Trainer(object):
                         val_time, Bleu_1, Bleu_2, Bleu_3, Bleu_4, Meteor, Rouge, Cider
                     ),
                     self.log,
+                )
+                wandb.log(
+                    {
+                        "BLEU-1_val": Bleu_1,
+                        "BLEU-1_val": Bleu_2,
+                        "BLEU-1_val": Bleu_3,
+                        "BLEU-1_val": Bleu_4,
+                        "Meteor_val": Meteor,
+                        "Rouge_val": Rouge,
+                        "Cider": Cider,
+                    }
                 )
 
         # Check if there was an improvement
@@ -575,6 +627,8 @@ class Trainer(object):
 
 
 if __name__ == "__main__":
+    wandb.login()
+
     parser = argparse.ArgumentParser(
         description="Remote_Sensing_Image_Change_Interpretation"
     )
