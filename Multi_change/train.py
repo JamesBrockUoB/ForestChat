@@ -286,11 +286,11 @@ class Trainer(object):
             else:
                 # balance two losses
                 if args.train_stage == "s1":
-                    scaling = det_loss.detach() / (cap_loss.detach() + 1e-8)
-                    scaled_cap_loss = cap_loss * scaling
-                    loss = det_loss + scaled_cap_loss
-                else:
-                    loss = det_loss + cap_loss
+                    det_loss = (
+                        det_loss / det_loss.detach().item()
+                    )  # * cap_loss.detach().item()
+                    cap_loss = cap_loss / cap_loss.detach().item()
+                loss = det_loss + cap_loss
             # Back prop.
             loss = loss / accum_steps
             loss.backward()
@@ -508,17 +508,19 @@ class Trainer(object):
                 FWIoU_seg = self.evaluator.Frequency_Weighted_Intersection_over_Union()
                 print_log(
                     "\nDetection_Validation:\n"
-                    "Acc_seg: {0:.5f}\t"
-                    "Acc_class_seg: {1:.5f}\t"
-                    "mIoU_seg: {2:.5f}\t"
-                    "FWIoU_seg: {3:.5f}\t ".format(
-                        Acc_seg, Acc_class_seg, mIoU_seg, FWIoU_seg
+                    "Epoch: {0}\t"
+                    "Acc_seg: {1:.5f}\t"
+                    "Acc_class_seg: {2:.5f}\t"
+                    "mIoU_seg: {3:.5f}\t"
+                    "FWIoU_seg: {4:.5f}\t ".format(
+                        epoch, Acc_seg, Acc_class_seg, mIoU_seg, FWIoU_seg
                     ),
                     self.log,
                 )
                 print_log("IoU: {}".format(IoU), self.log)
                 wandb.log(
                     {
+                        "epoch": epoch,
                         "acc_seg_val": Acc_seg,
                         "acc_class_seg_val": Acc_class_seg,
                         "mIoU seg val": mIoU_seg,
@@ -539,24 +541,34 @@ class Trainer(object):
                 Cider = score_dict["CIDEr"]
                 print_log(
                     "Captioning_Validation:\n"
-                    "Time: {0:.3f}\t"
-                    "BLEU-1: {1:.5f}\t"
-                    "BLEU-2: {2:.5f}\t"
-                    "BLEU-3: {3:.5f}\t"
-                    "BLEU-4: {4:.5f}\t"
-                    "Meteor: {5:.5f}\t"
-                    "Rouge: {6:.5f}\t"
-                    "Cider: {7:.5f}\t".format(
-                        val_time, Bleu_1, Bleu_2, Bleu_3, Bleu_4, Meteor, Rouge, Cider
+                    "Epoch: {0}\t"
+                    "Time: {1:.3f}\t"
+                    "BLEU-1: {2:.5f}\t"
+                    "BLEU-2: {3:.5f}\t"
+                    "BLEU-3: {4:.5f}\t"
+                    "BLEU-4: {5:.5f}\t"
+                    "Meteor: {6:.5f}\t"
+                    "Rouge: {7:.5f}\t"
+                    "Cider: {8:.5f}\t".format(
+                        epoch,
+                        val_time,
+                        Bleu_1,
+                        Bleu_2,
+                        Bleu_3,
+                        Bleu_4,
+                        Meteor,
+                        Rouge,
+                        Cider,
                     ),
                     self.log,
                 )
                 wandb.log(
                     {
+                        "epoch": epoch,
                         "BLEU-1_val": Bleu_1,
-                        "BLEU-1_val": Bleu_2,
-                        "BLEU-1_val": Bleu_3,
-                        "BLEU-1_val": Bleu_4,
+                        "BLEU-2_val": Bleu_2,
+                        "BLEU-3_val": Bleu_3,
+                        "BLEU-_val": Bleu_4,
                         "Meteor_val": Meteor,
                         "Rouge_val": Rouge,
                         "Cider": Cider,
