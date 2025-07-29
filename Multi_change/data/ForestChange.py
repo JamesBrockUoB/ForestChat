@@ -2,6 +2,7 @@ import json
 import os
 from random import *
 
+import cv2
 import numpy as np
 import torch
 
@@ -26,6 +27,7 @@ class ForestChangeDataset(Dataset):
         max_length=42,
         allow_unk=0,
         transform=None,
+        img_size=(256, 256),
         max_iters=None,
     ):
         """
@@ -37,12 +39,14 @@ class ForestChangeDataset(Dataset):
         :param max_length: the maximum length of each caption sentence
         :param allow_unk: whether to allow the tokens have unknow word or not
         :param transform: list of transformations applied to each example for augmentation
+        :param img_size: the dimensions all images should be returned as
         :param max_iters: the maximum iteration when loading the data
         """
         self.list_path = list_path
         self.split = split
         self.max_length = max_length
         self.transform = transform
+        self.img_size = img_size
 
         assert self.split in {"train", "val", "test"}
         self.img_ids = [
@@ -153,9 +157,15 @@ class ForestChangeDataset(Dataset):
         imgA = datafiles["imgA"]
         imgB = datafiles["imgB"]
         seg_label = datafiles["seg_label"]
+        seg_label[seg_label != 0] = 1
 
         imgA = np.asarray(imgA, np.float32)
         imgB = np.asarray(imgB, np.float32)
+
+        if imgA.shape[1] != self.img_size[0] or imgA.shape[2] != self.img_size[1]:
+            imgA = cv2.resize(imgA, self.img_size)
+            imgB = cv2.resize(imgB, self.img_size)
+            seg_label = cv2.resize(seg_label, self.img_size)
 
         if self.transform:
             augmented = self.transform(image=imgA, image_B=imgB)
@@ -172,7 +182,6 @@ class ForestChangeDataset(Dataset):
 
         imgA = imgA.transpose(2, 0, 1)
         imgB = imgB.transpose(2, 0, 1)
-        seg_label[seg_label != 0] = 1
 
         if datafiles["token"] is not None:
             with open(datafiles["token"], "r") as caption_file:
