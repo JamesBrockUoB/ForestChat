@@ -286,11 +286,11 @@ class Trainer(object):
             else:
                 # balance two losses
                 if args.train_stage == "s1":
-                    det_loss = (
-                        det_loss / det_loss.detach().item()
-                    )  # * cap_loss.detach().item()
-                    cap_loss = cap_loss / cap_loss.detach().item()
-                loss = det_loss + cap_loss
+                    scaling = det_loss.detach() / (cap_loss.detach() + 1e-8)
+                    scaled_cap_loss = cap_loss * scaling
+                    loss = det_loss + scaled_cap_loss
+                else:
+                    loss = det_loss + cap_loss
             # Back prop.
             loss = loss / accum_steps
             loss.backward()
@@ -568,7 +568,7 @@ class Trainer(object):
                         "BLEU-1_val": Bleu_1,
                         "BLEU-2_val": Bleu_2,
                         "BLEU-3_val": Bleu_3,
-                        "BLEU-_val": Bleu_4,
+                        "BLEU-4_val": Bleu_4,
                         "Meteor_val": Meteor,
                         "Rouge_val": Rouge,
                         "Cider": Cider,
