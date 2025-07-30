@@ -16,6 +16,7 @@ from utils_tool.utils import *
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 NUM_CLASS = 2  # 3 for LEVIR-MCI
+DISPLAY_PARAMS = False
 
 
 class Trainer(object):
@@ -91,7 +92,6 @@ class Trainer(object):
                         args.vocab_file,
                         args.max_length,
                         args.allow_unk,
-                        get_image_transforms(),
                     )
                     if "Forest-Change" in args.data_name
                     else LEVIRCCDataset(
@@ -218,6 +218,25 @@ class Trainer(object):
             else None
         )
 
+        if DISPLAY_PARAMS:
+            total_params = 0
+            for k, v in {
+                "Encoder": self.encoder,
+                "Encoder Transformer": self.encoder_trans,
+                "Decoder": self.decoder,
+            }.items():
+                print(f"{k} parameters")
+                component_params = 0
+                for name, param in v.named_parameters():
+                    print(
+                        f"Layer: {name}\t Parameters: {param.numel()}\t Trainable: {param.requires_grad}"
+                    )
+                    component_params += param.numel()
+                total_params += component_params
+                print(f"Total {k} parameters: {component_params}")
+
+            print(f"Total parameters: {total_params}")
+
     def training(self, args, epoch):
         if self.start_train_goal != 2:
             self.encoder.train()
@@ -242,6 +261,7 @@ class Trainer(object):
         self.encoder_trans_optimizer.zero_grad()
         if self.encoder_optimizer is not None:
             self.encoder_optimizer.zero_grad()
+
         for id, (imgA, imgB, seg_label, _, _, token, token_len, _) in enumerate(
             self.train_loader
         ):
@@ -768,7 +788,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     trainer = Trainer(args)
-    print("Starting Epoch:", trainer.start_epoch)
+    print("\nStarting Epoch:", trainer.start_epoch)
     print("Total Epoches:", trainer.args.num_epochs)
 
     if args.train_goal == 2:

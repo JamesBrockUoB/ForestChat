@@ -9,8 +9,6 @@
 </div>
 </div>
 
-## Share us a :star: if you're interested in this repo
-
 ## Table of Contents
 - [LEVIR-MCI dataset](#LEVIR-MCI-dataset)
 - [Training of MCI model](#Training-of-the-multi-level-change-interpretation-model)
