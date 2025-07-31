@@ -83,7 +83,7 @@ class Change_Perception(object):
         )  # 42 for Forest-Change, 41 for LEVIR-MCI
         parser.add_argument("--gpu_id", type=int, default=0)
         parser.add_argument(
-            "--checkpoint", default="./models_ckpt/temp_best_Forest_Change_model.pth"
+            "--checkpoint", default="./models_ckpt/ForestChat_model.pth"
         )
         parser.add_argument("--result_path", default="./predict_results/")
         parser.add_argument("--network", default="segformer-mit_b1")
