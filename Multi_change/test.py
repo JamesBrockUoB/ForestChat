@@ -101,8 +101,8 @@ def main(args):
     args.result_path = os.path.join(
         args.result_path, os.path.basename(snapshot_full_path).replace(".pth", "")
     )
-    if os.path.exists(args.result_path) == False:
-        os.makedirs(args.result_path)
+    if not os.path.exists(args.result_path):
+        os.makedirs(args.result_path, exist_ok=True)
     else:
         print("result_path exists!")
         # clear folder
@@ -428,14 +428,14 @@ if __name__ == "__main__":
     parser.add_argument("--dropout", type=float, default=0.1, help="dropout")
     # save masks and captions?
     parser.add_argument(
-        "--save_mask", action="store_true", help="save the result of masks"
+        "--save_mask", action="store_false", help="save the result of masks"
     )
     parser.add_argument(
-        "--save_caption", action="store_true", help="save the result of captions"
+        "--save_caption", action="store_false", help="save the result of captions"
     )
     parser.add_argument(
         "--result_path",
-        default="./predict_results/",
+        default="./predict_results",
         help="path to save the result of masks and captions",
     )
     # backbone parameters

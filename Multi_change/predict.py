@@ -9,6 +9,7 @@ import sys
 import cv2
 import numpy as np
 import torch.optim
+from genericpath import exists
 from griffe import check
 from imageio.v2 import imread
 from model.model_decoder import DecoderTransformer
@@ -202,7 +203,7 @@ class Change_Perception(object):
         for i in pred_seq:
             pred_caption += (list(self.word_vocab.keys())[i]) + " "
 
-        caption = "there is road change"
+        caption = "there is forest change"
         caption = pred_caption
         print("change captioning:", caption)
         return caption
@@ -232,7 +233,7 @@ class Change_Perception(object):
         print("model_infer: mask saved in", savepath_mask)
 
         print("model_infer_change_detection: end")
-        return pred  # (256,256,3)
+        return pred  # (256,256,3) or (256, 256) if not rgb
         # return 'change detection successfully. '
 
     def sac_change_detection(self, path_A, path_B, savepath_mask):
@@ -423,12 +424,16 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    if not os.path.exists(os.path.dirname(args.mask_save_path)):
+        os.makedirs(os.path.dirname(args.mask_save_path), exist_ok=True)
+
     imgA_path = args.imgA_path
     imgB_path = args.imgB_path
 
     Change_Perception = Change_Perception(parent_parser=parser)
     Change_Perception.generate_change_caption(imgA_path, imgB_path)
     Change_Perception.change_detection(imgA_path, imgB_path, args.mask_save_path)
+    Change_Perception.compute_deforestation_percentage(args.mask_save_path)
 
     base, ext = os.path.splitext(args.mask_save_path)
     sac_mask_filename = f"{base}_sac{ext}"
