@@ -367,8 +367,10 @@ class Trainer(object):
                 self.hist[self.index_i, 4] = accuracy(scores, targets, 5)  # top5
 
             self.index_i += 1
+            log_vals = False
             # Print status
             if self.index_i % args.print_freq == 0 and args.print_freq > 1:
+                log_vals = True
                 print_vals = (
                     epoch,
                     id,
@@ -391,6 +393,7 @@ class Trainer(object):
                     ),
                 )
             elif args.print_freq == 1:
+                log_vals = True
                 print_vals = (
                     epoch,
                     id,
@@ -402,34 +405,35 @@ class Trainer(object):
                     self.hist[self.index_i - 1, 4],
                 )
 
-            print_log(
-                "Training Epoch: [{0}][{1}/{2}]\t"
-                "Batch Time: {3:.3f}\t"
-                "Det_Loss: {4:.4f}\t"
-                "Det Acc: {5:.3f}\t"
-                "Cap_Loss: {6:.5f}\t"
-                "Text_Top-5 Acc: {7:.3f}".format(
-                    print_vals[0],
-                    print_vals[1],
-                    print_vals[2],
-                    print_vals[3],
-                    print_vals[4],
-                    print_vals[5],
-                    print_vals[6],
-                    print_vals[7],
-                ),
-                self.log,
-            )
-            wandb.log(
-                {
-                    "epoch": print_vals[0],
-                    "batch_id": print_vals[1],
-                    "detection_train_loss": print_vals[4],
-                    "detection_train_accuracy": print_vals[5],
-                    "caption_train_loss": print_vals[6],
-                    "text_top_5_train_accuracy": print_vals[7],
-                }
-            )
+            if log_vals:
+                print_log(
+                    "Training Epoch: [{0}][{1}/{2}]\t"
+                    "Batch Time: {3:.3f}\t"
+                    "Det_Loss: {4:.4f}\t"
+                    "Det Acc: {5:.3f}\t"
+                    "Cap_Loss: {6:.5f}\t"
+                    "Text_Top-5 Acc: {7:.3f}".format(
+                        print_vals[0],
+                        print_vals[1],
+                        print_vals[2],
+                        print_vals[3],
+                        print_vals[4],
+                        print_vals[5],
+                        print_vals[6],
+                        print_vals[7],
+                    ),
+                    self.log,
+                )
+                wandb.log(
+                    {
+                        "epoch": print_vals[0],
+                        "batch_id": print_vals[1],
+                        "detection_train_loss": print_vals[4],
+                        "detection_train_accuracy": print_vals[5],
+                        "caption_train_loss": print_vals[6],
+                        "text_top_5_train_accuracy": print_vals[7],
+                    }
+                )
 
     # One epoch's validation
     def validation(self, epoch):
