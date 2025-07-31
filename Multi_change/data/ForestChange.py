@@ -27,18 +27,20 @@ class ForestChangeDataset(Dataset):
         max_length=42,
         allow_unk=0,
         transform=None,
+        target_size=None,
         img_size=(256, 256),
         max_iters=None,
     ):
         """
         :param data_folder: folder where image files are stored
         :param list_path: folder where the file name-lists of Train/val/test.txt sets are stored
-        :param split: split, one of 'TRAIN', 'VAL', or 'TEST'
+        :param split: one of 'TRAIN', 'VAL', or 'TEST'
         :param token_folder: folder where token files are stored
         :param vocab_file: the name of vocab file
         :param max_length: the maximum length of each caption sentence
         :param allow_unk: whether to allow the tokens have unknow word or not
         :param transform: list of transformations applied to each example for augmentation
+        :param target_size: if inflating dataset size, the size of the dataset to sample augmentation from
         :param img_size: the dimensions all images should be returned as
         :param max_iters: the maximum iteration when loading the data
         """
@@ -47,6 +49,7 @@ class ForestChangeDataset(Dataset):
         self.max_length = max_length
         self.transform = transform
         self.img_size = img_size
+        self.target_size = target_size
 
         assert self.split in {"train", "val", "test"}
         self.img_ids = [
@@ -56,12 +59,7 @@ class ForestChangeDataset(Dataset):
             with open(os.path.join(list_path + vocab_file + ".json"), "r") as f:
                 self.word_vocab = json.load(f)
             self.allow_unk = allow_unk
-        if not max_iters == None:
-            n_repeat = int(np.ceil(max_iters / len(self.img_ids)))
-            self.img_ids = (
-                self.img_ids * n_repeat
-                + self.img_ids[: max_iters - n_repeat * len(self.img_ids)]
-            )
+
         self.files = []
         if split == "train":
             for name in self.img_ids:
@@ -146,6 +144,35 @@ class ForestChangeDataset(Dataset):
                         "name": name,
                     }
                 )
+
+        if self.target_size is not None and len(self.files) < self.target_size:
+            self._inflate_dataset()
+
+        if max_iters is not None:
+            n_repeat = int(np.ceil(max_iters / len(self.img_ids)))
+            self.img_ids = (
+                self.img_ids * n_repeat
+                + self.img_ids[: max_iters - n_repeat * len(self.img_ids)]
+            )
+
+    def _inflate_dataset(self):
+        original_size = len(self.files)
+        needed = self.target_size - original_size
+
+        for i in range(needed):
+            original_idx = i % original_size
+            original = self.files[original_idx]
+
+            augmented_example = {
+                "imgA": original["imgA"].copy(),
+                "imgB": original["imgB"].copy(),
+                "seg_label": original["seg_label"].copy(),
+                "token": original["token"],
+                "token_id": original["token_id"],
+                "name": f"{original['name']}_aug{i}",
+            }
+
+            self.files.append(augmented_example)
 
     def __len__(self):
         return len(self.files)
