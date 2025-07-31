@@ -92,6 +92,7 @@ class Trainer(object):
                         args.vocab_file,
                         args.max_length,
                         args.allow_unk,
+                        get_image_transforms(),
                     )
                     if "Forest-Change" in args.data_name
                     else LEVIRCCDataset(
@@ -700,7 +701,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--print_freq",
         type=int,
-        default=1,
+        default=5,
         help="print training/validation stats every __ batches",
     )
     # Training parameters
