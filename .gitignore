@@ -11,3 +11,5 @@ predict_results/
 tmp_dir/
 .vscode/
 wandb/
+data/Forest-Change/
+data/LEVIR_MCI/
