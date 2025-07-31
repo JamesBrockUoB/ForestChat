@@ -80,8 +80,10 @@ class Change_Perception(object):
         )
         parser.add_argument("--vocab_file", default="vocab")
         parser.add_argument(
-            "--max_length", type=int, default=42
-        )  # 42 for Forest-Change, 41 for LEVIR-MCI
+            "--metadata_file",
+            default="metadata",
+            help="path of the metadata file for the dataset",
+        )
         parser.add_argument("--gpu_id", type=int, default=0)
         parser.add_argument(
             "--checkpoint", default="./models_ckpt/ForestChat_model.pth"
@@ -115,6 +117,11 @@ class Change_Perception(object):
 
         with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
             self.word_vocab = json.load(f)
+
+        with open(
+            os.path.join(args.list_path) + args.metadata_file + ".json", "r"
+        ) as f:
+            self.max_length = json.load(f)["max_length"]
         # Load checkpoint
         snapshot_full_path = args.checkpoint
 
@@ -132,7 +139,7 @@ class Change_Perception(object):
             encoder_dim=args.encoder_dim,
             feature_dim=args.feature_dim,
             vocab_size=len(self.word_vocab),
-            max_lengths=args.max_length,
+            max_lengths=self.max_length,
             word_vocab=self.word_vocab,
             n_head=args.n_heads,
             n_layers=args.decoder_n_layers,

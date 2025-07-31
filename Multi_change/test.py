@@ -94,6 +94,10 @@ def main(args):
 
     with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
         word_vocab = json.load(f)
+
+    with open(os.path.join(args.list_path) + args.metadata_file + ".json", "r") as f:
+        max_length = json.load(f)["max_length"]
+
     # Load checkpoint
     snapshot_full_path = args.checkpoint
     checkpoint = torch.load(snapshot_full_path, map_location=DEVICE)
@@ -124,7 +128,7 @@ def main(args):
         encoder_dim=args.encoder_dim,
         feature_dim=args.feature_dim,
         vocab_size=len(word_vocab),
-        max_lengths=args.max_length,
+        max_lengths=max_length,
         word_vocab=word_vocab,
         n_head=args.n_heads,
         n_layers=args.decoder_n_layers,
@@ -158,7 +162,7 @@ def main(args):
                 "test",
                 args.token_folder,
                 args.vocab_file,
-                args.max_length,
+                max_length,
                 args.allow_unk,
             )
             if "Forest-Change" in args.data_name
@@ -168,7 +172,7 @@ def main(args):
                 "test",
                 args.token_folder,
                 args.vocab_file,
-                args.max_length,
+                max_length,
                 args.allow_unk,
             )
         )
@@ -401,8 +405,10 @@ if __name__ == "__main__":
     )
     parser.add_argument("--vocab_file", default="vocab", help="path of the data lists")
     parser.add_argument(
-        "--max_length", type=int, default=42, help="path of the data lists"
-    )  # 42 for Forest-Change, 41 for LEVIR-MCI
+        "--metadata_file",
+        default="metadata",
+        help="path of the metadata file for the dataset",
+    )
     parser.add_argument(
         "--allow_unk", type=int, default=1, help="if unknown token is allowed"
     )

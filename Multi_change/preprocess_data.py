@@ -10,16 +10,17 @@ import numpy as np
 parser = argparse.ArgumentParser()
 
 parser.add_argument(
-    "--dataset", type=str, default="LEVIR_MCI", help="the name of the dataset"
+    "--dataset", type=str, default="Forest-Change", help="the name of the dataset"
 )
 parser.add_argument(
     "--captions_json",
     type=str,
-    default="LevirCCcaptions.json",
+    default="ForestChatcaptions.json",
     help="the name of json file with the captions",
 )
-parser.add_argument("--word_count_threshold", default=5, type=int)
+parser.add_argument("--word_count_threshold", default=3, type=int)
 parser.add_argument("--keep_only_trees", default=False, type=bool)
+parser.add_argument("--keep_hard_forest_caption", default=False, type=bool)
 
 SPECIAL_TOKENS = {
     "<NULL>": 0,
@@ -57,9 +58,16 @@ def main(args):
         all_cap_tokens = []
         for img in data["images"]:
             captions = []
-            for c in img["sentences"]:
+            assert len(img["sentences"]) > 0, "error: some image has no captions"
+            for i, c in enumerate(img["sentences"]):
                 # Update word frequency
-                assert len(c["raw"]) > 0, "error: some image has no caption"
+                if (
+                    (i == 0)
+                    and (args.dataset == "Forest-Change")
+                    and (not args.keep_hard_forest_caption)
+                ):  # the first caption in the forest change captions is always the hardest
+                    continue
+                assert len(c["raw"]) > 0, "error: caption empty"
                 captions.append(c["raw"])
             tokens_list = []
             for cap in captions:
@@ -111,6 +119,9 @@ def main(args):
                 f.close()
 
     print("max_length of the dataset:", max_length)
+    with open(os.path.join(save_dir + "metadata.json"), "w") as f:
+        json.dump({"max_length": max_length}, f)
+
     # Either create the vocab or load it from disk
     if input_vocab_json == "":
         print("Building vocab")

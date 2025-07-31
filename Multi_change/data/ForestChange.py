@@ -167,7 +167,7 @@ class ForestChangeDataset(Dataset):
             imgB = cv2.resize(imgB, self.img_size)
             seg_label = cv2.resize(seg_label, self.img_size)
 
-        if self.transform:
+        if self.transform:  # transform should contain a normalisation transform
             augmented = self.transform(image=imgA, image_B=imgB)
             imgA = augmented["image"]
             imgB = augmented["image_B"]
