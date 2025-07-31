@@ -98,6 +98,7 @@ class Trainer(object):
                         self.max_length,
                         args.allow_unk,
                         get_image_transforms(),
+                        args.increased_train_data_size,
                     )
                     if "Forest-Change" in args.data_name
                     else LEVIRCCDataset(
@@ -108,6 +109,7 @@ class Trainer(object):
                         args.vocab_file,
                         self.max_length,
                         args.allow_unk,
+                        args.increased_val_data_size,
                     )
                 )
                 datasets.append(dataset)
@@ -733,6 +735,18 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--train_batchsize", type=int, default=32, help="batch_size for training"
+    )
+    parser.add_argument(
+        "--increased_train_data_size",
+        type=int,
+        default=None,
+        help="if you provide a number, it will increase the train dataset size to match the number",
+    )
+    parser.add_argument(
+        "--increased_val_data_size",
+        type=int,
+        default=None,
+        help="if you provide a number, it will increase the validation dataset size to match the number",
     )
     parser.add_argument(
         "--num_epochs",
