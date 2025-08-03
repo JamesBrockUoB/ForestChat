@@ -251,12 +251,12 @@ class Change_Perception(object):
         m = AnyChange("vit_h", sam_checkpoint="./models_ckpt/sam_vit_h_4b8939.pth")
 
         m.make_mask_generator(
-            points_per_side=32,
+            points_per_side=16,
             stability_score_thresh=0.95,
         )
 
         m.set_hyperparameters(
-            change_confidence_threshold=145,
+            change_confidence_threshold=155,
             use_normalized_feature=True,
             bitemporal_match=True,
         )
@@ -312,12 +312,12 @@ class Change_Perception(object):
         m = AnyChange("vit_h", sam_checkpoint="./models_ckpt/sam_vit_h_4b8939.pth")
 
         m.make_mask_generator(
-            points_per_side=32,
+            points_per_side=16,
             stability_score_thresh=0.85,
         )
 
         m.set_hyperparameters(
-            change_confidence_threshold=165,
+            change_confidence_threshold=155,
             use_normalized_feature=True,
             bitemporal_match=True,
             object_sim_thresh=70,
@@ -405,18 +405,91 @@ class Change_Perception(object):
         return num_str
 
     # design more tool functions:
-    def compute_deforestation_percentage(self, mask_path):
+    def compute_deforestation_percentage(self, changed_mask):
         """Calculate percentage from mask with error handling"""
+        total_pixels = changed_mask.shape[0] * changed_mask.shape[1]
+        deforestation_pixels = np.sum(changed_mask != 0)
+        percentage = round((deforestation_pixels / total_pixels) * 100.0, 2)
+        return f"{percentage} percent of the observed area has been affected by deforestation"
+
+    def visualise_change_mask(
+        self, imgA_path, imgB_path, changed_mask, output_path=None, alpha=0.5
+    ):
+        """
+        Visualise change mask overlay on images using OpenCV
+
+        Args:
+            imgA_path (str): Full path to Image A
+            imgB_path (str): Full path to Image B
+            changed_mask (np.array): Binary mask array (0=no change, 1=change)
+            output_path (str, optional): Path to save result. If None, just displays.
+            alpha (float): Opacity of change overlay (0-1)
+        """
         try:
-            img = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-            if img is None:
-                return None
-            total_pixels = img.shape[0] * img.shape[1]
-            deforestation_pixels = np.sum(img != 0)
-            percentage = round((deforestation_pixels / total_pixels) * 100.0, 2)
-            return f"{percentage} percent of the observed area has been affected by deforestation"
-        except Exception:
-            return "Problem loading the change mask"
+
+            # Load images
+            imgA = cv2.imread(imgA_path)
+            imgB = cv2.imread(imgB_path)
+
+            imgA = cv2.resize(imgA, (256, 256))
+            imgB = cv2.resize(imgB, (256, 256))
+
+            # Ensure mask is binary and 3-channel
+            if len(changed_mask.shape) == 3:
+                changed_mask = cv2.cvtColor(changed_mask, cv2.COLOR_BGR2GRAY)
+            changed_mask = cv2.resize(
+                changed_mask, (256, 256), interpolation=cv2.INTER_NEAREST
+            )
+
+            # Create properly sized overlay
+            red_overlay = np.zeros_like(imgB)
+
+            # Correct way to apply mask (ensures 1:1 correspondence)
+            red_overlay[changed_mask > 0] = [
+                0,
+                0,
+                255,
+            ]  # Only assign to matching 3-channel positions
+
+            # Blend images
+            blended = cv2.addWeighted(imgB, 0.7, red_overlay, alpha, 0)
+
+            # Combine side-by-side
+            result = np.hstack((imgA, blended))
+
+            # Add labels
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            cv2.putText(result, "Image A", (10, 30), font, 0.7, (255, 255, 255), 2)
+            cv2.putText(
+                result,
+                "Image B + Changes",
+                (256 + 10, 30),
+                font,
+                0.7,
+                (255, 255, 255),
+                2,
+            )
+
+            # Output
+            if output_path:
+                cv2.imwrite(output_path, result)
+
+            cv2.namedWindow("Change Detection", cv2.WINDOW_NORMAL)
+            cv2.imshow("Change Detection", result)
+
+            # Proper waitKey implementation
+            while True:
+                key = cv2.waitKey(100) & 0xFF
+                if (
+                    key == 27
+                    or key == ord("q")
+                    or cv2.getWindowProperty("Change Detection", cv2.WND_PROP_VISIBLE)
+                    < 1
+                ):
+                    break
+        finally:
+            cv2.destroyAllWindows()
+            cv2.waitKey(1)
 
 
 if __name__ == "__main__":
@@ -439,8 +512,9 @@ if __name__ == "__main__":
 
     Change_Perception = Change_Perception(parent_parser=parser)
     Change_Perception.generate_change_caption(imgA_path, imgB_path)
-    Change_Perception.change_detection(imgA_path, imgB_path, args.mask_save_path)
-    Change_Perception.compute_deforestation_percentage(args.mask_save_path)
+    mask = Change_Perception.change_detection(imgA_path, imgB_path, args.mask_save_path)
+    Change_Perception.compute_deforestation_percentage(mask)
+    Change_Perception.visualise_change_mask(imgA_path, imgB_path, mask)
 
     base, ext = os.path.splitext(args.mask_save_path)
     sac_mask_filename = f"{base}_sac{ext}"

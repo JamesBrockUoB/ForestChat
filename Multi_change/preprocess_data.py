@@ -18,9 +18,13 @@ parser.add_argument(
     default="ForestChatcaptions.json",
     help="the name of json file with the captions",
 )
-parser.add_argument("--word_count_threshold", default=3, type=int)
+parser.add_argument(
+    "--word_count_threshold", default=5, type=int
+)  # default 5, might change to 3 but needs retraining
 parser.add_argument("--keep_only_trees", default=False, type=bool)
-parser.add_argument("--keep_hard_forest_caption", default=False, type=bool)
+parser.add_argument(
+    "--keep_hard_forest_caption", default=True, type=bool
+)  # need to retrain with False to compare
 
 SPECIAL_TOKENS = {
     "<NULL>": 0,

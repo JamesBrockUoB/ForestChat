@@ -108,9 +108,9 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
            - **Returns**:
              - The number of changed objects.
 
-        4. **`compute_deforestation_percentage(saveoath_mask)`**:
+        4. **`compute_deforestation_percentage(change_mask)`**:
            - **Parameters**:
-             - `savepath_mask`: Path to the saved mask image
+             - `change_mask`: The mask from the `change_detection` function.
            - **Returns**:
              - A caption that includes the deforestation rate percentage observed in the mask.
 
@@ -131,7 +131,7 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             mask_bgr = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
             mask_bgr[mask == 1] = [0, 0, 255] # '1' stands for changed building (red)
             cv2.imwrite(savepath_mask, mask_bgr)
-            deforestation_percent_caption = Change_Perception_model.compute_deforestation_percentage(savepath_mask)
+            deforestation_percent_caption = Change_Perception_model.compute_deforestation_percentage(mask)
             return deforestation_percent_caption
         ```
 

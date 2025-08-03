@@ -127,9 +127,6 @@ class Trainer(object):
                 num_workers=args.workers,
                 pin_memory=True,
             )
-
-        self.index_i = 0
-        self.hist = np.zeros((args.num_epochs * 2 * len(self.train_loader), 5))
         # Epochs
 
         self.evaluator = Evaluator(num_class=NUM_CLASS)
@@ -246,6 +243,10 @@ class Trainer(object):
             print(f"Total parameters: {total_params}")
 
     def training(self, args, epoch):
+        # Only need one epoch of hist for printing as is stored in wandb to reduce memory
+        self.index_i = 0
+        self.hist = np.zeros((args.num_epochs * 2 * len(self.train_loader), 5))
+
         if self.start_train_goal != 2:
             self.encoder.train()
             self.encoder_trans.train()
@@ -295,10 +296,10 @@ class Trainer(object):
                 targets = caps_sorted[:, 1:]
                 scores = pack_padded_sequence(
                     scores, decode_lengths, batch_first=True
-                ).data
+                ).data.detach()
                 targets = pack_padded_sequence(
                     targets, decode_lengths, batch_first=True
-                ).data
+                ).data.detach()
                 # Calculate loss
                 cap_loss = self.criterion_cap(scores, targets.to(torch.int64))
             det_loss = self.criterion_det(seg_pre, seg_label.to(torch.int64))
@@ -828,6 +829,8 @@ if __name__ == "__main__":
                 for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
                     trainer.training(trainer.args, epoch)
                     trainer.validation(epoch)
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
                     if epoch - trainer.best_epoch > trainer.args.patience:
                         print_log(
                             f"Model did not improve after {trainer.args.patience}. Stopping training early.",
@@ -845,6 +848,8 @@ if __name__ == "__main__":
                 for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
                     trainer.training(trainer.args, epoch)
                     trainer.validation(epoch)
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
                     if (
                         trainer.args.train_goal == 1
                         and epoch - trainer.best_epoch > trainer.args.patience
@@ -864,3 +869,5 @@ if __name__ == "__main__":
             trainer.training(trainer.args, epoch)
             # if not trainer.args.no_val and epoch % args.eval_interval == (args.eval_interval - 1):
             trainer.validation(epoch)
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
