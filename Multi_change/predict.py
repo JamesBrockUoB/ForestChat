@@ -230,11 +230,8 @@ class Change_Perception(object):
         pred = pred_seg[0].astype(np.uint8)
 
         pred_rgb = np.zeros((pred.shape[0], pred.shape[1], 3), dtype=np.uint8)
-        if "Forest-Change" in self.args.data_folder:
-            pred_rgb = pred
-        else:
-            pred_rgb[pred == 1] = [0, 255, 255]
-            pred_rgb[pred == 2] = [0, 0, 255]
+        pred_rgb[pred == 1] = [0, 255, 255]
+        pred_rgb[pred == 2] = [0, 0, 255]
 
         cv2.imwrite(savepath_mask, pred_rgb)
         print("model_infer: mask saved in", savepath_mask)
@@ -376,7 +373,7 @@ class Change_Perception(object):
         # compute the number of connected components
         mask = changed_mask
         mask_cp = 0 * mask.copy()
-        if object == "road":
+        if object in ["road", "deforestation patches"]:
             mask_cp[mask == 1] = 255
         elif object == "building":
             mask_cp[mask == 2] = 255
@@ -412,85 +409,6 @@ class Change_Perception(object):
         percentage = round((deforestation_pixels / total_pixels) * 100.0, 2)
         return f"{percentage} percent of the observed area has been affected by deforestation"
 
-    def visualise_change_mask(
-        self, imgA_path, imgB_path, changed_mask, output_path=None, alpha=0.5
-    ):
-        """
-        Visualise change mask overlay on images using OpenCV
-
-        Args:
-            imgA_path (str): Full path to Image A
-            imgB_path (str): Full path to Image B
-            changed_mask (np.array): Binary mask array (0=no change, 1=change)
-            output_path (str, optional): Path to save result. If None, just displays.
-            alpha (float): Opacity of change overlay (0-1)
-        """
-        try:
-
-            # Load images
-            imgA = cv2.imread(imgA_path)
-            imgB = cv2.imread(imgB_path)
-
-            imgA = cv2.resize(imgA, (256, 256))
-            imgB = cv2.resize(imgB, (256, 256))
-
-            # Ensure mask is binary and 3-channel
-            if len(changed_mask.shape) == 3:
-                changed_mask = cv2.cvtColor(changed_mask, cv2.COLOR_BGR2GRAY)
-            changed_mask = cv2.resize(
-                changed_mask, (256, 256), interpolation=cv2.INTER_NEAREST
-            )
-
-            # Create properly sized overlay
-            red_overlay = np.zeros_like(imgB)
-
-            # Correct way to apply mask (ensures 1:1 correspondence)
-            red_overlay[changed_mask > 0] = [
-                0,
-                0,
-                255,
-            ]  # Only assign to matching 3-channel positions
-
-            # Blend images
-            blended = cv2.addWeighted(imgB, 0.7, red_overlay, alpha, 0)
-
-            # Combine side-by-side
-            result = np.hstack((imgA, blended))
-
-            # Add labels
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            cv2.putText(result, "Image A", (10, 30), font, 0.7, (255, 255, 255), 2)
-            cv2.putText(
-                result,
-                "Image B + Changes",
-                (256 + 10, 30),
-                font,
-                0.7,
-                (255, 255, 255),
-                2,
-            )
-
-            # Output
-            if output_path:
-                cv2.imwrite(output_path, result)
-
-            cv2.namedWindow("Change Detection", cv2.WINDOW_NORMAL)
-            cv2.imshow("Change Detection", result)
-
-            # Proper waitKey implementation
-            while True:
-                key = cv2.waitKey(100) & 0xFF
-                if (
-                    key == 27
-                    or key == ord("q")
-                    or cv2.getWindowProperty("Change Detection", cv2.WND_PROP_VISIBLE)
-                    < 1
-                ):
-                    break
-        finally:
-            cv2.destroyAllWindows()
-            cv2.waitKey(1)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -514,7 +432,7 @@ if __name__ == "__main__":
     Change_Perception.generate_change_caption(imgA_path, imgB_path)
     mask = Change_Perception.change_detection(imgA_path, imgB_path, args.mask_save_path)
     Change_Perception.compute_deforestation_percentage(mask)
-    Change_Perception.visualise_change_mask(imgA_path, imgB_path, mask)
+    Change_Perception.compute_object_num(mask, "deforestation")
 
     base, ext = os.path.splitext(args.mask_save_path)
     sac_mask_filename = f"{base}_sac{ext}"

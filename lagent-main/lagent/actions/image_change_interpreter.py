@@ -104,7 +104,7 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
         3. **`compute_object_num(change_mask,object)`**:
            - **Parameters**:
              - `change_mask`: The mask from the `change_detection` function.
-             - `object`: The object type to be counted. It can be either 'building' or 'road'.
+             - `object`: The object type to be counted. It can be one of 'deforestation patches', 'building', or 'road'.
            - **Returns**:
              - The number of changed objects.
 

@@ -10,6 +10,7 @@ from eval_func.cider.cider import Cider
 from eval_func.meteor.meteor import Meteor
 from eval_func.rouge.rouge import Rouge
 from skimage.io import imread
+from skimage.transform import resize
 from torchange.models.segment_any_change.segment_anything.utils.amg import (
     MaskData,
     area_from_rle,
@@ -17,7 +18,7 @@ from torchange.models.segment_any_change.segment_anything.utils.amg import (
 )
 
 
-def create_bw_mask(mask_data):
+def create_binary_mask_sac(mask_data):
     assert isinstance(mask_data, MaskData)
 
     # Return blank mask if no segments (now with batch dim)
@@ -29,7 +30,7 @@ def create_bw_mask(mask_data):
     h, w = base_mask.shape
 
     # Create empty canvas
-    combined_mask = np.zeros((h, w), dtype=np.uint8)
+    combined_mask = np.zeros((h, w, 3), dtype=np.uint8)
 
     # Combine all masks (sorted by area descending)
     sorted_rles = sorted(
@@ -37,35 +38,28 @@ def create_bw_mask(mask_data):
     )
     for rle in sorted_rles:
         mask = rle_to_mask(rle).astype(np.uint8)
-        cv2.bitwise_or(combined_mask, mask, dst=combined_mask)
+        combined_mask[mask > 0] = [0, 255, 255]
 
-    # Scale to 0-255 (white=foreground) and add batch dim
-    return np.expand_dims(combined_mask * 1, axis=0)
+    # Scale to 0-1 (white=foreground) and add batch dim
+    return np.expand_dims(combined_mask, axis=0)
 
 
-def load_images_sac(data_folder, split):
-    test_folder = os.path.join(data_folder, split)
+def load_images_sac(data_folder, split, target_size=(256, 256)):
+    folder = os.path.join(data_folder, split)
     images = []
 
-    a_dir = os.path.join(test_folder, "A")
+    a_dir = os.path.join(folder, "A")
     for img_name in os.listdir(a_dir):
         if not img_name.endswith((".png", ".jpg", ".jpeg")):
             continue
 
         # Load image pair and label
-        imgA = imread(os.path.join(a_dir, img_name))
-        imgB = imread(os.path.join(test_folder, "B", img_name))
-        label = imread(os.path.join(test_folder, "label", img_name))
+        imgA = cv2.resize(imread(os.path.join(a_dir, img_name)), target_size)
+        imgB = cv2.resize(imread(os.path.join(folder, "B", img_name)), target_size)
+        label = cv2.resize(imread(os.path.join(folder, "label", img_name)), target_size)
         label[label != 0] = 1
 
-        images.append(
-            (
-                imgA.copy(),
-                imgB.copy(),
-                label.copy(),
-                img_name,
-            )
-        )
+        images.append((imgA.copy(), imgB.copy(), label.copy(), img_name))
 
     return images
 

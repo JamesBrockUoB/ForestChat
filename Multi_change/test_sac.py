@@ -92,9 +92,10 @@ def main(args):
     # Epochs
     evaluator = Evaluator(num_class=NUM_CLASS)
     with torch.no_grad():
-        for imgA, imgB, seg_label, name in enumerate(
-            tqdm(test_loader, desc="test_" + " EVALUATING AT BEAM SIZE " + str(1))
+        for batch in tqdm(
+            test_loader, desc="test_" + " EVALUATING AT BEAM SIZE " + str(1)
         ):
+            imgA, imgB, seg_label, name = batch
             # Move to GPU, if available
             imgA = imgA.to(DEVICE).numpy()
             imgB = imgB.to(DEVICE).numpy()
@@ -124,7 +125,7 @@ def main(args):
             )
 
             changemasks, _, _ = m.forward(imgA, imgB)
-            pred_seg = create_bw_mask(changemasks)
+            pred_seg = create_binary_mask_sac(changemasks)
 
             # for change detection: save mask?
             if args.save_mask:
@@ -154,7 +155,6 @@ if __name__ == "__main__":
     )
 
     # Data parameters
-    parser.add_argument("--sys", default="linux", help="system win or linux")
     parser.add_argument(
         "--data_folder",
         default="./data/Forest-Change-dataset/images",
@@ -167,17 +167,8 @@ if __name__ == "__main__":
     )
 
     # Test
-    parser.add_argument("--gpu_id", type=int, default=0, help="gpu id in the training.")
-    parser.add_argument(
-        "--print_freq",
-        type=int,
-        default=10,
-        help="print training/validation stats every __ batches",
-    )
     parser.add_argument("--test_batchsize", default=1, help="batch_size for test")
     parser.add_argument("--workers", type=int, default=0, help="for data-loading")
-    parser.add_argument("--dropout", type=float, default=0.1, help="dropout")
-    # save masks and captions?
     parser.add_argument(
         "--save_mask", action="store_false", help="save the result of masks"
     )
