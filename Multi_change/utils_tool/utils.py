@@ -40,7 +40,6 @@ def create_binary_mask_sac(mask_data):
         mask = rle_to_mask(rle).astype(np.uint8)
         combined_mask[mask > 0] = [0, 255, 255]
 
-    # Scale to 0-1 (white=foreground) and add batch dim
     return np.expand_dims(combined_mask, axis=0)
 
 

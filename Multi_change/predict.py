@@ -240,7 +240,7 @@ class Change_Perception(object):
         return pred  # (256,256,3) or (256, 256) if not rgb
         # return 'change detection successfully. '
 
-    def sac_change_detection(self, path_A, path_B, savepath_mask):
+    def sac_change_detection(self, path_A, path_B, savepath_mask, process_mask=True):
         print("model_infer_change_detection_with_sac: start")
         imgA = imread(path_A)
         imgB = imread(path_B)
@@ -259,39 +259,45 @@ class Change_Perception(object):
         )
 
         mask_data, _, _ = m.forward(imgA, imgB)
-
         assert isinstance(mask_data, MaskData)
-        anns = []
 
-        for idx in range(len(mask_data["rles"])):
-            ann_i = {
-                "segmentation": rle_to_mask(mask_data["rles"][idx]),
-                "area": area_from_rle(mask_data["rles"][idx]),
-            }
-            if "boxes" in mask_data._stats:
-                ann_i["bbox"] = box_xyxy_to_xywh(mask_data["boxes"][idx]).tolist()
-            anns.append(ann_i)
+        if process_mask:
+            img_rgb = create_binary_mask_sac(mask_data)
+            if len(img_rgb.shape) == 4:  # (batch, H, W, C)
+                img_rgb = img_rgb[0]
+        else:
+            anns = []
 
-        if len(anns) == 0:
-            print("No masks to save.")
-            return
+            for idx in range(len(mask_data["rles"])):
+                ann_i = {
+                    "segmentation": rle_to_mask(mask_data["rles"][idx]),
+                    "area": area_from_rle(mask_data["rles"][idx]),
+                }
+                if "boxes" in mask_data._stats:
+                    ann_i["bbox"] = box_xyxy_to_xywh(mask_data["boxes"][idx]).tolist()
+                anns.append(ann_i)
 
-        sorted_anns = sorted(anns, key=lambda x: x["area"], reverse=True)
-        H, W = sorted_anns[0]["segmentation"].shape
-        img = np.ones((H, W, 4), dtype=np.float32)
-        img[:, :, 3] = 0  # alpha channel
+            if len(anns) == 0:
+                print("No masks to save.")
+                return
 
-        for ann in sorted_anns:
-            m = ann["segmentation"]
-            boundary = find_boundaries(m)
-            color_mask = np.concatenate([np.random.random(3), [0.35]])  # RGBA
-            color_boundary = np.array([0.0, 1.0, 1.0, 0.8])  # cyan boundaries
+            sorted_anns = sorted(anns, key=lambda x: x["area"], reverse=True)
+            H, W = sorted_anns[0]["segmentation"].shape
+            img = np.ones((H, W, 4), dtype=np.float32)
+            img[:, :, 3] = 0  # alpha channel
 
-            img[m] = color_mask
-            img[boundary] = color_boundary
+            for ann in sorted_anns:
+                m = ann["segmentation"]
+                boundary = find_boundaries(m)
+                color_mask = np.concatenate([np.random.random(3), [0.35]])  # RGBA
+                color_boundary = np.array([0.0, 1.0, 1.0, 0.8])  # cyan boundaries
 
-        img_rgb = (img[:, :, :3] * 255).astype(np.uint8)
+                img[m] = color_mask
+                img[boundary] = color_boundary
 
+            img_rgb = (img[:, :, :3] * 255).astype(np.uint8)
+
+        img_rgb = cv2.resize(img_rgb, (256, 256))
         cv2.imwrite(savepath_mask, img_rgb)
 
         print("model_infer: mask saved in", savepath_mask)
@@ -300,7 +306,7 @@ class Change_Perception(object):
         return img_rgb
 
     def sac_change_detection_points_of_interest(
-        self, path_A, path_B, savepath_mask, xyts
+        self, path_A, path_B, savepath_mask, xyts, process_mask=True
     ):
         print("model_infer_change_detection_with_sac_points_of_interest: start")
         imgA = imread(path_A)
@@ -330,37 +336,44 @@ class Change_Perception(object):
             mask_data = m.multi_points_match(img1=imgA, img2=imgB, xyts=xyts)
 
         assert isinstance(mask_data, MaskData)
-        anns = []
 
-        for idx in range(len(mask_data["rles"])):
-            ann_i = {
-                "segmentation": rle_to_mask(mask_data["rles"][idx]),
-                "area": area_from_rle(mask_data["rles"][idx]),
-            }
-            if "boxes" in mask_data._stats:
-                ann_i["bbox"] = box_xyxy_to_xywh(mask_data["boxes"][idx]).tolist()
-            anns.append(ann_i)
+        if process_mask:
+            img_rgb = create_binary_mask_sac(mask_data)
+            if len(img_rgb.shape) == 4:  # (batch, H, W, C)
+                img_rgb = img_rgb[0]
+        else:
+            anns = []
 
-        if len(anns) == 0:
-            print("No masks to save.")
-            return
+            for idx in range(len(mask_data["rles"])):
+                ann_i = {
+                    "segmentation": rle_to_mask(mask_data["rles"][idx]),
+                    "area": area_from_rle(mask_data["rles"][idx]),
+                }
+                if "boxes" in mask_data._stats:
+                    ann_i["bbox"] = box_xyxy_to_xywh(mask_data["boxes"][idx]).tolist()
+                anns.append(ann_i)
 
-        sorted_anns = sorted(anns, key=lambda x: x["area"], reverse=True)
-        H, W = sorted_anns[0]["segmentation"].shape
-        img = np.ones((H, W, 4), dtype=np.float32)
-        img[:, :, 3] = 0  # alpha channel
+            if len(anns) == 0:
+                print("No masks to save.")
+                return
 
-        for ann in sorted_anns:
-            m = ann["segmentation"]
-            boundary = find_boundaries(m)
-            color_mask = np.concatenate([np.random.random(3), [0.35]])  # RGBA
-            color_boundary = np.array([0.0, 1.0, 1.0, 0.8])  # cyan boundaries
+            sorted_anns = sorted(anns, key=lambda x: x["area"], reverse=True)
+            H, W = sorted_anns[0]["segmentation"].shape
+            img = np.ones((H, W, 4), dtype=np.float32)
+            img[:, :, 3] = 0  # alpha channel
 
-            img[m] = color_mask
-            img[boundary] = color_boundary
+            for ann in sorted_anns:
+                m = ann["segmentation"]
+                boundary = find_boundaries(m)
+                color_mask = np.concatenate([np.random.random(3), [0.35]])  # RGBA
+                color_boundary = np.array([0.0, 1.0, 1.0, 0.8])  # cyan boundaries
 
-        img_rgb = (img[:, :, :3] * 255).astype(np.uint8)
+                img[m] = color_mask
+                img[boundary] = color_boundary
 
+            img_rgb = (img[:, :, :3] * 255).astype(np.uint8)
+
+        img_rgb = cv2.resize(img_rgb, (256, 256))
         cv2.imwrite(savepath_mask, img_rgb)
 
         print("model_infer: mask saved in", savepath_mask)
@@ -395,19 +408,23 @@ class Change_Perception(object):
         # cv2.resizeWindow('findCorners', 600, 600)
         # cv2.imshow('findCorners', mask_array_copy)
         # cv2.waitKey(0)
-        print("Found", num, object)
-        print("compute num end")
         # return
         num_str = "Found " + str(num) + " changed " + object
+        print(num_str)
+        print("compute num end")
         return num_str
 
     # design more tool functions:
     def compute_deforestation_percentage(self, changed_mask):
+        print("compute percentage start")
         """Calculate percentage from mask with error handling"""
         total_pixels = changed_mask.shape[0] * changed_mask.shape[1]
         deforestation_pixels = np.sum(changed_mask != 0)
         percentage = round((deforestation_pixels / total_pixels) * 100.0, 2)
-        return f"{percentage} percent of the observed area has been affected by deforestation"
+        percentage_str = f"{percentage} percent of the observed area has been affected by deforestation"
+        print(percentage_str)
+        print("compute percentage end")
+        return percentage_str
 
 
 if __name__ == "__main__":
@@ -432,7 +449,7 @@ if __name__ == "__main__":
     Change_Perception.generate_change_caption(imgA_path, imgB_path)
     mask = Change_Perception.change_detection(imgA_path, imgB_path, args.mask_save_path)
     Change_Perception.compute_deforestation_percentage(mask)
-    Change_Perception.compute_object_num(mask, "deforestation")
+    Change_Perception.compute_object_num(mask, "deforestation patches")
 
     base, ext = os.path.splitext(args.mask_save_path)
     sac_mask_filename = f"{base}_sac{ext}"
