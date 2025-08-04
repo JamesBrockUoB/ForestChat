@@ -1,20 +1,12 @@
 import argparse
 import json
-from itertools import islice
+import os
 
 import cv2
+import numpy as np
 import torch.optim
-from data.ForestChange import ForestChangeDataset
-from data.LEVIR_MCI import LEVIRCCDataset
-from model.model_decoder import DecoderTransformer
-from model.model_encoder_att import AttentiveEncoder, Encoder
 from torch.utils import data
 from torchange.models.segment_any_change import AnyChange
-from torchange.models.segment_any_change.segment_anything.utils.amg import (
-    MaskData,
-    area_from_rle,
-    rle_to_mask,
-)
 from tqdm import tqdm
 from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
@@ -23,35 +15,10 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 NUM_CLASS = 2  # 3 for LEVIR-MCI
 
 
-def create_bw_mask(mask_data):
-    assert isinstance(mask_data, MaskData)
+def save_mask(pred, gt, name, save_path, split, args):
+    # pred value: 0,1; map to black, red
+    # gt value: 0,1; map to black, red
 
-    # Return blank mask if no segments
-    if len(mask_data["rles"]) == 0:
-        return np.zeros((256, 256), dtype=np.uint8)  # Default size
-
-    # Get dimensions from first mask
-    base_mask = rle_to_mask(mask_data["rles"][0])
-    h, w = base_mask.shape
-
-    # Create empty canvas
-    combined_mask = np.zeros((h, w), dtype=np.uint8)
-
-    # Combine all masks (sorted by area descending)
-    sorted_rles = sorted(
-        mask_data["rles"], key=lambda x: area_from_rle(x), reverse=True
-    )
-    for rle in sorted_rles:
-        mask = rle_to_mask(rle).astype(np.uint8)
-        cv2.bitwise_or(combined_mask, mask, dst=combined_mask)
-
-    # Scale to 0-255 (white=foreground)
-    return combined_mask * 255
-
-
-def save_mask(pred, gt, name, save_path, args):
-    # pred value: 0,1,2; map to black, yellow, red
-    # gt value: 0,1,2; map to black, yellow, red
     name = name[0]
     evaluator = Evaluator(num_class=NUM_CLASS)
     evaluator.add_batch(gt, pred)
@@ -80,15 +47,13 @@ def save_mask(pred, gt, name, save_path, args):
     pred_rgb = np.zeros((pred.shape[0], pred.shape[1], 3), dtype=np.uint8)
     gt_rgb = np.zeros((gt.shape[0], gt.shape[1], 3), dtype=np.uint8)
     pred_rgb[pred == 1] = [0, 255, 255]
-    pred_rgb[pred == 2] = [0, 0, 255]
     gt_rgb[gt == 1] = [0, 255, 255]
-    gt_rgb[gt == 2] = [0, 0, 255]
 
     cv2.imwrite(os.path.join(save_path, name.split(".")[0] + f"_mask.png"), pred_rgb)
     cv2.imwrite(os.path.join(save_path, name.split(".")[0] + "_gt.png"), gt_rgb)
     # 保存image_A 和 image_B
-    img_A_path = os.path.join(args.data_folder, "test/A", name)
-    img_B_path = os.path.join(args.data_folder, "test/B", name)
+    img_A_path = os.path.join(args.data_folder, split, "A", name)
+    img_B_path = os.path.join(args.data_folder, split, "B", name)
     img_A = cv2.imread(img_A_path)
     img_B = cv2.imread(img_B_path)
     cv2.imwrite(os.path.join(save_path, name.split(".")[0] + "_A.png"), img_A)
@@ -102,7 +67,7 @@ def main(args):
 
     args.result_path = os.path.join(
         args.result_path,
-        f"{os.path.basename(snapshot_full_path).replace('.pth', '')}_sac",
+        "SAC_model",
     )
     if not os.path.exists(args.result_path):
         os.makedirs(args.result_path, exist_ok=True)
@@ -115,61 +80,37 @@ def main(args):
             for name in dirs:
                 os.rmdir(os.path.join(root, name))
 
-    # Custom dataloaders
-    if args.data_name in ["LEVIR_MCI", "Forest-Change"]:
-        dataset = (
-            ForestChangeDataset(
-                args.data_folder,
-                args.list_path,
-                "test",
-                args.token_folder,
-                args.vocab_file,
-                0,
-                args.allow_unk,
-            )
-            if "Forest-Change" in args.data_name
-            else LEVIRCCDataset(
-                args.data_folder,
-                args.list_path,
-                "test",
-                args.token_folder,
-                args.vocab_file,
-                0,
-                args.allow_unk,
-            )
-        )
-        test_loader = data.DataLoader(
-            dataset,
-            batch_size=args.test_batchsize,
-            shuffle=False,
-            num_workers=args.workers,
-            pin_memory=True,
-        )
+    dataset = load_images_sac(args.data_folder, "test")
+    test_loader = data.DataLoader(
+        dataset,
+        batch_size=args.test_batchsize,
+        shuffle=False,
+        num_workers=args.workers,
+        pin_memory=True,
+    )
 
     # Epochs
     evaluator = Evaluator(num_class=NUM_CLASS)
     with torch.no_grad():
-        for ind, (
-            imgA,
-            imgB,
-            seg_label,
-            token_all,
-            token_all_len,
-            _,
-            _,
-            name,
-        ) in enumerate(
+        for imgA, imgB, seg_label, name in enumerate(
             tqdm(test_loader, desc="test_" + " EVALUATING AT BEAM SIZE " + str(1))
         ):
             # Move to GPU, if available
-            imgA = imgA.to(DEVICE)
-            imgB = imgB.to(DEVICE)
+            imgA = imgA.to(DEVICE).numpy()
+            imgB = imgB.to(DEVICE).numpy()
 
             seg_label = seg_label.cpu().numpy()
 
+            imgA = imgA.squeeze(0)
+            imgB = imgB.squeeze(0)
+
+            if imgA.shape[0] == 3:
+                imgA = imgA.transpose(1, 2, 0)
+                imgB = imgB.transpose(1, 2, 0)
+
             m = AnyChange(
                 "vit_h",
-                sam_checkpoint="./Multi_change/models_ckpt/sam_vit_h_4b8939.pth",
+                sam_checkpoint=args.sac_network_path,
             )
             m.make_mask_generator(
                 points_per_side=16,
@@ -187,7 +128,7 @@ def main(args):
 
             # for change detection: save mask?
             if args.save_mask:
-                save_mask(pred_seg, seg_label, name, args.result_path, args)
+                save_mask(pred_seg, seg_label, name, args.result_path, "test", args)
             # Add batch sample into evaluator
             evaluator.add_batch(seg_label, pred_seg)
 
@@ -220,10 +161,9 @@ if __name__ == "__main__":
         help="folder with image files",
     )
     parser.add_argument(
-        "--list_path", default="./data/Forest-Change/", help="path of the data lists"
-    )
-    parser.add_argument(
-        "--data_name", default="Forest-Change", help="base name shared by data files."
+        "--sac_network_path",
+        default="./models_ckpt/sam_vit_h_4b8939.pth",
+        help="path of the backbone architecture used by SAC",
     )
 
     # Test
@@ -249,5 +189,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(args)
     main(args)

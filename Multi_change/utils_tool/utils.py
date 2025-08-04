@@ -1,14 +1,73 @@
 import os
-import random
 import time
 
 import albumentations as A
+import cv2
 import numpy as np
 import torch
 from eval_func.bleu.bleu import Bleu
 from eval_func.cider.cider import Cider
 from eval_func.meteor.meteor import Meteor
 from eval_func.rouge.rouge import Rouge
+from skimage.io import imread
+from torchange.models.segment_any_change.segment_anything.utils.amg import (
+    MaskData,
+    area_from_rle,
+    rle_to_mask,
+)
+
+
+def create_bw_mask(mask_data):
+    assert isinstance(mask_data, MaskData)
+
+    # Return blank mask if no segments (now with batch dim)
+    if len(mask_data["rles"]) == 0:
+        return np.zeros((1, 256, 256), dtype=np.uint8)  # Shape (1, 256, 256)
+
+    # Get dimensions from first mask
+    base_mask = rle_to_mask(mask_data["rles"][0])
+    h, w = base_mask.shape
+
+    # Create empty canvas
+    combined_mask = np.zeros((h, w), dtype=np.uint8)
+
+    # Combine all masks (sorted by area descending)
+    sorted_rles = sorted(
+        mask_data["rles"], key=lambda x: area_from_rle(x), reverse=True
+    )
+    for rle in sorted_rles:
+        mask = rle_to_mask(rle).astype(np.uint8)
+        cv2.bitwise_or(combined_mask, mask, dst=combined_mask)
+
+    # Scale to 0-255 (white=foreground) and add batch dim
+    return np.expand_dims(combined_mask * 1, axis=0)
+
+
+def load_images_sac(data_folder, split):
+    test_folder = os.path.join(data_folder, split)
+    images = []
+
+    a_dir = os.path.join(test_folder, "A")
+    for img_name in os.listdir(a_dir):
+        if not img_name.endswith((".png", ".jpg", ".jpeg")):
+            continue
+
+        # Load image pair and label
+        imgA = imread(os.path.join(a_dir, img_name))
+        imgB = imread(os.path.join(test_folder, "B", img_name))
+        label = imread(os.path.join(test_folder, "label", img_name))
+        label[label != 0] = 1
+
+        images.append(
+            (
+                imgA.copy(),
+                imgB.copy(),
+                label.copy(),
+                img_name,
+            )
+        )
+
+    return images
 
 
 def get_image_transforms():
@@ -190,4 +249,6 @@ def time_file_str():
 def print_log(print_string, log):
     print("{:}".format(print_string))
     log.write("{:}\n".format(print_string))
+    log.flush()
+    log.flush()
     log.flush()

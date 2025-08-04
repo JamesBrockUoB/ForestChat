@@ -7,7 +7,6 @@ from data.ForestChange import ForestChangeDataset
 from data.LEVIR_MCI import LEVIRCCDataset
 from model.model_decoder import DecoderTransformer
 from model.model_encoder_att import AttentiveEncoder, Encoder
-from regex import D
 from torch.nn.utils.rnn import pack_padded_sequence
 from torch.utils import data
 from tqdm import tqdm
