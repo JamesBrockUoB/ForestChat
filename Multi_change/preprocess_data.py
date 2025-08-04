@@ -23,8 +23,11 @@ parser.add_argument(
 )  # default 5, might change to 3 but needs retraining
 parser.add_argument("--keep_only_trees", default=False, type=bool)
 parser.add_argument(
-    "--keep_hard_forest_caption", default=True, type=bool
-)  # need to retrain with False to compare
+    "--keep_hard_forest_caption",
+    action="store_false",
+    default=True,
+    help="Keep the hard forest caption (default: True)",
+)
 
 SPECIAL_TOKENS = {
     "<NULL>": 0,
