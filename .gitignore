@@ -5,11 +5,10 @@ model_weights/
 __pycache__
 *.py[cod]
 cache_dir/
-Multi_change/data/LEVIR-MCI-dataset/
 models_ckpt/
 predict_results/
 tmp_dir/
 .vscode/
 wandb/
-data/Forest-Change/
-data/LEVIR_MCI/
+Multi_change/data/Forest-Change/
+Multi_change/data/LEVIR_MCI/
