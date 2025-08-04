@@ -23,7 +23,7 @@ SWEEP_CONFIG = {
     "metric": {"name": "val/mIoU", "goal": "maximize"},
     "parameters": {
         "change_confidence_threshold": {
-            "values": [round(x, 2) for x in np.arange(0.5, 0.95, 0.05)]
+            "values": [round(x, 2) for x in np.arange(0.75, 0.95, 0.05)]
         },
         "points_per_side": {"values": [8, 16, 24, 32]},
         "stability_score_thresh": {

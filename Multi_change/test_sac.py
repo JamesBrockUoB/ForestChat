@@ -47,7 +47,9 @@ def save_mask(pred, gt, name, save_path, split, args):
     pred_rgb = np.zeros((pred.shape[0], pred.shape[1], 3), dtype=np.uint8)
     gt_rgb = np.zeros((gt.shape[0], gt.shape[1], 3), dtype=np.uint8)
     pred_rgb[pred == 1] = [0, 255, 255]
+    pred_rgb[pred == 2] = [0, 0, 255]
     gt_rgb[gt == 1] = [0, 255, 255]
+    gt_rgb[gt == 2] = [0, 0, 255]
 
     cv2.imwrite(os.path.join(save_path, name.split(".")[0] + f"_mask.png"), pred_rgb)
     cv2.imwrite(os.path.join(save_path, name.split(".")[0] + "_gt.png"), gt_rgb)

@@ -262,9 +262,9 @@ class Change_Perception(object):
         assert isinstance(mask_data, MaskData)
 
         if process_mask:
-            img_rgb = create_binary_mask_sac(mask_data)
-            if len(img_rgb.shape) == 4:  # (batch, H, W, C)
-                img_rgb = img_rgb[0]
+            img = create_binary_mask_sac(mask_data)[0]
+            img_rgb = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
+            img_rgb[img == 1] = [0, 255, 255]
         else:
             anns = []
 
@@ -338,9 +338,9 @@ class Change_Perception(object):
         assert isinstance(mask_data, MaskData)
 
         if process_mask:
-            img_rgb = create_binary_mask_sac(mask_data)
-            if len(img_rgb.shape) == 4:  # (batch, H, W, C)
-                img_rgb = img_rgb[0]
+            img = create_binary_mask_sac(mask_data)[0]
+            img_rgb = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
+            img_rgb[img == 1] = [0, 255, 255]
         else:
             anns = []
 

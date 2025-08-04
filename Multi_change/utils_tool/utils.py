@@ -30,7 +30,7 @@ def create_binary_mask_sac(mask_data):
     h, w = base_mask.shape
 
     # Create empty canvas
-    combined_mask = np.zeros((h, w, 3), dtype=np.uint8)
+    combined_mask = np.zeros((1, h, w), dtype=np.uint8)
 
     # Combine all masks (sorted by area descending)
     sorted_rles = sorted(
@@ -38,9 +38,9 @@ def create_binary_mask_sac(mask_data):
     )
     for rle in sorted_rles:
         mask = rle_to_mask(rle).astype(np.uint8)
-        combined_mask[mask > 0] = [0, 255, 255]
+        combined_mask[0, mask > 0] = 1
 
-    return np.expand_dims(combined_mask, axis=0)
+    return combined_mask
 
 
 def load_images_sac(data_folder, split, target_size=(256, 256)):
