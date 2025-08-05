@@ -541,18 +541,26 @@ class Trainer(object):
                 Acc_class_seg = self.evaluator.Pixel_Accuracy_Class()
                 mIoU_seg, IoU = self.evaluator.Mean_Intersection_over_Union()
                 FWIoU_seg = self.evaluator.Frequency_Weighted_Intersection_over_Union()
-                print_log(
-                    "\nDetection_Validation:\n"
-                    "Epoch: {0}\t"
-                    "Acc_seg: {1:.5f}\t"
-                    "Acc_class_seg: {2:.5f}\t"
-                    "mIoU_seg: {3:.5f}\t"
-                    "FWIoU_seg: {4:.5f}\t ".format(
-                        epoch, Acc_seg, Acc_class_seg, mIoU_seg, FWIoU_seg
-                    ),
-                    self.log,
+                Acc_seg = self.evaluator.Pixel_Accuracy()
+                F1_score, F1_class_score = self.evaluator.F1_Score()
+                print(
+                    "Validation:\n"
+                    "Acc_seg: {0:.5f}\t"
+                    "Acc_class_seg: {1:.5f}\t"
+                    "mIoU_seg: {2:.5f}\t"
+                    "FWIoU_seg: {3:.5f}\t"
+                    "IoU: {4}\t"
+                    "F1: {5:.5f}\t"
+                    "F1_class: {6}\t".format(
+                        Acc_seg,
+                        Acc_class_seg,
+                        mIoU_seg,
+                        FWIoU_seg,
+                        IoU,
+                        F1_score,
+                        F1_class_score,
+                    )
                 )
-                print_log("IoU: {}".format(IoU), self.log)
                 wandb.log(
                     {
                         "epoch": epoch,
@@ -561,6 +569,7 @@ class Trainer(object):
                         "mIoU seg val": mIoU_seg,
                         "FWIoU seg": FWIoU_seg,
                         "IoU": IoU,
+                        "F1": F1_score,
                     }
                 )
 

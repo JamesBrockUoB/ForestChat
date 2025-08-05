@@ -50,6 +50,18 @@ class Evaluator(object):
         FWIoU = (freq[freq > 0] * iu[freq > 0]).sum()
         return FWIoU
 
+    def F1_Score(self):
+        cm = self.confusion_matrix
+        precision = np.diag(cm) / (np.sum(cm, axis=0) + 1e-6)  # predicted as class i
+        recall = np.diag(cm) / (np.sum(cm, axis=1) + 1e-6)  # actually class i
+
+        f1 = 2 * precision * recall / (precision + recall + 1e-6)
+        mean_f1 = np.nanmean(f1)
+
+        f1_per_class_str = "  ".join([f"{score:.4f}" for score in f1])
+
+        return mean_f1, f1_per_class_str
+
     def _generate_matrix(self, gt_image, pre_image):
         mask = (gt_image >= 0) & (gt_image < self.num_class)
         label = self.num_class * gt_image[mask].astype("int") + pre_image[mask]

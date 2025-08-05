@@ -93,6 +93,7 @@ def main(args):
 
     # Epochs
     evaluator = Evaluator(num_class=NUM_CLASS)
+
     with torch.no_grad():
         for batch in tqdm(
             test_loader, desc="test_" + " EVALUATING AT BEAM SIZE " + str(1)
@@ -141,14 +142,26 @@ def main(args):
         Acc_class_seg = evaluator.Pixel_Accuracy_Class()
         mIoU_seg, IoU = evaluator.Mean_Intersection_over_Union()
         FWIoU_seg = evaluator.Frequency_Weighted_Intersection_over_Union()
+        Acc_seg = evaluator.Pixel_Accuracy()
+        F1_score, F1_class_score = evaluator.F1_Score()
         print(
             "Validation:\n"
             "Acc_seg: {0:.5f}\t"
             "Acc_class_seg: {1:.5f}\t"
             "mIoU_seg: {2:.5f}\t"
-            "FWIoU_seg: {3:.5f}\t".format(Acc_seg, Acc_class_seg, mIoU_seg, FWIoU_seg)
+            "FWIoU_seg: {3:.5f}\t"
+            "IoU: {4}\t"
+            "F1: {5:.5f}\t"
+            "F1_class: {6}\t".format(
+                Acc_seg,
+                Acc_class_seg,
+                mIoU_seg,
+                FWIoU_seg,
+                IoU,
+                F1_score,
+                F1_class_score,
+            )
         )
-        print("IoU:", IoU)
 
 
 if __name__ == "__main__":

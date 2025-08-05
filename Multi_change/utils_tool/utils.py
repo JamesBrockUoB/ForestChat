@@ -48,7 +48,7 @@ def load_images_sac(data_folder, split, target_size=(256, 256)):
     images = []
 
     a_dir = os.path.join(folder, "A")
-    for img_name in os.listdir(a_dir):
+    for img_name in sorted(os.listdir(a_dir)):
         if not img_name.endswith((".png", ".jpg", ".jpeg")):
             continue
 

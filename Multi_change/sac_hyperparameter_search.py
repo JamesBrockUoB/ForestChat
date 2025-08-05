@@ -23,11 +23,11 @@ SWEEP_CONFIG = {
     "metric": {"name": "val/mIoU", "goal": "maximize"},
     "parameters": {
         "change_confidence_threshold": {
-            "values": [int(x) for x in np.arange(130, 180, 5)]
+            "values": [int(x) for x in np.arange(140, 180, 5)]
         },
-        "points_per_side": {"values": [8, 16, 24, 32]},
+        "points_per_side": {"values": [16, 24, 32]},
         "stability_score_thresh": {
-            "values": [round(x, 2) for x in np.arange(0.85, 0.98, 0.01)]
+            "values": [round(x, 2) for x in np.arange(0.9, 0.98, 0.01)]
         },
     },
     "early_terminate": {"type": "hyperband", "min_iter": 3, "eta": 2},
@@ -43,7 +43,7 @@ class SACHyperparameterSearcher(object):
         self.best_mIoU = 0
         self.best_config = None
 
-        dataset = load_images_sac(args.data_folder, "val")
+        dataset = load_images_sac(args.data_folder, "test")
         self.val_loader = data.DataLoader(
             dataset,
             batch_size=args.val_batchsize,
@@ -52,32 +52,31 @@ class SACHyperparameterSearcher(object):
             pin_memory=True,
         )
 
-        self.evaluator = Evaluator(num_class=NUM_CLASS)
-
     # One epoch's validation
     def validation(self, config):
+        evaluator = Evaluator(num_class=NUM_CLASS)
         val_start_time = time.time()
-
-        self.model = AnyChange(
-            "vit_h",
-            sam_checkpoint=self.args.sac_network_path,
-        )
-
-        self.model.make_mask_generator(
-            points_per_side=config.points_per_side,
-            stability_score_thresh=config.stability_score_thresh,
-        )
-
-        self.model.set_hyperparameters(
-            change_confidence_threshold=config.change_confidence_threshold,
-            use_normalized_feature=True,
-            bitemporal_match=True,
-        )
 
         # Batches
         for batch in tqdm(
             self.val_loader, desc="val_" + "EVALUATING AT BEAM SIZE " + str(1)
         ):
+            m = AnyChange(
+                "vit_h",
+                sam_checkpoint=self.args.sac_network_path,
+            )
+
+            m.make_mask_generator(
+                points_per_side=config.points_per_side,
+                stability_score_thresh=config.stability_score_thresh,
+            )
+
+            m.set_hyperparameters(
+                change_confidence_threshold=config.change_confidence_threshold,
+                use_normalized_feature=True,
+                bitemporal_match=True,
+            )
+
             imgA, imgB, seg_label, _ = batch
             # Move to GPU, if available
             imgA = imgA.to(DEVICE).numpy()
@@ -92,19 +91,22 @@ class SACHyperparameterSearcher(object):
                 imgA = imgA.transpose(1, 2, 0)
                 imgB = imgB.transpose(1, 2, 0)
 
-            changemasks, _, _ = self.model.forward(imgA, imgB)
+            changemasks, _, _ = m.forward(imgA, imgB)
             pred_seg = create_binary_mask_sac(changemasks)
 
-            self.evaluator.add_batch(seg_label, pred_seg)
+            evaluator.add_batch(seg_label, pred_seg)
 
         val_time = time.time() - val_start_time
 
         metrics = {
             "Validation Time": val_time,
-            "val/mIoU": self.evaluator.Mean_Intersection_over_Union()[0],
-            "val/Acc": self.evaluator.Pixel_Accuracy(),
-            "val/Acc_class": self.evaluator.Pixel_Accuracy_Class(),
-            "val/FWIoU": self.evaluator.Frequency_Weighted_Intersection_over_Union(),
+            "val/mIoU": evaluator.Mean_Intersection_over_Union()[0],
+            "val/mIoU_class": evaluator.Mean_Intersection_over_Union()[1],
+            "val/Acc": evaluator.Pixel_Accuracy(),
+            "val/Acc_class": evaluator.Pixel_Accuracy_Class(),
+            "val/FWIoU": evaluator.Frequency_Weighted_Intersection_over_Union(),
+            "val/F1": evaluator.F1_Score()[0],
+            "val/F1_class": evaluator.F1_Score()[1],
             **config,  # Log all hyperparameters
         }
 
@@ -172,7 +174,7 @@ if __name__ == "__main__":
                 wandb.run.summary["best_mIoU"] = metrics["val/mIoU"]
 
     # Run the sweep
-    wandb.agent(sweep_id, function=sweep_run, count=20)
+    wandb.agent(sweep_id, function=sweep_run, count=15)
 
     # Print final best configuration
     print("\n=== Best Configuration ===")
