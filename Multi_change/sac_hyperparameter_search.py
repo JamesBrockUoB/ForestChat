@@ -42,7 +42,6 @@ class SACHyperparameterSearcher(object):
         self.args = args
         self.best_mIoU = 0
         self.best_config = None
-        self.model = None
 
         dataset = load_images_sac(args.data_folder, "val")
         self.val_loader = data.DataLoader(
@@ -58,6 +57,22 @@ class SACHyperparameterSearcher(object):
     # One epoch's validation
     def validation(self, config):
         val_start_time = time.time()
+
+        self.model = AnyChange(
+            "vit_h",
+            sam_checkpoint=self.args.sac_network_path,
+        )
+
+        self.model.make_mask_generator(
+            points_per_side=config.points_per_side,
+            stability_score_thresh=config.stability_score_thresh,
+        )
+
+        self.model.set_hyperparameters(
+            change_confidence_threshold=config.change_confidence_threshold,
+            use_normalized_feature=True,
+            bitemporal_match=True,
+        )
 
         # Batches
         for batch in tqdm(
@@ -77,22 +92,7 @@ class SACHyperparameterSearcher(object):
                 imgA = imgA.transpose(1, 2, 0)
                 imgB = imgB.transpose(1, 2, 0)
 
-            m = AnyChange(
-                "vit_h",
-                sam_checkpoint=self.args.sac_network_path,
-            )
-            m.make_mask_generator(
-                points_per_side=config.points_per_side,
-                stability_score_thresh=config.stability_score_thresh,
-            )
-
-            m.set_hyperparameters(
-                change_confidence_threshold=config.change_confidence_threshold,
-                use_normalized_feature=True,
-                bitemporal_match=True,
-            )
-
-            changemasks, _, _ = m.forward(imgA, imgB)
+            changemasks, _, _ = self.model.forward(imgA, imgB)
             pred_seg = create_binary_mask_sac(changemasks)
 
             self.evaluator.add_batch(seg_label, pred_seg)

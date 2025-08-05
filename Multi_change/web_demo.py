@@ -254,19 +254,28 @@ class StreamlitUI:
             points = st.session_state.selected_points[selected_image_key]
             path_A = os.path.join(root_dir, st.session_state["image_A_name"])
             path_B = os.path.join(root_dir, st.session_state["image_B_name"])
-            savepath_mask = "./tmp_dir/sac_change_mask.png"
+
+            if not os.path.exists(path_A):
+                with open(path_A, "wb") as f:
+                    f.write(st.session_state["image_A_bytes"])
+
+            if not os.path.exists(path_B):
+                with open(path_B, "wb") as f:
+                    f.write(st.session_state["image_B_bytes"])
+
+            savepath_mask = os.path.join(root_dir, "sac_change_mask.png")
 
             try:
                 with st.spinner("Running SAC Model... This may take up to a minute."):
                     change_perception = Change_Perception()
                     if len(points) == 0:
-                        result = change_perception.sac_change_detection(
+                        mask = change_perception.sac_change_detection(
                             path_A=path_A,
                             path_B=path_B,
                             savepath_mask=savepath_mask,
                         )
                     else:
-                        result = (
+                        mask = (
                             change_perception.sac_change_detection_points_of_interest(
                                 path_A=path_A,
                                 path_B=path_B,
@@ -275,32 +284,34 @@ class StreamlitUI:
                             )
                         )
 
-                    st.session_state["sac_result_path"] = savepath_mask
-
-                st.success("✅ Segmentation completed!")
+                st.success("✅ Segmentation complete!")
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
                     st.image(
-                        st.session_state["image_A_name"],
+                        path_A,
                         caption="Image A",
-                        use_column_width=True,
+                        use_container_width=True,
                     )
 
                 with col2:
                     st.image(
-                        st.session_state["image_B_name"],
+                        path_B,
                         caption="Image B",
-                        use_column_width=True,
+                        use_container_width=True,
                     )
 
                 with col3:
                     st.image(
-                        st.session_state["sac_result_path"],
+                        savepath_mask,
                         caption="🔍 SAC Output",
-                        use_column_width=True,
+                        use_container_width=True,
                     )
 
+                percentage_str = change_perception.compute_deforestation_percentage(
+                    mask
+                )
+                st.markdown(percentage_str)
                 st.markdown(f"📁 Output saved at: `{savepath_mask}`")
             except Exception as e:
                 st.markdown(
