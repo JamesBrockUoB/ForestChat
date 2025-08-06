@@ -117,12 +117,12 @@ def main(args):
                 sam_checkpoint=args.sac_network_path,
             )
             m.make_mask_generator(
-                points_per_side=16,
+                points_per_side=24,
                 stability_score_thresh=0.95,
             )
 
             m.set_hyperparameters(
-                change_confidence_threshold=155,
+                change_confidence_threshold=150,
                 use_normalized_feature=True,
                 bitemporal_match=True,
             )

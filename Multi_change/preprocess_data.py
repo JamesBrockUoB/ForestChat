@@ -23,10 +23,11 @@ parser.add_argument(
 )  # default 5, might change to 3 but needs retraining
 parser.add_argument("--keep_only_trees", default=False, type=bool)
 parser.add_argument(
-    "--keep_hard_forest_caption",
-    action="store_false",
-    default=True,
-    help="Keep the hard forest caption (default: True)",
+    "--caption_indices_to_keep",
+    type=int,
+    nargs="*",
+    default=None,
+    help="List of caption indices to keep for each image. If None, all are kept.",
 )
 
 SPECIAL_TOKENS = {
@@ -66,15 +67,20 @@ def main(args):
         for img in data["images"]:
             captions = []
             assert len(img["sentences"]) > 0, "error: some image has no captions"
-            for i, c in enumerate(img["sentences"]):
-                # Update word frequency
-                if (
-                    (i == 0)
-                    and (args.dataset == "Forest-Change")
-                    and (not args.keep_hard_forest_caption)
-                ):  # the first caption in the forest change captions is always the hardest
+            num_captions = len(img["sentences"])
+            # If no specific indices provided, keep all
+            if args.caption_indices_to_keep is None:
+                caption_indices = range(num_captions)
+            else:
+                caption_indices = [
+                    i for i in args.caption_indices_to_keep if i < num_captions
+                ]
+
+            captions = []
+            for i in caption_indices:
+                c = img["sentences"][i]
+                if len(c["raw"]) == 0:
                     continue
-                assert len(c["raw"]) > 0, "error: caption empty"
                 captions.append(c["raw"])
             tokens_list = []
             for cap in captions:
