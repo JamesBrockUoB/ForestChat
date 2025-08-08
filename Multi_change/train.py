@@ -449,6 +449,9 @@ class Trainer(object):
                     }
                 )
 
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
     # One epoch's validation
     def validation(self, epoch):
         word_vocab = self.word_vocab
@@ -537,6 +540,9 @@ class Trainer(object):
                             for j in i:
                                 ref_caption += (list(word_vocab.keys())[j]) + " "
                             ref_caption += ".    "
+
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
             val_time = time.time() - val_start_time
             # Fast test during the training
             # for segmentation
@@ -848,8 +854,6 @@ if __name__ == "__main__":
                     for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
                         trainer.training(trainer.args, epoch)
                         trainer.validation(epoch)
-                        if torch.cuda.is_available():
-                            torch.cuda.empty_cache()
                         if epoch - trainer.best_epoch > trainer.args.patience:
                             print_log(
                                 f"Model did not improve after {trainer.args.patience}. Stopping training early.",
@@ -869,8 +873,6 @@ if __name__ == "__main__":
                     for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
                         trainer.training(trainer.args, epoch)
                         trainer.validation(epoch)
-                        if torch.cuda.is_available():
-                            torch.cuda.empty_cache()
                         if (
                             trainer.args.train_goal == 1
                             and epoch - trainer.best_epoch > trainer.args.patience
@@ -890,7 +892,5 @@ if __name__ == "__main__":
                 trainer.training(trainer.args, epoch)
                 # if not trainer.args.no_val and epoch % args.eval_interval == (args.eval_interval - 1):
                 trainer.validation(epoch)
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
     except Exception as e:
         print_log("Hit an exception: {}".format(e), trainer.log)

@@ -58,71 +58,14 @@ LOSS_ADJECTIVES = {
     ],
 }
 
-POSITIONS = [
-    "top-left",
-    "top-center",
-    "top-right",
-    "middle-left",
-    "center",
-    "middle-right",
-    "bottom-left",
-    "bottom-center",
-    "bottom-right",
-]
-
-LOCATION_PHRASES = {
-    "single": [
-        "concentrated in the {pos} region",
-        "mainly located in the {pos} area",
-        "primarily found in the {pos} section",
-    ],
-    "dual": [
-        "primarily occurring in the {pos1} and {pos2} regions",
-        "mainly located across the {pos1} and {pos2} areas",
-        "largely concentrated in the {pos1} and {pos2} sections",
-    ],
-    "scattered": [
-        "scattered across multiple regions",
-        "distributed throughout various parts of the area",
-        "spread across several different regions",
-    ],
-}
-
-PATCH_VARIABILITY = {
-    "low": ["uniform in size", "relatively consistent in patch size"],
-    "medium": ["moderately varied in size", "showing some variation in patch size"],
-    "high": ["highly varied in size", "displaying large variations in patch sizes"],
-}
-
-PATCH_COUNT_PHRASES = {
-    "few": [
-        "in a few patches that are {var}",
-        "in a small number of patches which are {var}",
-    ],
-    "several_extensive": [
-        "in several patches, including one or more extensive regions, being {var}",
-        "in multiple patches with some large areas, that are {var}",
-    ],
-    "multiple_notable": [
-        "in multiple patches, including some notable regions, which are {var}",
-        "distributed among several patches with some notable sizes, that are {var}",
-    ],
-    "many_small": [
-        "in many small patches, being {var}",
-        "scattered in numerous small patches, which are {var}",
-    ],
-}
-
 TEMPLATES = [
-    "{adj}, {distribution}, {patchiness}",
-    "{distribution}, {adj}, {patchiness}",
-    "{adj} and {distribution}, {patchiness}",
-    "{adj} - {patchiness}, {distribution}",
-    "{adj}",
-    "{adj}, {distribution}",
-    "{adj}, {patchiness}",
-    "{distribution}, {adj}",
+    "{adj} {distribution} {patchiness}",
+    "{adj} {patchiness} {distribution}",
+    "{distribution} {adj} {patchiness}",
+    "{adj} {distribution}",
+    "{distribution} {adj}",
 ]
+TEMPLATE_WEIGHTS = [0.35, 0.35, 0.3, 0.15, 0.15]
 
 
 class AutoCaption:
@@ -192,7 +135,7 @@ class AutoCaption:
                 [
                     f"primarily occurring in the {positions[sorted_idx[0]]} and {positions[sorted_idx[1]]} regions",
                     f"mainly located across the {positions[sorted_idx[0]]} and {positions[sorted_idx[1]]} areas",
-                    f"mostly concentrated in the {positions[sorted_idx[0]]} and {positions[sorted_idx[1]]} sections",
+                    f"largely concentrated in the {positions[sorted_idx[0]]} and {positions[sorted_idx[1]]} sections",
                 ]
             )
 
@@ -211,16 +154,14 @@ class AutoCaption:
         std_rate = std / avg if avg > 0 else 0
 
         if std_rate < 0.25:
-            var = random.choice(
-                ["uniform in size", "relatively consistent in patch size"]
-            )
+            var = random.choice(["uniform in size", "relatively consistent in size"])
         elif std_rate < 0.6:
             var = random.choice(
-                ["moderately varied in size", "showing some variation in patch size"]
+                ["moderately varied in size", "showing some variation in size"]
             )
         else:
             var = random.choice(
-                ["highly varied in size", "displaying large variations in patch sizes"]
+                ["highly varied in size", "displaying large variations in size"]
             )
 
         if num_labels <= 3:
@@ -230,28 +171,28 @@ class AutoCaption:
                     f"within a small number of patches which are {var}",
                 ]
             )
-        else:
-            if np.any(patch_percents >= 10):
-                return random.choice(
-                    [
-                        f"in several patches, including one or more extensive regions, which are {var}",
-                        f"across multiple patches with some large areas, which are {var}",
-                    ]
-                )
-            elif np.any(patch_percents >= 5):
-                return random.choice(
-                    [
-                        f"in multiple patches, including some notable regions, which are {var}",
-                        f"distributed among several patches with some notable sizes, which are {var}",
-                    ]
-                )
-            else:
-                return random.choice(
-                    [
-                        f"occurring in many small patches, which are {var}",
-                        f"found scattered in numerous small patches, which are {var}",
-                    ]
-                )
+
+        if np.any(patch_percents >= 10):
+            return random.choice(
+                [
+                    f"in several patches, including one or more extensive regions, which are {var}",
+                    f"across multiple patches with some large areas, which are {var}",
+                ]
+            )
+        if np.any(patch_percents >= 5):
+            return random.choice(
+                [
+                    f"in multiple patches, including some notable regions, which are {var}",
+                    f"distributed among several patches with some notable sizes, which are {var}",
+                ]
+            )
+
+        return random.choice(
+            [
+                f"occurring in many small patches, which are {var}",
+                f"found scattered in numerous small patches, which are {var}",
+            ]
+        )
 
     def select_adjective(self, percentage):
         for (low, high), phrases in LOSS_ADJECTIVES.items():
@@ -294,7 +235,7 @@ class AutoCaption:
                 distribution = "" if distribution is None else str(distribution).strip()
                 patchiness = "" if patchiness is None else str(patchiness).strip()
 
-                template = random.choice(TEMPLATES)
+                template = random.choices(TEMPLATES, weights=TEMPLATE_WEIGHTS, k=1)[0]
                 caption = template.format(
                     adj=adj, distribution=distribution, patchiness=patchiness
                 )
