@@ -100,7 +100,11 @@ class Trainer(object):
                         self.max_length,
                         args.allow_unk,
                         get_image_transforms(),
-                        args.increased_train_data_size,
+                        (
+                            args.increased_train_data_size
+                            if split == "train"
+                            else args.increased_val_data_size
+                        ),
                     )
                     if "Forest-Change" in args.data_name
                     else LEVIRCCDataset(
@@ -111,7 +115,6 @@ class Trainer(object):
                         args.vocab_file,
                         self.max_length,
                         args.allow_unk,
-                        args.increased_val_data_size,
                     )
                 )
                 datasets.append(dataset)
@@ -829,7 +832,9 @@ if __name__ == "__main__":
     trainer = Trainer(args)
     print_log("\nStarting Epoch: {}".format(trainer.start_epoch), trainer.log)
     print_log("Total Epoches: {}".format(trainer.args.num_epochs), trainer.log)
-    print_log("Training Dataset Size: {}".format(args.train_dataset_size), trainer.log)
+    print_log(
+        "Training Dataset Size: {}".format(trainer.train_dataset_size), trainer.log
+    )
 
     try:
         if args.train_goal == 2:
