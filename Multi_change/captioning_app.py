@@ -1,12 +1,128 @@
 import json
 import os
-from string import punctuation
+import random
+import re
 
 import cv2
 import numpy as np
 import streamlit as st
 from PIL import Image
 from streamlit_file_browser import st_file_browser
+
+LOSS_ADJECTIVES = {
+    (0, 1): [
+        "negligible forest loss is detected",
+        "almost no forest change is observed",
+        "very minimal forest degradation",
+    ],
+    (1, 5): [
+        "minor forest loss is visible",
+        "slight forest degradation is noted",
+        "small amounts of forest loss are apparent",
+        "limited deforestation observed",
+    ],
+    (5, 10): [
+        "low levels of forest degradation are observed",
+        "some modest forest loss is detected",
+        "slight forest loss is apparent",
+    ],
+    (10, 15): [
+        "moderate forest loss is present",
+        "noticeable forest degradation occurs",
+        "intermediate deforestation is evident",
+    ],
+    (15, 25): [
+        "substantial deforestation has occurred",
+        "considerable forest loss is visible",
+        "significant forest loss is observed",
+    ],
+    (25, 40): [
+        "extensive forest loss is detected in the observed area",
+        "large-scale forest degradation is apparent",
+        "widespread clearings are present",
+    ],
+    (40, 65): [
+        "severe deforestation affects a large portion of the scene",
+        "major forest loss dominates the area",
+        "heavy deforestation is visible throughout much of the region",
+    ],
+    (65, 85): [
+        "critical forest loss dominates the region",
+        "an overwhelming level of deforestation is evident",
+        "very high levels of deforestation detected",
+    ],
+    (85, 100): [
+        "near-total deforestation is observed throughout the area",
+        "almost complete loss of forest detected",
+        "forest cover is nearly entirely removed",
+    ],
+}
+
+POSITIONS = [
+    "top-left",
+    "top-center",
+    "top-right",
+    "middle-left",
+    "center",
+    "middle-right",
+    "bottom-left",
+    "bottom-center",
+    "bottom-right",
+]
+
+LOCATION_PHRASES = {
+    "single": [
+        "concentrated in the {pos} region",
+        "mainly located in the {pos} area",
+        "primarily found in the {pos} section",
+    ],
+    "dual": [
+        "primarily occurring in the {pos1} and {pos2} regions",
+        "mainly located across the {pos1} and {pos2} areas",
+        "largely concentrated in the {pos1} and {pos2} sections",
+    ],
+    "scattered": [
+        "scattered across multiple regions",
+        "distributed throughout various parts of the area",
+        "spread across several different regions",
+    ],
+}
+
+PATCH_VARIABILITY = {
+    "low": ["uniform in size", "relatively consistent in patch size"],
+    "medium": ["moderately varied in size", "showing some variation in patch size"],
+    "high": ["highly varied in size", "displaying large variations in patch sizes"],
+}
+
+PATCH_COUNT_PHRASES = {
+    "few": [
+        "in a few patches that are {var}",
+        "in a small number of patches which are {var}",
+    ],
+    "several_extensive": [
+        "in several patches, including one or more extensive regions, being {var}",
+        "in multiple patches with some large areas, that are {var}",
+    ],
+    "multiple_notable": [
+        "in multiple patches, including some notable regions, which are {var}",
+        "distributed among several patches with some notable sizes, that are {var}",
+    ],
+    "many_small": [
+        "in many small patches, being {var}",
+        "scattered in numerous small patches, which are {var}",
+    ],
+}
+
+TEMPLATES = [
+    "{adj}, {distribution}, {patchiness}",
+    "{distribution}, {adj}, {patchiness}",
+    "{adj} and {distribution}, {patchiness}",
+    "{adj} - {patchiness}, {distribution}",
+    "{adj}",
+    "{adj}, {distribution}",
+    "{adj}, {patchiness}",
+    "{distribution}, {adj}",
+]
 
 
 class AutoCaption:
@@ -24,90 +140,25 @@ class AutoCaption:
 
         return img
 
-    def create_captions(self):
-        deforestation_rate = self.check_percentage_of_image_contains_deforestation()
-
-        caption_percentage = self.create_deforestation_percentage_caption(
-            deforestation_rate
-        )
-        caption_adjective = self.loss_intensity_adjective_caption(deforestation_rate)
-        caption_distribution_of_loss = self.describe_forest_loss_distribution()
-        caption_deforestation_patchiness = self.describe_patchiness_of_loss()
-        deforestation_adjective_distribution = self.combine_two_captions(
-            caption_adjective, caption_distribution_of_loss
-        )
-        deforestation_adjective_patchiness = self.combine_two_captions(
-            caption_adjective, caption_deforestation_patchiness
-        )
-
-        return [
-            caption_percentage,
-            caption_adjective,
-            deforestation_adjective_distribution,
-            deforestation_adjective_patchiness,
-        ]
-
-    def check_percentage_of_image_contains_deforestation(self):
-        total_pixels = self.img.shape[0] * self.img.shape[1]
-        deforestation_pixels = np.sum(self.img != 0)
-        percentage = (deforestation_pixels / total_pixels) * 100.0
-        return round(percentage, 2)
-
-    def create_deforestation_percentage_caption(self, deforestation_rate):
-        return f"{deforestation_rate} percent of the observed area has been affected by deforestation"
-
-    def loss_intensity_adjective_caption(self, percentage):
-        if percentage < 1:
-            return "negligible forest loss is detected"
-        elif percentage < 5:
-            return "minor forest loss is visible"
-        elif percentage < 10:
-            return "low levels of forest degradation are observed"
-        elif percentage < 20:
-            return "moderate forest loss is present"
-        elif percentage < 35:
-            return "substantial deforestation has occurred"
-        elif percentage < 50:
-            return "extensive forest loss is detected in the observed area"
-        elif percentage < 75:
-            return "severe deforestation affects a large portion of the scene"
-        elif percentage < 90:
-            return "critical forest loss dominates the region"
-        else:
-            return "near-total deforestation is observed throughout the observed area"
-
-    def describe_forest_loss_distribution(self):
-        h, w = self.img.shape
+    def describe_forest_loss_distribution(self, img):
+        h, w = img.shape
         patch_counts = np.zeros((3, 3))
         patch_h, patch_w = h // 3, w // 3
-
         for i in range(3):
             for j in range(3):
-                patch = self.img[
-                    i * patch_h : (i + 1) * patch_h,
-                    j * patch_w : (j + 1) * patch_w,
+                patch = img[
+                    i * patch_h : (i + 1) * patch_h, j * patch_w : (j + 1) * patch_w
                 ]
                 patch_counts[i, j] = np.sum(patch == 255)
 
         total_change = np.sum(patch_counts)
         if total_change == 0:
-            return "no forest change detected"
+            return "no forest change is detected"
 
         patch_percentage = patch_counts / total_change
         flat = patch_percentage.flatten()
+
         sorted_idx = flat.argsort()[::-1]
-
-        if flat[0] > 0.5:
-            region = self.grid_position_name(sorted_idx[0])
-            return f"concentrated in the {region}"
-        elif np.count_nonzero(flat > 0.15) >= 4:
-            return "scattered across the image in multiple regions"
-
-        else:
-            dominant_regions = [self.grid_position_name(idx) for idx in sorted_idx[:2]]
-            return f"primarily occurring in the {dominant_regions[0]} and {dominant_regions[1]} regions"
-
-    def grid_position_name(self, idx):
         positions = [
             "top-left",
             "top-center",
@@ -119,64 +170,142 @@ class AutoCaption:
             "bottom-center",
             "bottom-right",
         ]
-        return positions[idx]
 
-    def describe_patchiness_of_loss(self):
-        total_pixels = self.img.shape[0] * self.img.shape[1]
-        _, binary = cv2.threshold(self.img, 127, 255, cv2.THRESH_BINARY)
-        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
-            binary, connectivity=8
-        )
+        if flat[sorted_idx[0]] > 0.5:
+            return random.choice(
+                [
+                    f"concentrated in the {positions[sorted_idx[0]]} region",
+                    f"mainly located in the {positions[sorted_idx[0]]} area",
+                    f"primarily found in the {positions[sorted_idx[0]]} section",
+                ]
+            )
+        elif np.count_nonzero(flat > 0.15) >= 4:
+            return random.choice(
+                [
+                    "scattered across multiple regions",
+                    "distributed throughout various parts of the area",
+                    "spread across several different regions",
+                ]
+            )
+        else:
+            return random.choice(
+                [
+                    f"primarily occurring in the {positions[sorted_idx[0]]} and {positions[sorted_idx[1]]} regions",
+                    f"mainly located across the {positions[sorted_idx[0]]} and {positions[sorted_idx[1]]} areas",
+                    f"mostly concentrated in the {positions[sorted_idx[0]]} and {positions[sorted_idx[1]]} sections",
+                ]
+            )
 
-        patch_areas = stats[1:, cv2.CC_STAT_AREA]
+    def describe_patchiness_of_loss(self, img):
+        total_pixels = img.shape[0] * img.shape[1]
+        _, binary = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
+        num_labels, _, stats, _ = cv2.connectedComponentsWithStats(binary, 8)
 
-        if len(patch_areas) == 0:
+        if num_labels <= 1:
             return "with no visible forest change"
 
-        patch_areas = np.array(patch_areas)
+        patch_areas = stats[1:, cv2.CC_STAT_AREA]
         patch_percents = patch_areas / total_pixels * 100
-
-        very_small = np.sum((patch_percents >= 0.1) & (patch_percents < 0.5))
-        small = np.sum((patch_percents >= 0.5) & (patch_percents < 2))
-        moderate = np.sum((patch_percents >= 2) & (patch_percents < 5))
-        notable = np.sum((patch_percents >= 5) & (patch_percents < 10))
-        extensive = np.sum(patch_percents >= 10)
-
-        avg_area = np.mean(patch_percents)
-        std_area = np.std(patch_percents)
-        std_rate = std_area / avg_area if avg_area > 0 else 0
+        avg = np.mean(patch_percents)
+        std = np.std(patch_percents)
+        std_rate = std / avg if avg > 0 else 0
 
         if std_rate < 0.25:
-            variability = "uniform in size"
+            var = random.choice(
+                ["uniform in size", "relatively consistent in patch size"]
+            )
         elif std_rate < 0.6:
-            variability = "moderately varied in size"
+            var = random.choice(
+                ["moderately varied in size", "showing some variation in patch size"]
+            )
         else:
-            variability = "highly varied in size"
+            var = random.choice(
+                ["highly varied in size", "displaying large variations in patch sizes"]
+            )
 
-        total_patches = len(patch_percents)
-
-        description = "occurring in "
-
-        if total_patches <= 3:
-            return f"occurring in a few patches that are {variability}"
-
-        if extensive > 0:
-            description += "several patches, including one or more extensive regions"
-        elif notable > 0:
-            description += "multiple patches, including some notable regions"
-        elif moderate > 0:
-            description += "many moderate-sized patches"
-        elif small > 0 or very_small > 0:
-            description += "numerous small patches"
+        if num_labels <= 3:
+            return random.choice(
+                [
+                    f"in a few patches that are {var}",
+                    f"within a small number of patches which are {var}",
+                ]
+            )
         else:
-            description += "many tiny patches"
+            if np.any(patch_percents >= 10):
+                return random.choice(
+                    [
+                        f"in several patches, including one or more extensive regions, which are {var}",
+                        f"across multiple patches with some large areas, which are {var}",
+                    ]
+                )
+            elif np.any(patch_percents >= 5):
+                return random.choice(
+                    [
+                        f"in multiple patches, including some notable regions, which are {var}",
+                        f"distributed among several patches with some notable sizes, which are {var}",
+                    ]
+                )
+            else:
+                return random.choice(
+                    [
+                        f"occurring in many small patches, which are {var}",
+                        f"found scattered in numerous small patches, which are {var}",
+                    ]
+                )
 
-        description += f", which are {variability}"
+    def select_adjective(self, percentage):
+        for (low, high), phrases in LOSS_ADJECTIVES.items():
+            if low <= percentage < high:
+                return random.choice(phrases)
+        return "forest loss is detected"
 
-        return description
+    def calculate_deforestation_percentage(self):
+        """Calculate percentage from mask with error handling"""
+        try:
 
-    def combine_two_captions(self, caption_one, caption_two):
-        return f"{caption_one}, {caption_two}"
+            total_pixels = self.img.shape[0] * self.img.shape[1]
+            deforestation_pixels = np.sum(self.img != 0)
+            return round((deforestation_pixels / total_pixels) * 100.0, 2)
+        except Exception:
+            return None
+
+    def remove_duplicate_adjacent_words(self, text):
+        # replace repeated adjacent word sequences (case-insensitive)
+        # e.g. "the the" -> "the", "and and" -> "and"
+        text = re.sub(r"\b(\w+)(\s+\1\b)+", r"\1", text, flags=re.IGNORECASE)
+        # collapse multiple spaces and fix spacing before punctuation
+        text = re.sub(r"\s+", " ", text).strip()
+        text = re.sub(r"\s+([,\.])", r"\1", text)
+        return text
+
+    def generate_auto_captions(self):
+        try:
+            percentage = self.calculate_deforestation_percentage()
+            if percentage is None:
+                return None
+
+            captions = []
+            for _ in range(4):
+                adj = self.select_adjective(percentage)
+                distribution = self.describe_forest_loss_distribution(self.img)
+                patchiness = self.describe_patchiness_of_loss(self.img)
+
+                adj = "" if adj is None else str(adj).strip()
+                distribution = "" if distribution is None else str(distribution).strip()
+                patchiness = "" if patchiness is None else str(patchiness).strip()
+
+                template = random.choice(TEMPLATES)
+                caption = template.format(
+                    adj=adj, distribution=distribution, patchiness=patchiness
+                )
+                caption = self.remove_duplicate_adjacent_words(caption)
+                captions.append(caption)
+
+            return captions
+
+        except Exception as e:
+            print(f"Error generating captions: {str(e)}")
+            return None
 
 
 class Example:
@@ -285,7 +414,7 @@ class CaptionManager:
                 return json.load(f)
         return {"images": []}
 
-    def safe_tokenize(self, text, max_length=200, max_tokens=75):
+    def safe_tokenize(self, text, max_length=250, max_tokens=75):
         tokens = []
         for word in text[:max_length].strip().lower().split():
             if word.replace(".", "", 1).isdigit():
@@ -528,9 +657,10 @@ class CaptioningApp:
                 self.caption_mgr.save_caption(example, caption.strip())
 
                 if example.path_mask and st.session_state.use_mask_captions:
-                    auto_captions = AutoCaption(example).create_captions()
-                    for cap in auto_captions:
-                        self.caption_mgr.save_caption(example, cap)
+                    auto_captions = AutoCaption(example).generate_auto_captions()
+                    if auto_captions:
+                        for cap in auto_captions:
+                            self.caption_mgr.save_caption(example, cap)
 
                 st.session_state.current_index += 1
                 if st.session_state.current_index >= len(st.session_state.examples):

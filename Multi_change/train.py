@@ -115,6 +115,7 @@ class Trainer(object):
                     )
                 )
                 datasets.append(dataset)
+            self.train_dataset_size = len(datasets[0])
             self.train_loader = data.DataLoader(
                 datasets[0],
                 batch_size=args.train_batchsize,
@@ -826,59 +827,65 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     trainer = Trainer(args)
-    print("\nStarting Epoch:", trainer.start_epoch)
-    print("Total Epoches:", trainer.args.num_epochs)
+    print_log("\nStarting Epoch: {}".format(trainer.start_epoch))
+    print_log("Total Epoches: {}".format(trainer.args.num_epochs))
+    print_log("Training Dataset Size: {}".format(args.train_dataset_size))
 
-    if args.train_goal == 2:
-        # First train both together, then train only change captioning, and finally train only change detection
-        for goal in [2, 1, 0]:
-            print_log(f"Current train_goal={goal}:\n", trainer.log)
-            trainer.args.train_goal = goal
-            if goal == 2:
-                trainer.args.train_stage = "s1"
-                trainer.args.checkpoint = None
-                for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
-                    trainer.training(trainer.args, epoch)
-                    trainer.validation(epoch)
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
-                    if epoch - trainer.best_epoch > trainer.args.patience:
-                        print_log(
-                            f"Model did not improve after {trainer.args.patience}. Stopping training early.",
-                            trainer.log,
-                        )
-                        trainer.start_epoch = trainer.best_epoch + 1
-                        break
-                    elif epoch == trainer.args.num_epochs - 1:
-                        trainer.start_epoch = trainer.best_epoch + 1
-                        trainer.args.num_epochs = trainer.start_epoch + args.num_epochs
-            else:
-                trainer.args.train_stage = "s2"
-                trainer.args.checkpoint = trainer.best_model_path
-                trainer.build_model()
-                for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
-                    trainer.training(trainer.args, epoch)
-                    trainer.validation(epoch)
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
-                    if (
-                        trainer.args.train_goal == 1
-                        and epoch - trainer.best_epoch > trainer.args.patience
-                    ):
-                        trainer.start_epoch = trainer.best_epoch + 1
-                        trainer.args.num_epochs = (
-                            trainer.start_epoch + trainer.args.num_epochs
-                        )
-                        print_log(
-                            f"Model did not improve after {trainer.args.patience}. Stopping training early.",
-                            trainer.log,
-                        )
-                        break
-                # trainer.args.num_epochs = trainer.start_epoch + trainer.args.num_epochs
-    else:
-        for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
-            trainer.training(trainer.args, epoch)
-            # if not trainer.args.no_val and epoch % args.eval_interval == (args.eval_interval - 1):
-            trainer.validation(epoch)
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+    try:
+        if args.train_goal == 2:
+            # First train both together, then train only change captioning, and finally train only change detection
+            for goal in [2, 1, 0]:
+                print_log(f"Current train_goal={goal}:\n", trainer.log)
+                trainer.args.train_goal = goal
+                if goal == 2:
+                    trainer.args.train_stage = "s1"
+                    trainer.args.checkpoint = None
+                    for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
+                        trainer.training(trainer.args, epoch)
+                        trainer.validation(epoch)
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                        if epoch - trainer.best_epoch > trainer.args.patience:
+                            print_log(
+                                f"Model did not improve after {trainer.args.patience}. Stopping training early.",
+                                trainer.log,
+                            )
+                            trainer.start_epoch = trainer.best_epoch + 1
+                            break
+                        elif epoch == trainer.args.num_epochs - 1:
+                            trainer.start_epoch = trainer.best_epoch + 1
+                            trainer.args.num_epochs = (
+                                trainer.start_epoch + args.num_epochs
+                            )
+                else:
+                    trainer.args.train_stage = "s2"
+                    trainer.args.checkpoint = trainer.best_model_path
+                    trainer.build_model()
+                    for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
+                        trainer.training(trainer.args, epoch)
+                        trainer.validation(epoch)
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                        if (
+                            trainer.args.train_goal == 1
+                            and epoch - trainer.best_epoch > trainer.args.patience
+                        ):
+                            trainer.start_epoch = trainer.best_epoch + 1
+                            trainer.args.num_epochs = (
+                                trainer.start_epoch + trainer.args.num_epochs
+                            )
+                            print_log(
+                                f"Model did not improve after {trainer.args.patience}. Stopping training early.",
+                                trainer.log,
+                            )
+                            break
+                    # trainer.args.num_epochs = trainer.start_epoch + trainer.args.num_epochs
+        else:
+            for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
+                trainer.training(trainer.args, epoch)
+                # if not trainer.args.no_val and epoch % args.eval_interval == (args.eval_interval - 1):
+                trainer.validation(epoch)
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+    except Exception as e:
+        print_log("Hit an exception: {}".format(e))
