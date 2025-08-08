@@ -827,9 +827,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     trainer = Trainer(args)
-    print_log("\nStarting Epoch: {}".format(trainer.start_epoch))
-    print_log("Total Epoches: {}".format(trainer.args.num_epochs))
-    print_log("Training Dataset Size: {}".format(args.train_dataset_size))
+    print_log("\nStarting Epoch: {}".format(trainer.start_epoch), trainer.log)
+    print_log("Total Epoches: {}".format(trainer.args.num_epochs), trainer.log)
+    print_log("Training Dataset Size: {}".format(args.train_dataset_size), trainer.log)
 
     try:
         if args.train_goal == 2:
@@ -888,4 +888,4 @@ if __name__ == "__main__":
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
     except Exception as e:
-        print_log("Hit an exception: {}".format(e))
+        print_log("Hit an exception: {}".format(e), trainer.log)
