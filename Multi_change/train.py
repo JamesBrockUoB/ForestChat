@@ -1,4 +1,5 @@
 import argparse
+import gc
 import json
 import random
 import time
@@ -139,6 +140,26 @@ class Trainer(object):
 
         self.best_model_path = None
         self.best_epoch = 0
+
+    def debug_gpu_memory(self, tag=""):
+        torch.cuda.synchronize()
+        allocated = torch.cuda.memory_allocated() / 1024**2
+        reserved = torch.cuda.memory_reserved() / 1024**2
+        print_log(
+            f"[GPU MEM] {tag} | Allocated: {allocated:.2f} MB | Reserved: {reserved:.2f} MB",
+            self.log,
+        )
+
+    def list_gpu_tensors(self):
+        for obj in gc.get_objects():
+            try:
+                if torch.is_tensor(obj) and obj.is_cuda:
+                    print_log(
+                        f"Tensor: {tuple(obj.size())}, dtype={obj.dtype}, requires_grad={obj.requires_grad}",
+                        self.log,
+                    )
+            except Exception:
+                pass
 
     def build_model(self):
         args = self.args
@@ -282,6 +303,7 @@ class Trainer(object):
         ):
             # if id == 120:
             #    break
+            self.debug_gpu_memory(f"Before batch {id}")
             start_time = time.time()
             accum_steps = 64 // args.train_batchsize
 
@@ -448,9 +470,11 @@ class Trainer(object):
                         "text_top_5_train_accuracy": print_vals[7],
                     }
                 )
-
+            self.debug_gpu_memory(f"After batch {id}")
+            gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
+            self.list_gpu_tensors()
 
     # One epoch's validation
     def validation(self, epoch):
