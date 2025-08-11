@@ -25,7 +25,7 @@ parser.add_argument("--keep_only_trees", default=False, type=bool)
 parser.add_argument(
     "--caption_indices_to_keep",
     type=int,
-    nargs="*",
+    nargs="+",
     default=None,
     help="List of caption indices to keep for each image. If None, all are kept.",
 )
