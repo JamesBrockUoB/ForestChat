@@ -19,7 +19,7 @@ parser.add_argument(
     help="the name of json file with the captions",
 )
 parser.add_argument(
-    "--word_count_threshold", default=3, type=int
+    "--word_count_threshold", default=5, type=int
 )  # default 5, might change to 3 but needs retraining
 parser.add_argument("--keep_only_trees", default=False, type=bool)
 parser.add_argument(
@@ -103,18 +103,18 @@ def main(args):
             i = img.split(".")[0]
             token_len = len(tokens_list)
             tokens_list = json.dumps(tokens_list)
-            f = open(os.path.join(save_dir + "tokens/" + i + ".txt"), "w")
-            f.write(tokens_list)
-            f.close()
+            with open(os.path.join(save_dir + "tokens/" + i + ".txt"), "w") as f:
+                f.write(tokens_list)
+                f.close()
 
             # Considering each image pair has 5 annotations, two strategies can be adopted to generate list for training:
             # a: creating training list with a self-defined token_id[0:4], each token list corresponds to specific captions;
             # or b: randomly select one of the five captions during training;
 
             if i.split("_")[0] == "train":
-                f = open(os.path.join(save_dir + "train" + ".txt"), "a")
-                f.write(img + "\n")
-                f.close
+                with open(os.path.join(save_dir + "train" + ".txt"), "a") as f:
+                    f.write(img + "\n")
+                    f.close()
 
             # if i.split('_')[0] == 'train':
             #     f = open(os.path.join(save_dir + 'train' + '.txt'), 'a')
@@ -123,13 +123,13 @@ def main(args):
             #     f.close
 
             elif i.split("_")[0] == "val":
-                f = open(os.path.join(save_dir + "val" + ".txt"), "a")
-                f.write(img + "\n")
-                f.close()
+                with open(os.path.join(save_dir + "val" + ".txt"), "a") as f:
+                    f.write(img + "\n")
+                    f.close()
             elif i.split("_")[0] == "test":
-                f = open(os.path.join(save_dir + "test" + ".txt"), "a")
-                f.write(img + "\n")
-                f.close()
+                with open(os.path.join(save_dir + "test" + ".txt"), "a") as f:
+                    f.write(img + "\n")
+                    f.close()
 
     print("max_length of the dataset:", max_length)
     with open(os.path.join(save_dir + "metadata.json"), "w") as f:

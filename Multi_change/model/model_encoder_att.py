@@ -4,7 +4,6 @@ from einops import rearrange
 from torch import einsum, nn
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-NUM_CLASS = 2  # 3 for LEVIR-MCI
 
 
 class Encoder(nn.Module):
@@ -379,7 +378,9 @@ class AttentiveEncoder(nn.Module):
     One visual transformer block
     """
 
-    def __init__(self, train_stage, n_layers, feature_size, heads, dropout=0.0):
+    def __init__(
+        self, train_stage, n_layers, feature_size, heads, num_classes, dropout=0.0
+    ):
         super(AttentiveEncoder, self).__init__()
         h_feat, w_feat, channels = feature_size
         self.train_stage = train_stage
@@ -487,7 +488,6 @@ class AttentiveEncoder(nn.Module):
             ]
         )
 
-        num_classes = NUM_CLASS
         self.to_seg = nn.Sequential(
             nn.ConvTranspose2d(dims[0] * 2, dims[0], 4, stride=2, padding=1),
             nn.Conv2d(int(dims[0]), num_classes, 1),

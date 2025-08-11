@@ -66,28 +66,70 @@ def load_images_sac(data_folder, split, target_size=(256, 256)):
 def get_image_transforms():
     transform = A.Compose(
         [
-            A.RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1, p=0.8),
-            A.RandomGamma(gamma_limit=(80, 120), p=0.8),
-            A.ColorJitter(
-                brightness=0.1, contrast=0.1, saturation=0.1, hue=0.02, p=0.9
+            A.OneOf(
+                [
+                    A.RandomBrightnessContrast(
+                        brightness_limit=0.1, contrast_limit=0.1, p=1.0
+                    ),
+                    A.RandomGamma(gamma_limit=(80, 120), p=1.0),
+                    A.ColorJitter(
+                        brightness=0.1, contrast=0.1, saturation=0.1, hue=0.02, p=1.0
+                    ),
+                ],
+                p=0.5,
             ),
-            A.GaussianBlur(blur_limit=(3, 3), sigma_limit=0.5, p=0.6),
-            A.GaussNoise(
-                std_range=(0.02, 0.06),
-                mean_range=(0, 0),
-                per_channel=True,
-                noise_scale_factor=1.0,
-                p=0.6,
+            A.OneOf(
+                [
+                    A.GaussianBlur(blur_limit=(3, 3), sigma_limit=0.5, p=1.0),
+                    A.GaussNoise(
+                        std_range=(0.02, 0.06),
+                        mean_range=(0, 0),
+                        per_channel=True,
+                        noise_scale_factor=1.0,
+                        p=1.0,
+                    ),
+                ],
+                p=0.3,
             ),
             A.Normalize(
                 mean=[0.2267 * 255, 0.29982 * 255, 0.22058 * 255],
                 std=[0.0923 * 255, 0.06658 * 255, 0.05681 * 255],
                 max_pixel_value=255.0,
+                p=1.0,
             ),
         ],
         additional_targets={"image_B": "image"},
     )
     return transform
+
+
+def compute_class_weights(files, num_classes):
+    """
+    Compute class weights based on pixel frequency in segmentation masks to improve learning.
+
+    Returns:
+        torch.Tensor of shape (N,) where N is the number of classes
+    """
+    pixel_counts = np.zeros(num_classes, dtype=np.int64)
+
+    for data in files:
+        seg_label = data["seg_label"]
+
+        if seg_label.ndim == 3:
+            seg_mask = seg_label[:, :, 0]
+        else:
+            seg_mask = seg_label
+
+        for c in range(num_classes):
+            pixel_counts[c] += np.sum(seg_mask == c)
+
+    total_pixels = pixel_counts.sum()
+    pixel_freqs = pixel_counts / total_pixels
+
+    class_weights = 1.0 / (pixel_freqs + 1e-6)
+    class_weights = class_weights * (num_classes / class_weights.sum())
+
+    return torch.tensor(class_weights, dtype=torch.float32)
 
 
 def save_checkpoint(

@@ -1,6 +1,7 @@
 import argparse
 import json
 import time
+import token
 from itertools import islice
 
 import cv2
@@ -16,14 +17,13 @@ from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-NUM_CLASS = 2  # 3 for LEVIR-MCI
 
 
 def save_mask(pred, gt, name, save_path, args):
     # pred value: 0,1,2; map to black, yellow, red
     # gt value: 0,1,2; map to black, yellow, red
     name = name[0]
-    evaluator = Evaluator(num_class=NUM_CLASS)
+    evaluator = Evaluator(num_class=args.num_classes)
     evaluator.add_batch(gt, pred)
     mIoU_seg, IoU = evaluator.Mean_Intersection_over_Union()
     Miou_str = round(mIoU_seg, 4)
@@ -124,6 +124,7 @@ def main(args):
         n_layers=args.n_layers,
         feature_size=[args.feat_size, args.feat_size, args.encoder_dim],
         heads=args.n_heads,
+        num_classes=args.num_classes,
         dropout=args.dropout,
     )
     decoder = DecoderTransformer(
@@ -159,23 +160,25 @@ def main(args):
         ]
         dataset = (
             ForestChangeDataset(
-                args.data_folder,
-                args.list_path,
-                "test",
-                args.token_folder,
-                args.vocab_file,
-                max_length,
-                args.allow_unk,
+                data_folder=args.data_folder,
+                list_path=args.list_path,
+                split="test",
+                token_folder=args.token_folder,
+                vocab_file=args.vocab_file,
+                max_length=max_length,
+                allow_unk=args.allow_unk,
+                num_classes=args.num_classes,
             )
             if "Forest-Change" in args.data_name
             else LEVIRCCDataset(
-                args.data_folder,
-                args.list_path,
-                "test",
-                args.token_folder,
-                args.vocab_file,
-                max_length,
-                args.allow_unk,
+                data_folder=args.data_folder,
+                list_path=args.list_path,
+                split="test",
+                token_folder=args.token_folder,
+                vocab_file=args.vocab_file,
+                max_length=max_length,
+                allow_unk=args.allow_unk,
+                num_classes=args.num_classes,
             )
         )
         test_loader = data.DataLoader(
@@ -196,7 +199,7 @@ def main(args):
     nochange_hypotheses = list()
     change_acc = 0
     nochange_acc = 0
-    evaluator = Evaluator(num_class=NUM_CLASS)
+    evaluator = Evaluator(num_class=args.num_classes)
     with torch.no_grad():
         for ind, (
             imgA,
@@ -487,6 +490,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--feature_dim", type=int, default=512, help="embedding dimension"
     )
+    parser.add_argument("--num_classes", type=int, default=2)
 
     args = parser.parse_args()
 

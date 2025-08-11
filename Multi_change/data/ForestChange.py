@@ -10,6 +10,7 @@ import torch
 from imageio import imread
 from preprocess_data import encode
 from torch.utils.data import DataLoader, Dataset
+from utils_tool.utils import *
 
 
 class ForestChangeDataset(Dataset):
@@ -27,9 +28,9 @@ class ForestChangeDataset(Dataset):
         max_length=42,
         allow_unk=0,
         transform=None,
-        target_size=None,
         img_size=(256, 256),
         max_iters=None,
+        num_classes=2,
     ):
         """
         :param data_folder: folder where image files are stored
@@ -40,16 +41,16 @@ class ForestChangeDataset(Dataset):
         :param max_length: the maximum length of each caption sentence
         :param allow_unk: whether to allow the tokens have unknow word or not
         :param transform: list of transformations applied to each example for augmentation
-        :param target_size: if inflating dataset size, the size of the dataset to sample augmentation from
         :param img_size: the dimensions all images should be returned as
         :param max_iters: the maximum iteration when loading the data
+        :param num_classes: the number of classes in the dataset
         """
         self.list_path = list_path
         self.split = split
         self.max_length = max_length
         self.transform = transform
         self.img_size = img_size
-        self.target_size = target_size
+        self.num_classes = num_classes
 
         assert self.split in {"train", "val", "test"}
         self.img_ids = [
@@ -92,7 +93,7 @@ class ForestChangeDataset(Dataset):
                         "name": name.split("-")[0],
                     }
                 )
-        elif split == "val":
+        else:
             for name in self.img_ids:
                 img_fileA = os.path.join(data_folder + "/" + split + "/A/" + name)
                 img_fileB = img_fileA.replace("A", "B")
@@ -118,61 +119,30 @@ class ForestChangeDataset(Dataset):
                         "name": name,
                     }
                 )
-        elif split == "test":
-            for name in self.img_ids:
-                img_fileA = os.path.join(data_folder + "/" + split + "/A/" + name)
-                img_fileB = img_fileA.replace("A", "B")
-
-                imgA = imread(img_fileA)
-                imgB = imread(img_fileB)
-                seg_label = imread(img_fileA.replace("A", "label"))
-
-                token_id = None
-                if token_folder is not None:
-                    token_file = os.path.join(
-                        token_folder + name.split(".")[0] + ".txt"
-                    )
-                else:
-                    token_file = None
-                self.files.append(
-                    {
-                        "imgA": imgA,
-                        "imgB": imgB,
-                        "seg_label": seg_label,
-                        "token": token_file,
-                        "token_id": token_id,
-                        "name": name,
-                    }
-                )
-
-        if self.target_size is not None and len(self.files) < self.target_size:
-            self._inflate_dataset()
 
         if max_iters is not None:
-            n_repeat = int(np.ceil(max_iters / len(self.img_ids)))
-            self.img_ids = (
-                self.img_ids * n_repeat
-                + self.img_ids[: max_iters - n_repeat * len(self.img_ids)]
-            )
+            if self.transform is not None:
+                original_size = len(self.files)
+                if original_size < max_iters:
+                    needed = max_iters - original_size
+                    for i in range(needed):
+                        original_idx = i % original_size
+                        original = self.files[original_idx]
+                        augmented_example = {
+                            "imgA": original["imgA"].copy(),
+                            "imgB": original["imgB"].copy(),
+                            "seg_label": original["seg_label"].copy(),
+                            "token": original["token"],
+                            "token_id": original["token_id"],
+                            "name": f"{original['name']}_aug{i}",
+                        }
+                        self.files.append(augmented_example)
+            else:
+                n_repeat = max_iters // len(self.img_ids)
+                remainder = max_iters % len(self.img_ids)
+                self.img_ids = self.img_ids * n_repeat + self.img_ids[:remainder]
 
-    def _inflate_dataset(self):
-        original_size = len(self.files)
-        needed = self.target_size - original_size
-
-        for i in range(needed):
-            original_idx = i % original_size
-            original = self.files[original_idx]
-
-            augmented_example = {
-                "imgA": original["imgA"].copy(),
-                "imgB": original["imgB"].copy(),
-                "seg_label": original["seg_label"].copy(),
-                "token": original["token"],
-                "token_id": original["token_id"],
-                "name": f"{original['name']}_aug{i}",
-            }
-
-            self.files.append(augmented_example)
+        self.class_weights = compute_class_weights(self.files, self.num_classes)
 
     def __len__(self):
         return len(self.files)

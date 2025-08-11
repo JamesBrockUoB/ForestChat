@@ -4,6 +4,7 @@ import json
 import os
 import random
 import time
+import token
 
 import numpy as np
 import psutil
@@ -20,7 +21,6 @@ from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-NUM_CLASS = 2  # 3 for LEVIR-MCI
 DISPLAY_PARAMS = False
 
 
@@ -71,6 +71,7 @@ class Trainer(object):
         print_log("=>num_epochs: {}".format(args.num_epochs), self.log)
         print_log("=>train_batchsize: {}".format(args.train_batchsize), self.log)
 
+        self.log_vars = torch.nn.Parameter(torch.zeros(2).to(DEVICE))
         self.best_bleu4 = 0.4  # BLEU-4 score right now
         self.MIou = 0.4
         self.Sum_Metric = 0.4
@@ -85,39 +86,37 @@ class Trainer(object):
         # Initialize / load checkpoint
         self.build_model()
 
-        # Loss function
-        self.criterion_cap = torch.nn.CrossEntropyLoss().to(DEVICE)
-        self.criterion_det = torch.nn.CrossEntropyLoss().to(DEVICE)
-
         # Custom dataloaders
         if args.data_name in ["LEVIR_MCI", "Forest-Change"]:
             datasets = []
             for split in ["train", "val"]:
                 dataset = (
                     ForestChangeDataset(
-                        args.data_folder,
-                        args.list_path,
-                        split,
-                        args.token_folder,
-                        args.vocab_file,
-                        self.max_length,
-                        args.allow_unk,
-                        get_image_transforms(),
-                        (
+                        data_folder=args.data_folder,
+                        list_path=args.list_path,
+                        split=split,
+                        token_folder=args.token_folder,
+                        vocab_file=args.vocab_file,
+                        max_length=self.max_length,
+                        allow_unk=args.allow_unk,
+                        transform=get_image_transforms() if args.augment else None,
+                        max_iters=(
                             args.increased_train_data_size
                             if split == "train"
                             else args.increased_val_data_size
                         ),
+                        num_classes=args.num_classes,
                     )
                     if "Forest-Change" in args.data_name
                     else LEVIRCCDataset(
-                        args.data_folder,
-                        args.list_path,
-                        split,
-                        args.token_folder,
-                        args.vocab_file,
-                        self.max_length,
-                        args.allow_unk,
+                        data_folder=args.data_folder,
+                        list_path=args.list_path,
+                        split=split,
+                        token=args.token_folder,
+                        vocab_file=args.vocab_file,
+                        max_length=self.max_length,
+                        allow_unk=args.allow_unk,
+                        num_classes=args.num_classes,
                     )
                 )
                 datasets.append(dataset)
@@ -136,9 +135,18 @@ class Trainer(object):
                 num_workers=args.workers,
                 pin_memory=True,
             )
+
+        # Loss function
+        self.criterion_cap = torch.nn.CrossEntropyLoss().to(DEVICE)
+        if args.weight_classes:
+            self.criterion_det = torch.nn.CrossEntropyLoss(
+                datasets[0].class_weights
+            ).to(DEVICE)
+        else:
+            self.criterion_det = torch.nn.CrossEntropyLoss().to(DEVICE)
         # Epochs
 
-        self.evaluator = Evaluator(num_class=NUM_CLASS)
+        self.evaluator = Evaluator(num_class=args.num_classes)
 
         self.best_model_path = None
         self.best_epoch = 0
@@ -153,6 +161,7 @@ class Trainer(object):
                 n_layers=args.n_layers,
                 feature_size=[args.feat_size, args.feat_size, args.encoder_dim],
                 heads=args.n_heads,
+                num_classes=args.num_classes,
                 dropout=args.dropout,
             )
             self.decoder = DecoderTransformer(
@@ -324,9 +333,11 @@ class Trainer(object):
             else:
                 # balance two losses
                 if args.train_stage == "s1":
-                    scaling = det_loss.detach() / (cap_loss.detach() + 1e-8)
-                    scaled_cap_loss = cap_loss * scaling
-                    loss = det_loss + scaled_cap_loss
+                    precision_det = torch.exp(-self.log_vars[0])
+                    precision_cap = torch.exp(-self.log_vars[1])
+
+                    loss = precision_det * det_loss + self.log_vars[0] * 0.5
+                    loss += precision_cap * cap_loss + self.log_vars[1] * 0.5
                 else:
                     loss = det_loss + cap_loss
             # Back prop.
@@ -762,6 +773,12 @@ if __name__ == "__main__":
         "--train_batchsize", type=int, default=32, help="batch_size for training"
     )
     parser.add_argument(
+        "--augment",
+        type=bool,
+        default=False,
+        help="whether to increase dataset size via augmentation or not",
+    )
+    parser.add_argument(
         "--increased_train_data_size",
         type=int,
         default=None,
@@ -835,6 +852,13 @@ if __name__ == "__main__":
     parser.add_argument("--decoder_n_layers", type=int, default=1)
     parser.add_argument(
         "--feature_dim", type=int, default=512, help="embedding dimension"
+    )
+    parser.add_argument("--num_classes", type=int, default=2)
+    parser.add_argument(
+        "--weight_classes",
+        type=bool,
+        default=False,
+        help="whether to weight classes for loss function or not for segmentation",
     )
     args = parser.parse_args()
 

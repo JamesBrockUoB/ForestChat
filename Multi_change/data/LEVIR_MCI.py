@@ -9,6 +9,7 @@ import torch
 from imageio import imread
 from preprocess_data import encode
 from torch.utils.data import DataLoader, Dataset
+from utils_tool.utils import *
 
 
 class LEVIRCCDataset(Dataset):
@@ -26,6 +27,7 @@ class LEVIRCCDataset(Dataset):
         max_length=41,
         allow_unk=0,
         max_iters=None,
+        num_classes=3,
     ):
         """
         :param data_folder: folder where image files are stored
@@ -36,10 +38,12 @@ class LEVIRCCDataset(Dataset):
         :param max_length: the maximum length of each caption sentence
         :param max_iters: the maximum iteration when loading the data
         :param allow_unk: whether to allow the tokens have unknow word or not
+        :param num_classes: the number of classes in the dataset
         """
         self.list_path = list_path
         self.split = split
         self.max_length = max_length
+        self.num_classes = num_classes
 
         assert self.split in {"train", "val", "test"}
         self.img_ids = [
@@ -49,12 +53,10 @@ class LEVIRCCDataset(Dataset):
             with open(os.path.join(list_path + vocab_file + ".json"), "r") as f:
                 self.word_vocab = json.load(f)
             self.allow_unk = allow_unk
-        if not max_iters == None:
-            n_repeat = int(np.ceil(max_iters / len(self.img_ids)))
-            self.img_ids = (
-                self.img_ids * n_repeat
-                + self.img_ids[: max_iters - n_repeat * len(self.img_ids)]
-            )
+        if max_iters is not None:
+            n_repeat = max_iters // len(self.img_ids)
+            remainder = max_iters % len(self.img_ids)
+            self.img_ids = self.img_ids * n_repeat + self.img_ids[:remainder]
         self.files = []
         if split == "train":
             for name in self.img_ids:
@@ -87,7 +89,7 @@ class LEVIRCCDataset(Dataset):
                         "name": name.split("-")[0],
                     }
                 )
-        elif split == "val":
+        else:
             for name in self.img_ids:
                 img_fileA = os.path.join(data_folder + "/" + split + "/A/" + name)
                 img_fileB = img_fileA.replace("A", "B")
@@ -113,32 +115,7 @@ class LEVIRCCDataset(Dataset):
                         "name": name,
                     }
                 )
-        elif split == "test":
-            for name in self.img_ids:
-                img_fileA = os.path.join(data_folder + "/" + split + "/A/" + name)
-                img_fileB = img_fileA.replace("A", "B")
-
-                imgA = imread(img_fileA)
-                imgB = imread(img_fileB)
-                seg_label = imread(img_fileA.replace("A", "label"))
-
-                token_id = None
-                if token_folder is not None:
-                    token_file = os.path.join(
-                        token_folder + name.split(".")[0] + ".txt"
-                    )
-                else:
-                    token_file = None
-                self.files.append(
-                    {
-                        "imgA": imgA,
-                        "imgB": imgB,
-                        "seg_label": seg_label,
-                        "token": token_file,
-                        "token_id": token_id,
-                        "name": name,
-                    }
-                )
+        self.class_weights = compute_class_weights(self.files, self.num_classes)
 
     def __len__(self):
         return len(self.files)

@@ -97,6 +97,7 @@ class Change_Perception(object):
         parser.add_argument("--n_layers", type=int, default=3)
         parser.add_argument("--decoder_n_layers", type=int, default=1)
         parser.add_argument("--feature_dim", type=int, default=512)
+        parser.add_argument("--num_classes", type=int, default=2)
 
         args = parser.parse_args()
 
@@ -133,6 +134,7 @@ class Change_Perception(object):
             n_layers=args.n_layers,
             feature_size=[args.feat_size, args.feat_size, args.encoder_dim],
             heads=args.n_heads,
+            num_classes=args.num_classes,
             dropout=args.dropout,
         )
         self.decoder = DecoderTransformer(
