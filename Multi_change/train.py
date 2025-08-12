@@ -212,7 +212,10 @@ class Trainer(object):
         )
         self.decoder_optimizer = (
             torch.optim.Adam(
-                params=filter(lambda p: p.requires_grad, self.decoder.parameters()),
+                params=list(
+                    filter(lambda p: p.requires_grad, self.decoder.parameters())
+                )
+                + [self.log_vars],
                 lr=args.decoder_lr,
             )
             if fine_tune_capdecoder
@@ -893,7 +896,7 @@ if __name__ == "__main__":
                             trainer.args.num_epochs = (
                                 trainer.start_epoch + args.num_epochs
                             )
-                else:
+                elif goal in [1, 0]:
                     trainer.args.train_stage = "s2"
                     trainer.args.checkpoint = trainer.best_model_path
                     trainer.build_model()
