@@ -112,7 +112,7 @@ class Trainer(object):
                         data_folder=args.data_folder,
                         list_path=args.list_path,
                         split=split,
-                        token=args.token_folder,
+                        token_folder=args.token_folder,
                         vocab_file=args.vocab_file,
                         max_length=self.max_length,
                         allow_unk=args.allow_unk,
@@ -153,68 +153,68 @@ class Trainer(object):
 
     def build_model(self):
         args = self.args
-        if args.train_stage == "s1":
-            self.encoder = Encoder(args.network)
-            self.encoder.fine_tune(args.fine_tune_encoder)
-            self.encoder_trans = AttentiveEncoder(
-                train_stage=args.train_stage,
-                n_layers=args.n_layers,
-                feature_size=[args.feat_size, args.feat_size, args.encoder_dim],
-                heads=args.n_heads,
-                num_classes=args.num_classes,
-                dropout=args.dropout,
-            )
-            self.decoder = DecoderTransformer(
-                encoder_dim=args.encoder_dim,
-                feature_dim=args.feature_dim,
-                vocab_size=len(self.word_vocab),
-                max_lengths=self.max_length,
-                word_vocab=self.word_vocab,
-                n_head=args.n_heads,
-                n_layers=args.decoder_n_layers,
-                dropout=args.dropout,
-            )
 
+        self.encoder = Encoder(args.network)
+        self.encoder_trans = AttentiveEncoder(
+            train_stage=args.train_stage,
+            n_layers=args.n_layers,
+            feature_size=[args.feat_size, args.feat_size, args.encoder_dim],
+            heads=args.n_heads,
+            num_classes=args.num_classes,
+            dropout=args.dropout,
+        )
+        self.decoder = DecoderTransformer(
+            encoder_dim=args.encoder_dim,
+            feature_dim=args.feature_dim,
+            vocab_size=len(self.word_vocab),
+            max_lengths=self.max_length,
+            word_vocab=self.word_vocab,
+            n_head=args.n_heads,
+            n_layers=args.decoder_n_layers,
+            dropout=args.dropout,
+        )
+
+        if args.train_stage == "s1":
+            self.encoder.fine_tune(args.fine_tune_encoder)
             fine_tune_capdecoder = True
-        elif args.train_stage == "s2" and args.checkpoint is not None:
+        elif args.train_stage == "s2":
+            if args.checkpoint is None:
+                raise ValueError("Error: checkpoint is None for stage s2.")
+
             checkpoint = torch.load(args.checkpoint)
-            print("Load Model from {}".format(args.checkpoint))
-            # self.start_epoch = checkpoint['epoch'] + 1
-            # self.best_bleu4 = checkpoint['bleu-4']
+            print(f"Load Model from {args.checkpoint}")
+
             self.decoder.load_state_dict(checkpoint["decoder_dict"])
             self.encoder_trans.load_state_dict(
                 checkpoint["encoder_trans_dict"], strict=False
             )
             self.encoder.load_state_dict(checkpoint["encoder_dict"])
-            # eval()
+
             self.encoder.eval()
             self.encoder_trans.eval()
             self.decoder.eval()
-            # 各个modules 是否需要微调
+
+            # Fine-tuning settings
             args.fine_tune_encoder = False
-            self.encoder.fine_tune(args.fine_tune_encoder)
+            self.encoder.fine_tune(False)
             self.encoder_trans.fine_tune(args.train_goal)
-            fine_tune_capdecoder = False if args.train_goal == 0 else True
+            fine_tune_capdecoder = args.train_goal != 0
             self.decoder.fine_tune(fine_tune_capdecoder)
         else:
-            # print('Error: checkpoint is None or stage=s1.')
-            raise ValueError("Error: checkpoint is None.")
+            raise ValueError("Error: unknown training stage.")
 
-        # set optimizer
         self.encoder_optimizer = (
-            torch.optim.Adam(params=self.encoder.parameters(), lr=args.encoder_lr)
+            torch.optim.Adam(self.encoder.parameters(), lr=args.encoder_lr)
             if args.fine_tune_encoder
             else None
         )
         self.encoder_trans_optimizer = torch.optim.Adam(
-            params=filter(lambda p: p.requires_grad, self.encoder_trans.parameters()),
+            filter(lambda p: p.requires_grad, self.encoder_trans.parameters()),
             lr=args.encoder_lr,
         )
         self.decoder_optimizer = (
             torch.optim.Adam(
-                params=list(
-                    filter(lambda p: p.requires_grad, self.decoder.parameters())
-                )
+                list(filter(lambda p: p.requires_grad, self.decoder.parameters()))
                 + [self.log_vars],
                 lr=args.decoder_lr,
             )
@@ -222,10 +222,10 @@ class Trainer(object):
             else None
         )
 
-        # Move to GPU, if available
         self.encoder = self.encoder.to(DEVICE)
         self.encoder_trans = self.encoder_trans.to(DEVICE)
         self.decoder = self.decoder.to(DEVICE)
+
         self.encoder_lr_scheduler = (
             torch.optim.lr_scheduler.StepLR(
                 self.encoder_optimizer, step_size=5, gamma=1.0
@@ -260,7 +260,6 @@ class Trainer(object):
                     component_params += param.numel()
                 total_params += component_params
                 print(f"Total {k} parameters: {component_params}")
-
             print(f"Total parameters: {total_params}")
 
     def training(self, args, epoch):
@@ -668,9 +667,9 @@ class Trainer(object):
                 }
                 metric = f"Sum_{round(100000 * self.Sum_Metric)}_MIou_{round(100000 * self.MIou)}_Bleu4_{round(100000 * self.best_bleu4)}"
                 model_name = f"{args.data_name}_bts_{args.train_batchsize}_{args.network}_epo_{epoch}_{metric}.pth"
-                if epoch > 10:
-                    print("Save Model")
-                    torch.save(state, os.path.join(args.savepath, model_name))
+
+                print("Save Model")
+                torch.save(state, os.path.join(args.savepath, model_name))
         # if True:
         elif self.start_train_goal == 2:
             Sum_Metric = mIoU_seg + Bleu_4
@@ -796,7 +795,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num_epochs",
         type=int,
-        default=250,
+        default=1,
         help="number of epochs to train for (if early stopping is not triggered).",
     )
     parser.add_argument(
@@ -896,7 +895,7 @@ if __name__ == "__main__":
                             trainer.args.num_epochs = (
                                 trainer.start_epoch + args.num_epochs
                             )
-                elif goal in [1, 0]:
+                else:
                     trainer.args.train_stage = "s2"
                     trainer.args.checkpoint = trainer.best_model_path
                     trainer.build_model()
