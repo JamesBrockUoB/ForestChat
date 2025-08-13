@@ -190,16 +190,18 @@ class Trainer(object):
             )
             self.encoder.load_state_dict(checkpoint["encoder_dict"])
 
-            self.encoder.eval()
-            self.encoder_trans.eval()
-            self.decoder.eval()
-
-            # Fine-tuning settings
             args.fine_tune_encoder = False
-            self.encoder.fine_tune(False)
+            self.encoder.fine_tune(args.fine_tune_encoder)
+            self.encoder.eval()
+
             self.encoder_trans.fine_tune(args.train_goal)
+
             fine_tune_capdecoder = args.train_goal != 0
             self.decoder.fine_tune(fine_tune_capdecoder)
+            if fine_tune_capdecoder:
+                self.decoder.train()
+            else:
+                self.decoder.eval()
         else:
             raise ValueError("Error: unknown training stage.")
 
@@ -212,10 +214,15 @@ class Trainer(object):
             filter(lambda p: p.requires_grad, self.encoder_trans.parameters()),
             lr=args.encoder_lr,
         )
+
+        decoder_params = list(
+            filter(lambda p: p.requires_grad, self.decoder.parameters())
+        )
+        if args.train_goal == 2:
+            decoder_params += [self.log_vars]
         self.decoder_optimizer = (
             torch.optim.Adam(
-                list(filter(lambda p: p.requires_grad, self.decoder.parameters()))
-                + [self.log_vars],
+                decoder_params,
                 lr=args.decoder_lr,
             )
             if fine_tune_capdecoder
@@ -316,10 +323,10 @@ class Trainer(object):
                 targets = caps_sorted[:, 1:]
                 scores = pack_padded_sequence(
                     scores, decode_lengths, batch_first=True
-                ).data.detach()
+                ).data
                 targets = pack_padded_sequence(
                     targets, decode_lengths, batch_first=True
-                ).data.detach()
+                ).data
                 # Calculate loss
                 cap_loss = self.criterion_cap(scores, targets.to(torch.int64))
             det_loss = self.criterion_det(seg_pre, seg_label.to(torch.int64))
@@ -668,6 +675,7 @@ class Trainer(object):
                 metric = f"Sum_{round(100000 * self.Sum_Metric)}_MIou_{round(100000 * self.MIou)}_Bleu4_{round(100000 * self.best_bleu4)}"
                 model_name = f"{args.data_name}_bts_{args.train_batchsize}_{args.network}_epo_{epoch}_{metric}.pth"
 
+                # if epoch > 10:
                 print("Save Model")
                 torch.save(state, os.path.join(args.savepath, model_name))
         # if True:
@@ -702,8 +710,9 @@ class Trainer(object):
                 # metric = f'MIou_{round(10000 * self.MIou)}_Bleu4_{round(10000 * self.best_bleu4)}'
                 model_name = f"{self.args.data_name}_bts_{self.args.train_batchsize}_{self.args.network}_epo_{epoch}_{metric}.pth"
                 best_model_path = os.path.join(self.args.savepath, model_name)
-                if epoch > 10:
-                    torch.save(state, best_model_path)
+
+                # if epoch > 10:
+                torch.save(state, best_model_path)
                 self.best_epoch = epoch
                 self.best_model_path = best_model_path
 
@@ -795,7 +804,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num_epochs",
         type=int,
-        default=1,
+        default=250,
         help="number of epochs to train for (if early stopping is not triggered).",
     )
     parser.add_argument(
