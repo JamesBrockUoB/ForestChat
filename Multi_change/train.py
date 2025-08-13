@@ -675,9 +675,9 @@ class Trainer(object):
                 metric = f"Sum_{round(100000 * self.Sum_Metric)}_MIou_{round(100000 * self.MIou)}_Bleu4_{round(100000 * self.best_bleu4)}"
                 model_name = f"{args.data_name}_bts_{args.train_batchsize}_{args.network}_epo_{epoch}_{metric}.pth"
 
-                # if epoch > 10:
-                print("Save Model")
-                torch.save(state, os.path.join(args.savepath, model_name))
+                if epoch > 10:
+                    print("Save Model")
+                    torch.save(state, os.path.join(args.savepath, model_name))
         # if True:
         elif self.start_train_goal == 2:
             Sum_Metric = mIoU_seg + Bleu_4
@@ -711,8 +711,8 @@ class Trainer(object):
                 model_name = f"{self.args.data_name}_bts_{self.args.train_batchsize}_{self.args.network}_epo_{epoch}_{metric}.pth"
                 best_model_path = os.path.join(self.args.savepath, model_name)
 
-                # if epoch > 10:
-                torch.save(state, best_model_path)
+                if epoch > 10:
+                    torch.save(state, best_model_path)
                 self.best_epoch = epoch
                 self.best_model_path = best_model_path
 
