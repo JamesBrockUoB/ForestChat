@@ -86,7 +86,7 @@ class Change_Perception(object):
         )
         parser.add_argument("--gpu_id", type=int, default=0)
         parser.add_argument(
-            "--checkpoint", default="./models_ckpt/ForestChat_model.pth"
+            "--checkpoint", default="./models_ckpt/Forest-Change_model.pth"
         )
         parser.add_argument("--result_path", default="./predict_results/")
         parser.add_argument("--network", default="segformer-mit_b1")
