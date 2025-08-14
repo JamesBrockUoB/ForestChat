@@ -911,10 +911,7 @@ if __name__ == "__main__":
                     for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
                         trainer.training(trainer.args, epoch)
                         trainer.validation(epoch)
-                        if (
-                            trainer.args.train_goal == 1
-                            and epoch - trainer.best_epoch > trainer.args.patience
-                        ):
+                        if epoch - trainer.best_epoch > trainer.args.patience:
                             trainer.start_epoch = trainer.best_epoch + 1
                             trainer.args.num_epochs = (
                                 trainer.start_epoch + trainer.args.num_epochs
