@@ -82,7 +82,7 @@ def main(args):
             for name in dirs:
                 os.rmdir(os.path.join(root, name))
 
-    dataset = load_images_sac(args.data_folder, "test")
+    dataset = load_images_sac(args.data_folder, args.split)
     test_loader = data.DataLoader(
         dataset,
         batch_size=args.test_batchsize,
@@ -117,8 +117,8 @@ def main(args):
                 sam_checkpoint=args.sac_network_path,
             )
             m.make_mask_generator(
-                points_per_side=24,
-                stability_score_thresh=0.95,
+                points_per_side=16,
+                stability_score_thresh=0.94,
             )
 
             m.set_hyperparameters(
@@ -132,7 +132,7 @@ def main(args):
 
             # for change detection: save mask?
             if args.save_mask:
-                save_mask(pred_seg, seg_label, name, args.result_path, "test", args)
+                save_mask(pred_seg, seg_label, name, args.result_path, args.split, args)
             # Add batch sample into evaluator
             evaluator.add_batch(seg_label, pred_seg)
 
@@ -192,6 +192,7 @@ if __name__ == "__main__":
         default="./predict_results",
         help="path to save the result of masks and captions",
     )
+    parser.add_argument("--split", default="test")
 
     args = parser.parse_args()
 

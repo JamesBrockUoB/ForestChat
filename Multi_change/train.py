@@ -648,7 +648,7 @@ class Trainer(object):
                         "BLEU-4_val": Bleu_4,
                         "Meteor_val": Meteor,
                         "Rouge_val": Rouge,
-                        "Cider": Cider,
+                        "Cider_val": Cider,
                     }
                 )
 
