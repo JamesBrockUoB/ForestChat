@@ -4,11 +4,8 @@ import json
 import os
 import random
 import time
-import token
 
 import numpy as np
-import psutil
-import torch.optim
 import wandb
 from data.ForestChange import ForestChangeDataset
 from data.LEVIR_MCI import LEVIRCCDataset
@@ -71,7 +68,9 @@ class Trainer(object):
         print_log("=>num_epochs: {}".format(args.num_epochs), self.log)
         print_log("=>train_batchsize: {}".format(args.train_batchsize), self.log)
 
-        self.log_vars = torch.nn.Parameter(torch.zeros(2).to(DEVICE))
+        self.log_vars = torch.nn.Parameter(
+            torch.zeros(2).to(DEVICE)
+        )  # only used if using dynamic loss weighting
         self.best_bleu4 = 0.4  # BLEU-4 score right now
         self.MIou = 0.4
         self.Sum_Metric = 0.4
@@ -218,7 +217,7 @@ class Trainer(object):
         decoder_params = list(
             filter(lambda p: p.requires_grad, self.decoder.parameters())
         )
-        if args.train_goal == 2:
+        if args.train_goal == 2 and args.dynamic_loss_weighting:
             decoder_params += [self.log_vars]
         self.decoder_optimizer = (
             torch.optim.Adam(
@@ -336,22 +335,23 @@ class Trainer(object):
                         det_loss = det_loss  # / det_loss.detach().item()
                 loss = det_loss
             elif self.args.train_goal == 1:
-                # if args.train_stage == 's1':
-                #     cap_loss = cap_loss / cap_loss.detach().item()
                 loss = cap_loss
             else:
                 # balance two losses
-                if args.train_stage == "s1":
+                if args.dynamic_loss_weighting:
                     precision_det = torch.exp(-self.log_vars[0])
                     precision_cap = torch.exp(-self.log_vars[1])
 
                     loss = precision_det * det_loss + self.log_vars[0] * 0.5
                     loss += precision_cap * cap_loss + self.log_vars[1] * 0.5
                 else:
+                    if args.train_stage == "s1":
+                        det_loss = det_loss / det_loss.detach().item()
+                        cap_loss = cap_loss / cap_loss.detach().item()
                     loss = det_loss + cap_loss
+
             # Back prop.
             loss = loss / accum_steps
-            loss.backward()
             # Clip gradients
             if args.grad_clip is not None:
                 torch.nn.utils.clip_grad_value_(
@@ -648,7 +648,7 @@ class Trainer(object):
                         "BLEU-4_val": Bleu_4,
                         "Meteor_val": Meteor,
                         "Rouge_val": Rouge,
-                        "Cider_val": Cider,
+                        "Cider": Cider,
                     }
                 )
 
@@ -776,7 +776,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--fine_tune_encoder",
-        type=bool,
+        type=str2bool,
         default=True,
         help="whether fine-tune encoder or not",
     )
@@ -785,7 +785,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--augment",
-        type=bool,
+        type=str2bool,
         default=False,
         help="whether to increase dataset size via augmentation or not",
     )
@@ -867,9 +867,15 @@ if __name__ == "__main__":
     parser.add_argument("--num_classes", type=int, default=2)
     parser.add_argument(
         "--weight_classes",
-        type=bool,
+        type=str2bool,
         default=False,
         help="whether to weight classes for loss function or not for segmentation",
+    )
+    parser.add_argument(
+        "--dynamic_loss_weighting",
+        type=str2bool,
+        default=True,
+        help="whether to use dynamic uncertainty weighting (True) or normalised equal loss scaling (False)",
     )
     args = parser.parse_args()
 

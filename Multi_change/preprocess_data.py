@@ -1,11 +1,11 @@
 import os
 import sys
 
+from utils_tool.utils import str2bool
+
 sys.path.insert(0, os.path.abspath("."))
 import argparse
 import json
-
-import numpy as np
 
 parser = argparse.ArgumentParser()
 
@@ -21,7 +21,7 @@ parser.add_argument(
 parser.add_argument(
     "--word_count_threshold", default=5, type=int
 )  # default 5, might change to 3 but needs retraining
-parser.add_argument("--keep_only_trees", default=False, type=bool)
+parser.add_argument("--keep_only_trees", default=False, type=str2bool)
 parser.add_argument(
     "--caption_indices_to_keep",
     type=int,

@@ -1,3 +1,4 @@
+import argparse
 import os
 import time
 
@@ -10,12 +11,20 @@ from eval_func.cider.cider import Cider
 from eval_func.meteor.meteor import Meteor
 from eval_func.rouge.rouge import Rouge
 from skimage.io import imread
-from skimage.transform import resize
 from torchange.models.segment_any_change.segment_anything.utils.amg import (
     MaskData,
     area_from_rle,
     rle_to_mask,
 )
+
+
+def str2bool(v):
+    if v.lower() in ("yes", "true", "t", "y", "1"):
+        return True
+    elif v.lower() in ("no", "false", "f", "n", "0"):
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Boolean value expected.")
 
 
 def create_binary_mask_sac(mask_data):
