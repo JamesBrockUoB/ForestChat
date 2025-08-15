@@ -352,6 +352,7 @@ class Trainer(object):
 
             # Back prop.
             loss = loss / accum_steps
+            loss.backward()
             # Clip gradients
             if args.grad_clip is not None:
                 torch.nn.utils.clip_grad_value_(
