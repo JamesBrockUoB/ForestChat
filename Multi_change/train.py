@@ -700,8 +700,6 @@ class Trainer(object):
                     if self.args.train_goal == 2
                     else Sum_Metric
                 )
-                # save_checkpoint
-                print("Save Model")
                 state = {
                     "encoder_dict": self.encoder.state_dict(),
                     "encoder_trans_dict": self.encoder_trans.state_dict(),
@@ -713,6 +711,8 @@ class Trainer(object):
                 best_model_path = os.path.join(self.args.savepath, model_name)
 
                 if epoch > 10:
+                    # save_checkpoint
+                    print("Save Model")
                     torch.save(state, best_model_path)
                 self.best_epoch = epoch
                 self.best_model_path = best_model_path
