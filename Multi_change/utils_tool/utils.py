@@ -112,35 +112,6 @@ def get_image_transforms():
     return transform
 
 
-def compute_class_weights(files, num_classes):
-    """
-    Compute class weights based on pixel frequency in segmentation masks to improve learning.
-
-    Returns:
-        torch.Tensor of shape (N,) where N is the number of classes
-    """
-    pixel_counts = np.zeros(num_classes, dtype=np.int64)
-
-    for data in files:
-        seg_label = data["seg_label"]
-
-        if seg_label.ndim == 3:
-            seg_mask = seg_label[:, :, 0]
-        else:
-            seg_mask = seg_label
-
-        for c in range(num_classes):
-            pixel_counts[c] += np.sum(seg_mask == c)
-
-    total_pixels = pixel_counts.sum()
-    pixel_freqs = pixel_counts / total_pixels
-
-    class_weights = 1.0 / (pixel_freqs + 1e-6)
-    class_weights = class_weights * (num_classes / class_weights.sum())
-
-    return torch.tensor(class_weights, dtype=torch.float32)
-
-
 def save_checkpoint(
     args,
     data_name,

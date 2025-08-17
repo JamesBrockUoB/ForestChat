@@ -121,10 +121,10 @@ class ForestChangeDataset(Dataset):
                 )
 
         if max_iters is not None:
-            if self.transform is not None:
-                original_size = len(self.files)
-                if original_size < max_iters:
-                    needed = max_iters - original_size
+            original_size = len(self.files)
+            if original_size < max_iters:
+                needed = max_iters - original_size
+                if self.transform is not None:
                     for i in range(needed):
                         original_idx = i % original_size
                         original = self.files[original_idx]
@@ -137,12 +137,19 @@ class ForestChangeDataset(Dataset):
                             "name": f"{original['name']}_aug{i}",
                         }
                         self.files.append(augmented_example)
-            else:
-                n_repeat = max_iters // len(self.img_ids)
-                remainder = max_iters % len(self.img_ids)
-                self.img_ids = self.img_ids * n_repeat + self.img_ids[:remainder]
-
-        self.class_weights = compute_class_weights(self.files, self.num_classes)
+                else:
+                    for i in range(needed):
+                        original_idx = i % original_size
+                        original = self.files[original_idx]
+                        repeated_example = {
+                            "imgA": original["imgA"].copy(),
+                            "imgB": original["imgB"].copy(),
+                            "seg_label": original["seg_label"].copy(),
+                            "token": original["token"],
+                            "token_id": original["token_id"],
+                            "name": f"{original['name']}_rep{i}",  # distinguish repeats
+                        }
+                        self.files.append(repeated_example)
 
     def __len__(self):
         return len(self.files)

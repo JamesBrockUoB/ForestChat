@@ -137,12 +137,7 @@ class Trainer(object):
 
         # Loss function
         self.criterion_cap = torch.nn.CrossEntropyLoss().to(DEVICE)
-        if args.weight_classes:
-            self.criterion_det = torch.nn.CrossEntropyLoss(
-                datasets[0].class_weights
-            ).to(DEVICE)
-        else:
-            self.criterion_det = torch.nn.CrossEntropyLoss().to(DEVICE)
+        self.criterion_det = torch.nn.CrossEntropyLoss().to(DEVICE)
         # Epochs
 
         self.evaluator = Evaluator(num_class=args.num_classes)
@@ -866,12 +861,6 @@ if __name__ == "__main__":
         "--feature_dim", type=int, default=512, help="embedding dimension"
     )
     parser.add_argument("--num_classes", type=int, default=2)
-    parser.add_argument(
-        "--weight_classes",
-        type=str2bool,
-        default=False,
-        help="whether to weight classes for loss function or not for segmentation",
-    )
     parser.add_argument(
         "--dynamic_loss_weighting",
         type=str2bool,
