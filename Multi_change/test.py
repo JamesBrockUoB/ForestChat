@@ -174,7 +174,7 @@ def main(args):
             ForestChangeDataset(
                 data_folder=args.data_folder,
                 list_path=args.list_path,
-                split="test",
+                split=args.split,
                 token_folder=args.token_folder,
                 vocab_file=args.vocab_file,
                 max_length=max_length,
@@ -185,7 +185,7 @@ def main(args):
             else LEVIRCCDataset(
                 data_folder=args.data_folder,
                 list_path=args.list_path,
-                split="test",
+                split=args.split,
                 token_folder=args.token_folder,
                 vocab_file=args.vocab_file,
                 max_length=max_length,
@@ -503,6 +503,7 @@ if __name__ == "__main__":
         "--feature_dim", type=int, default=512, help="embedding dimension"
     )
     parser.add_argument("--num_classes", type=int, default=2)
+    parser.add_argument("--split", default="test")
 
     args = parser.parse_args()
 
