@@ -78,27 +78,23 @@ def get_image_transforms():
             A.OneOf(
                 [
                     A.RandomBrightnessContrast(
-                        brightness_limit=0.1, contrast_limit=0.1, p=1.0
+                        brightness_limit=(-0.2, 0.2), contrast_limit=(-0.2, 0.2), p=1.0
                     ),
-                    A.RandomGamma(gamma_limit=(80, 120), p=1.0),
-                    A.ColorJitter(
-                        brightness=0.1, contrast=0.1, saturation=0.1, hue=0.02, p=1.0
+                    A.RandomGamma(gamma_limit=(90, 115), p=1.0),
+                    A.HueSaturationValue(
+                        hue_shift_limit=(-10, 10),
+                        sat_shift_limit=(-15, 15),
+                        val_shift_limit=0,
                     ),
                 ],
-                p=0.5,
+                p=0.7,
             ),
             A.OneOf(
                 [
-                    A.GaussianBlur(blur_limit=(3, 3), sigma_limit=0.5, p=1.0),
-                    A.GaussNoise(
-                        std_range=(0.02, 0.06),
-                        mean_range=(0, 0),
-                        per_channel=True,
-                        noise_scale_factor=1.0,
-                        p=1.0,
-                    ),
+                    A.AdvancedBlur(blur_limit=(3, 5), noise_limit=(0.9, 1.1), p=1.0),
+                    A.ISONoise(color_shift=(0.01, 0.03), intensity=(0.1, 0.2), p=1.0),
                 ],
-                p=0.3,
+                p=0.4,
             ),
             A.Normalize(
                 mean=[0.2267 * 255, 0.29982 * 255, 0.22058 * 255],
