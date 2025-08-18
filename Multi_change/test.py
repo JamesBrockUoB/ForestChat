@@ -64,13 +64,14 @@ def save_mask(pred, gt, name, save_path, args):
     diff_rgb[pred_bin & gt_bin] = [255, 255, 0]
     diff_rgb[pred_bin & ~gt_bin] = [255, 0, 0]
     diff_rgb[~pred_bin & gt_bin] = [0, 255, 0]
+    diff_rgb = cv2.cvtColor(diff_rgb, cv2.COLOR_RGB2BGR)
 
     cv2.imwrite(
         os.path.join(save_path, name.split(".")[0] + "_pred_diff.png"), diff_rgb
     )
 
-    img_A_path = os.path.join(args.data_folder, "test/A", name)
-    img_B_path = os.path.join(args.data_folder, "test/B", name)
+    img_A_path = os.path.join(args.data_folder, args.split, "A", name)
+    img_B_path = os.path.join(args.data_folder, args.split, "B", name)
     img_A = cv2.imread(img_A_path)
     img_B = cv2.imread(img_B_path)
     cv2.imwrite(os.path.join(save_path, name.split(".")[0] + "_A.png"), img_A)
