@@ -115,7 +115,6 @@ class LEVIRCCDataset(Dataset):
                         "name": name,
                     }
                 )
-        self.class_weights = compute_class_weights(self.files, self.num_classes)
 
     def __len__(self):
         return len(self.files)

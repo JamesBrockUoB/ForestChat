@@ -56,7 +56,19 @@ def save_mask(pred, gt, name, save_path, args):
 
     cv2.imwrite(os.path.join(save_path, name.split(".")[0] + f"_mask.png"), pred_rgb)
     cv2.imwrite(os.path.join(save_path, name.split(".")[0] + "_gt.png"), gt_rgb)
-    # 保存image_A 和 image_B
+
+    pred_bin = (pred > 0).astype(bool)
+    gt_bin = (gt > 0).astype(bool)
+    diff_rgb = np.zeros((pred.shape[0], pred.shape[1], 3), dtype=np.uint8)
+
+    diff_rgb[pred_bin & gt_bin] = [255, 255, 0]
+    diff_rgb[pred_bin & ~gt_bin] = [255, 0, 0]
+    diff_rgb[~pred_bin & gt_bin] = [0, 255, 0]
+
+    cv2.imwrite(
+        os.path.join(save_path, name.split(".")[0] + "_pred_diff.png"), diff_rgb
+    )
+
     img_A_path = os.path.join(args.data_folder, "test/A", name)
     img_B_path = os.path.join(args.data_folder, "test/B", name)
     img_A = cv2.imread(img_A_path)
