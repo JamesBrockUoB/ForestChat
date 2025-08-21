@@ -890,7 +890,7 @@ if __name__ == "__main__":
                         trainer.validation(epoch)
                         if epoch - trainer.best_epoch > trainer.args.patience:
                             print_log(
-                                f"Model did not improve after {trainer.args.patience}. Stopping training early.",
+                                f"Model did not improve after {trainer.args.patience} epochs. Stopping training early.",
                                 trainer.log,
                             )
                             trainer.start_epoch = trainer.best_epoch + 1
@@ -913,7 +913,7 @@ if __name__ == "__main__":
                                 trainer.start_epoch + trainer.args.num_epochs
                             )
                             print_log(
-                                f"Model did not improve after {trainer.args.patience}. Stopping training early.",
+                                f"Model did not improve after {trainer.args.patience} epochs. Stopping training early.",
                                 trainer.log,
                             )
                             break
