@@ -65,7 +65,13 @@ def load_images_sac(data_folder, split, target_size=(256, 256)):
         imgA = cv2.resize(imread(os.path.join(a_dir, img_name)), target_size)
         imgB = cv2.resize(imread(os.path.join(folder, "B", img_name)), target_size)
         label = cv2.resize(imread(os.path.join(folder, "label", img_name)), target_size)
-        label[label != 0] = 1
+
+        if len(label.shape) == 3 and label.shape[2] == 3:
+            # Convert to grayscale
+            label = cv2.cvtColor(label, cv2.COLOR_BGR2GRAY)
+
+        # Binarize the mask (values > 0 become 1)
+        label = (label > 0).astype(np.uint8)
 
         images.append((imgA.copy(), imgB.copy(), label.copy(), img_name))
 
