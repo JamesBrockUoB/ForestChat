@@ -12,7 +12,6 @@ from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-NUM_CLASS = 2  # 3 for LEVIR-MCI
 
 
 def save_mask(pred, gt, name, save_path, split, args):
@@ -20,7 +19,7 @@ def save_mask(pred, gt, name, save_path, split, args):
     # gt value: 0,1; map to black, red
 
     name = name[0]
-    evaluator = Evaluator(num_class=NUM_CLASS)
+    evaluator = Evaluator(num_class=args.num_classes)
     evaluator.add_batch(gt, pred)
     mIoU_seg, IoU = evaluator.Mean_Intersection_over_Union()
     Miou_str = round(mIoU_seg, 4)
@@ -105,7 +104,7 @@ def main(args):
     )
 
     # Epochs
-    evaluator = Evaluator(num_class=NUM_CLASS)
+    evaluator = Evaluator(num_class=args.num_classes)
 
     with torch.no_grad():
         for batch in tqdm(
@@ -206,6 +205,7 @@ if __name__ == "__main__":
         help="path to save the result of masks and captions",
     )
     parser.add_argument("--split", default="test")
+    parser.add_argument("--num_classes", default=2)
 
     args = parser.parse_args()
 
