@@ -1,33 +1,49 @@
 <div align="center">
     
-<h1>ForestChat: Toward Interactive Comprehensive Remote Sensing Forest Change Interpretation and Analysis</h1>
+<h1>Forest-Chat: Adapting Vision-Language Models for Interactive Forest Change Analysis</h1>
 
 **[James Brock](https://github.com/JamesBrockUoB/)**
 
 <div align="center">
-  <img src="resource/Change_Agent.png" width="400"/>
+  <img src="resource/conversation_examples.png" width="400"/>
 </div>
 </div>
 
 ## Table of Contents
 - [LEVIR-MCI dataset](#LEVIR-MCI-dataset)
+- [Forest-Change dataset](#Forest-Change-dataset)
 - [Training of MCI model](#Training-of-the-multi-level-change-interpretation-model)
-- [Construction of Change-Agent](#Construction-of-Change-Agent)
+- [Construction of Forest-Chat Agent](#Construction-of-Change-Agent)
 - [Citation](#Citation)
 
 ## LEVIR-MCI dataset 
-- Download the LEVIR_MCI dataset: [LEVIR-MCI](https://huggingface.co/datasets/lcybuaa/LEVIR-MCI/tree/main) (**Available Now!**).
+- Download the LEVIR_MCI dataset: [LEVIR-MCI](https://huggingface.co/datasets/lcybuaa/LEVIR-MCI/tree/main).
 - This dataset is an extension of our previously established [LEVIR-CC dataset](https://github.com/Chen-Yang-Liu/RSICC). It contains bi-temporal images as well as diverse change detection masks and descriptive sentences. It provides a crucial data foundation for exploring multi-task learning for change detection and change captioning.
     <br>
     <div align="center">
       <img src="resource/dataset.png" width="800"/>
     </div>
     <br>
-## Training of the multi-level change interpretation model
-The overview of the MCI model:
+
+## Forest-Change dataset
+- Data is available in the `Multi_change/data/Forest-Change` folder and can be prepared by running `python preprocess_data.py` in `Multi_change`.
+- If you wish to download the original data and create your own captions, then download the images from [here](https://www.kaggle.com/datasets/asheniranga/change-detection-in-forest-covers)
+- Name the downloaded folder as `archive`, and place it in the `Multi_change/data` folder
+- In the `dataset_utils_notebook.ipynb` file in the project root, run the first three code blocks to format the downloaded data as required
+- This should create the `Forest-Change-dataset` folder in the /data directory.
+- From here, you can run the captioning app via `streamlit run captioning_app.py` in the `/Multi_change` directory. This will allow you to provide a single human annotated caption, and optionally four rule-based captions per sample. Future work will allow for any number of human captions to be provided.
+- Once captioning is complete, the data can be pre-processed as needed by running `python preprocess_data.py` in `/Multi_change`
+<br>
+  <div align="center">
+    <img src="resource/dataset_examples.png" width="800"/>
+  </div>
+<br>
+
+## Training of the adapted multi-level change interpretation model
+The overview of the MCI model as adapted to Forest-Chat:
 <br>
     <div align="center">
-      <img src="resource/MCI_model.png" width="800"/>
+      <img src="resource/MCI_model_forestchat.png" width="800"/>
     </div>
 <br>
 
@@ -44,8 +60,8 @@ The overview of the MCI model:
     
     **Step 2**: Download or clone the repository.
     ```python
-    git clone https://github.com/Chen-Yang-Liu/Change-Agent.git
-    cd ./Change-Agent/Multi_change
+    git clone https://github.com/JamesBrockUoB/ForestChat.git
+    cd ./ForestChat/Multi_change
     ```
     
     **Step 3**: Install dependencies.
@@ -82,28 +98,38 @@ The overview of the MCI model:
 - **Extract text files for the descriptions of each image pair in LEVIR-MCI**:
 
     ```
-    python preprocess_data.py
+    python preprocess_data.py --dataset LEVIR_MCI-dataset --captions_json LevirCCcaptions.json
     ```
+
+    If you wish to create a subset of LEVIR-MCI that explicitly contains changes to trees called `LEVIR-MCI-Trees`, then add: --keep_only_trees True
     After that, you can find some generated files in `./data/LEVIR_MCI/`. 
 
-- **Download Segment Any Change (SAC)**:
+- **Download AnyChange**:
   <details open>
   
-  Link: [SAC](https://github.com/facebookresearch/segment-anything?tab=readme-ov-file#model-checkpoints)
+  Link: [AnyChange](https://github.com/facebookresearch/segment-anything?tab=readme-ov-file#model-checkpoints)
 
   Place the downloaded model into: `Multi_change/models_ckpt/` with the name unchanged (`sam_vit_h_4b8939.pth`)
+
+  Simplified overview of the AnyChange model:
+  <br>
+  <div align="center">
+        <img src="resource/any_change_simplified_diagram.png" width="800"/>
+  </div>
 
 ### Train
 Make sure you performed the data preparation above. Then, start training as follows:
 ```python
 python train.py --train_goal 2 --data_folder /DATA_PATH_ROOT/Levir-MCI-dataset/images --savepath ./models_ckpt/
 ```
+This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI. E.g. NUM_CLASSES has been changed from 3 to 2.
 
 ### Evaluate
 ```python
 python test.py --data_folder /DATA_PATH_ROOT/Levir-MCI-dataset/images --checkpoint {checkpoint_PATH}
 ```
 We recommend training the model 5 times to get an average score.
+This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI. E.g. NUM_CLASSES has been changed from 3 to 2.
 
 ### Inference
 Run inference to get started as follows:
@@ -112,24 +138,24 @@ python predict.py --imgA_path {imgA_path} --imgB_path {imgA_path} --mask_save_pa
 ```
 You can modify ``--checkpoint`` of ``Change_Perception.define_args()`` in ``predict.py``. Then you can use your own model, of course, you also can download our pretrained model ``MCI_model.pth`` here: [[Hugging face](https://huggingface.co/lcybuaa/Change-Agent/tree/main)]. After that, put it in `./models_ckpt/`.
 
-
+This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI. E.g. NUM_CLASSES has been changed from 3 to 2.
 
 ## Construction of Change-Agent
 <br>
 <div align="center">
-      <img src="resource/overview_agent.png" width="800"/>
+      <img src="resource/forest-chat-diagram.png" width="800"/>
 </div>
 
 - **Agent Installation**:
     ```python
-    cd ./Change-Agent/lagent-main
+    cd ./ForestChat/lagent-main
     pip install -e .[all]
     ```
 - **Run Agent**:
 
     cd into the ``Multi_change`` folder:
     ```python
-    cd ./Change-Agent/Multi_change
+    cd ./ForestChat/Multi_change
     ```
     (1) Run Agent Cli Demo:
     ```bash
@@ -146,32 +172,14 @@ You can modify ``--checkpoint`` of ``Change_Perception.define_args()`` in ``pred
     ```
     <br>
     <div align="center">
-          <img src="resource/web.png"/>
+          <img src="resource/point_query_app_screenshot.png"/>
     </div>
 
-## Citation
-If you find this paper useful in your research, please consider citing:
-```
-@ARTICLE{Liu_Change_Agent,
-  author={Liu, Chenyang and Chen, Keyan and Zhang, Haotian and Qi, Zipeng and Zou, Zhengxia and Shi, Zhenwei},
-  journal={IEEE Transactions on Geoscience and Remote Sensing}, 
-  title={Change-Agent: Toward Interactive Comprehensive Remote Sensing Change Interpretation and Analysis}, 
-  year={2024},
-  volume={},
-  number={},
-  pages={1-1},
-  keywords={Remote sensing;Feature extraction;Semantics;Transformers;Roads;Earth;Task analysis;Interactive Change-Agent;change captioning;change detection;multi-task learning;large language model},
-  doi={10.1109/TGRS.2024.3425815}}
-
-```
-
 ## Acknowledgement
-Thanks to the following repository:
+Thanks to the following repositories:
 
-[RSICCformer](https://github.com/Chen-Yang-Liu/RSICC); [Chg2Cap](https://github.com/ShizhenChang/Chg2Cap); [lagent](https://github.com/InternLM/lagent)
+[Change-Agent](https://github.com/Chen-Yang-Liu/Change-Agent/tree/main); [AnyChange](https://github.com/Z-Zheng/pytorch-change-models/tree/main/torchange/models/segment_any_change); [lagent](https://github.com/InternLM/lagent)
 
 ## License
-This repo is distributed under [MIT License](https://github.com/Chen-Yang-Liu/Change-Agent/blob/main/LICENSE.txt). The code can be used for academic purposes only.
+This repo is distributed under [MIT License](https://github.com/JamesBrockUoB/ForestChat/blob/main/LICENSE). The code can be used for academic purposes only.
 
-## Contact Us
-If you have any other questions❓, please contact us in time 👬
