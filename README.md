@@ -43,7 +43,7 @@
 The overview of the MCI model as adapted to Forest-Chat:
 <br>
     <div align="center">
-      <img src="resource/MCI_model_forestchat.png" width="800"/>
+      <img src="resource/mci_model_forestchat.png" width="800"/>
     </div>
 <br>
 
@@ -69,6 +69,12 @@ The overview of the MCI model as adapted to Forest-Chat:
     pip install -r requirements.txt
     ```
     </details>
+
+    **Step 4**: Setup .env file.
+    Create a file in the project root folder called `.env` with the following variables:
+      - OPEN_AI_KEY: Your OPEN_AI API key - https://platform.openai.com/api-keys
+      - SERPER_API_KEY - Your Google Search / Scholar API key - https://serpapi.com/
+      - WANDB_USERNAME - Your Weights & Biases username for run logging - https://wandb.ai/site/
 
 - **Download Dataset**:
   <details open>

@@ -18,7 +18,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 NUM_CLASS = 2  # 3 for LEVIR-MCI
 
 SWEEP_CONFIG = {
-    "name": "SAC Hyperparameter Search",
+    "name": "AnyChange Hyperparameter Search",
     "method": "bayes",
     "metric": {"name": "val/mIoU", "goal": "maximize"},
     "parameters": {
@@ -34,7 +34,7 @@ SWEEP_CONFIG = {
 }
 
 
-class SACHyperparameterSearcher(object):
+class AnyChangeHyperparameterSearcher(object):
     def __init__(self, args):
         """
         Validation on different hyperparameter search settings.
@@ -43,7 +43,7 @@ class SACHyperparameterSearcher(object):
         self.best_mIoU = 0
         self.best_config = None
 
-        dataset = load_images_sac(args.data_folder, "test")
+        dataset = load_images_anychange(args.data_folder, "test")
         self.val_loader = data.DataLoader(
             dataset,
             batch_size=args.val_batchsize,
@@ -63,7 +63,7 @@ class SACHyperparameterSearcher(object):
         ):
             m = AnyChange(
                 "vit_h",
-                sam_checkpoint=self.args.sac_network_path,
+                sam_checkpoint=self.args.anychange_network_path,
             )
 
             m.make_mask_generator(
@@ -92,7 +92,7 @@ class SACHyperparameterSearcher(object):
                 imgB = imgB.transpose(1, 2, 0)
 
             changemasks, _, _ = m.forward(imgA, imgB)
-            pred_seg = create_binary_mask_sac(changemasks)
+            pred_seg = create_binary_mask_anychange(changemasks)
 
             evaluator.add_batch(seg_label, pred_seg)
 
@@ -138,20 +138,20 @@ if __name__ == "__main__":
         "--val_batchsize", type=int, default=1, help="batch_size for validation"
     )
     parser.add_argument(
-        "--sac_network_path",
+        "--amychange_network_path",
         default="./models_ckpt/sam_vit_h_4b8939.pth",
-        help="path of the backbone architecture used by SAC",
+        help="path of the backbone architecture used by AnyChange",
     )
     args = parser.parse_args()
 
     sweep_id = wandb.sweep(
         SWEEP_CONFIG,
-        project="forest-chat-sac",
+        project="forest-chat-anychange",
         entity=os.environ.get("WANDB_USERNAME"),
     )
 
     # Create searcher instance
-    searcher = SACHyperparameterSearcher(args)
+    searcher = AnyChangeHyperparameterSearcher(args)
 
     def sweep_run():
         with wandb.init() as run:

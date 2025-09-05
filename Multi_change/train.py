@@ -83,7 +83,7 @@ class Trainer(object):
         ) as f:
             self.max_length = json.load(f)["max_length"]
         # Initialize / load checkpoint
-        self.build_model()
+        self.build_mci_model()
 
         # Custom dataloaders
         if args.data_name in ["LEVIR_MCI", "Forest-Change"]:
@@ -145,7 +145,7 @@ class Trainer(object):
         self.best_model_path = None
         self.best_epoch = 0
 
-    def build_model(self):
+    def build_mci_model(self):
         args = self.args
 
         self.encoder = Encoder(args.network)
@@ -903,7 +903,7 @@ if __name__ == "__main__":
                 else:
                     trainer.args.train_stage = "s2"
                     trainer.args.checkpoint = trainer.best_model_path
-                    trainer.build_model()
+                    trainer.build_mci_model()
                     for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
                         trainer.training(trainer.args, epoch)
                         trainer.validation(epoch)

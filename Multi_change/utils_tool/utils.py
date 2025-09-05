@@ -27,7 +27,7 @@ def str2bool(v):
         raise argparse.ArgumentTypeError("Boolean value expected.")
 
 
-def create_binary_mask_sac(mask_data):
+def create_binary_mask_anychange(mask_data):
     assert isinstance(mask_data, MaskData)
 
     # Return blank mask if no segments (now with batch dim)
@@ -52,7 +52,7 @@ def create_binary_mask_sac(mask_data):
     return combined_mask
 
 
-def load_images_sac(data_folder, split, target_size=(256, 256)):
+def load_images_anychange(data_folder, split, target_size=(256, 256)):
     folder = os.path.join(data_folder, split)
     images = []
 

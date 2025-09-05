@@ -114,12 +114,12 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
            - **Returns**:
              - A caption that includes the deforestation rate percentage observed in the mask.
 
-        5. **`sac_change_detection(path_A, path_B, savepath_mask, process_mask=True)`**:
+        5. **`anychange_change_detection(path_A, path_B, savepath_mask, process_mask=True)`**:
            - **Parameters**:
              - `path_A`: Path to the first image.
              - `path_B`: Path to the second image.
              - `savepath_mask`: Path to save the mask image.
-             - 'process_mask': Boolean value that defaults to True, on whether to convert SAC's output mask to greyscale or not.
+             - 'process_mask': Boolean value that defaults to True, on whether to convert AnyChange's output mask to greyscale or not.
            - **Returns**:
              - A mask map representing the changed areas. The mask is a numpy array with dimensions (256,256).
                 - The mask may either be RGB if 'process_mask=False' or greyscale if 'process_mask=True' (default)
@@ -145,7 +145,7 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             return deforestation_percent_caption
         ```
 
-        Alternatively, if the user wants to make use of the zero-shot change detection model SAC to detect changes in forest cover and save the deforestation areas in red, 'Action Input should be as follows:
+        Alternatively, if the user wants to make use of the zero-shot AnyChange change detection to detect changes in forest cover and save the deforestation areas in red, 'Action Input should be as follows:
         ''python
         def solution():
             from tools import Change_Perception
@@ -155,13 +155,13 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             savepath_mask = 'xxxxxx'
             # initiate Change_Perception
             Change_Perception_model = Change_Perception()
-            mask = Change_Perception.sac_change_detection(path_A, path_B, savepath_mask, process_mask=True)
+            mask = Change_Perception.anychange_change_detection(path_A, path_B, savepath_mask, process_mask=True)
             mask_bgr = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
             mask_bgr[mask == 1] = [0, 0, 255] # '1' stands for changed building (red)
             cv2.imwrite(savepath_mask, mask_bgr)
             return mask_bgr
         '''
-        If the uesr wants the raw SAC model output, then set 'process_mask=False' and assign the result to 'mask_bgr', save the mask and then return it
+        If the user wants the raw AnyChange model output, then set 'process_mask=False' and assign the result to 'mask_bgr', save the mask and then return it
 
         Args:
             command (:class:`str`): Python code snippet

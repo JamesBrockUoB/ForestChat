@@ -248,7 +248,7 @@ class StreamlitUI:
                     st.write("No points selected yet.")
 
         st.markdown("---")
-        st.markdown("## 🎯 Run SAC Model")
+        st.markdown("## 🎯 Run AnyChange Model")
 
         if st.button("Run"):
             points = st.session_state.selected_points[selected_image_key]
@@ -263,25 +263,25 @@ class StreamlitUI:
                 with open(path_B, "wb") as f:
                     f.write(st.session_state["image_B_bytes"])
 
-            savepath_mask = os.path.join(root_dir, "sac_change_mask.png")
+            savepath_mask = os.path.join(root_dir, "anychange_change_mask.png")
 
             try:
-                with st.spinner("Running SAC Model... This may take up to a minute."):
+                with st.spinner(
+                    "Running AnyChange Model... This may take up to a minute."
+                ):
                     change_perception = Change_Perception()
                     if len(points) == 0:
-                        mask = change_perception.sac_change_detection(
+                        mask = change_perception.anychange_change_detection(
                             path_A=path_A,
                             path_B=path_B,
                             savepath_mask=savepath_mask,
                         )
                     else:
-                        mask = (
-                            change_perception.sac_change_detection_points_of_interest(
-                                path_A=path_A,
-                                path_B=path_B,
-                                savepath_mask=savepath_mask,
-                                xyts=points,
-                            )
+                        mask = change_perception.anychange_change_detection_points_of_interest(
+                            path_A=path_A,
+                            path_B=path_B,
+                            savepath_mask=savepath_mask,
+                            xyts=points,
                         )
 
                 st.success("✅ Segmentation complete!")
@@ -304,7 +304,7 @@ class StreamlitUI:
                 with col3:
                     st.image(
                         savepath_mask,
-                        caption="🔍 SAC Output",
+                        caption="🔍 AnyChange Output",
                         use_container_width=True,
                     )
 
@@ -398,7 +398,7 @@ def main():
             model, plugin_action
         )
 
-    tab_selection = st.selectbox("Choose a mode:", ["ForestChat Agent", "SAC Model"])
+    tab_selection = st.selectbox("Choose a mode:", ["ForestChat Agent", "AnyChange"])
 
     if tab_selection == "ForestChat Agent":
         for prompt, agent_return in zip(
@@ -444,7 +444,7 @@ def main():
             logger.info(agent_return.inner_steps)
             st.session_state["ui"].render_assistant(agent_return)
 
-    elif tab_selection == "SAC Model":
+    elif tab_selection == "AnyChange":
         st.session_state["ui"].render_point_selector_tab()
 
 

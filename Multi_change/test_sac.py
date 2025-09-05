@@ -81,7 +81,7 @@ def main(args):
 
     args.result_path = os.path.join(
         args.result_path,
-        "SAC_model",
+        "anychange_model",
     )
     if not os.path.exists(args.result_path):
         os.makedirs(args.result_path, exist_ok=True)
@@ -94,7 +94,7 @@ def main(args):
             for name in dirs:
                 os.rmdir(os.path.join(root, name))
 
-    dataset = load_images_sac(args.data_folder, args.split)
+    dataset = load_images_anychange(args.data_folder, args.split)
     test_loader = data.DataLoader(
         dataset,
         batch_size=args.test_batchsize,
@@ -126,7 +126,7 @@ def main(args):
 
             m = AnyChange(
                 "vit_h",
-                sam_checkpoint=args.sac_network_path,
+                sam_checkpoint=args.anychange_network_path,
             )
             m.make_mask_generator(
                 points_per_side=16,
@@ -140,7 +140,7 @@ def main(args):
             )
 
             changemasks, _, _ = m.forward(imgA, imgB)
-            pred_seg = create_binary_mask_sac(changemasks)
+            pred_seg = create_binary_mask_anychange(changemasks)
 
             # for change detection: save mask?
             if args.save_mask:
@@ -188,9 +188,9 @@ if __name__ == "__main__":
         help="folder with image files",
     )
     parser.add_argument(
-        "--sac_network_path",
+        "--anychange_network_path",
         default="./models_ckpt/sam_vit_h_4b8939.pth",
-        help="path of the backbone architecture used by SAC",
+        help="path of the backbone architecture used by AnyChange",
     )
 
     # Test

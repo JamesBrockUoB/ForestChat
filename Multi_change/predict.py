@@ -242,8 +242,10 @@ class Change_Perception(object):
         return pred  # (256,256,3) or (256, 256) if not rgb
         # return 'change detection successfully. '
 
-    def sac_change_detection(self, path_A, path_B, savepath_mask, process_mask=True):
-        print("model_infer_change_detection_with_sac: start")
+    def anychange_change_detection(
+        self, path_A, path_B, savepath_mask, process_mask=True
+    ):
+        print("model_infer_change_detection_with_anychange: start")
         imgA = imread(path_A)
         imgB = imread(path_B)
 
@@ -264,7 +266,7 @@ class Change_Perception(object):
         assert isinstance(mask_data, MaskData)
 
         if process_mask:
-            img = create_binary_mask_sac(mask_data)[0]
+            img = create_binary_mask_anychange(mask_data)[0]
             img_rgb = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
             img_rgb[img == 1] = [0, 255, 255]
         else:
@@ -304,13 +306,13 @@ class Change_Perception(object):
 
         print("model_infer: mask saved in", savepath_mask)
 
-        print("model_infer_change_detection_with_sac: end")
+        print("model_infer_change_detection_with_anychange: end")
         return img_rgb
 
-    def sac_change_detection_points_of_interest(
+    def anychange_change_detection_points_of_interest(
         self, path_A, path_B, savepath_mask, xyts, process_mask=True
     ):
-        print("model_infer_change_detection_with_sac_points_of_interest: start")
+        print("model_infer_change_detection_with_anychange_points_of_interest: start")
         imgA = imread(path_A)
         imgB = imread(path_B)
 
@@ -340,7 +342,7 @@ class Change_Perception(object):
         assert isinstance(mask_data, MaskData)
 
         if process_mask:
-            img = create_binary_mask_sac(mask_data)[0]
+            img = create_binary_mask_anychange(mask_data)[0]
             img_rgb = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
             img_rgb[img == 1] = [0, 255, 255]
         else:
@@ -380,7 +382,7 @@ class Change_Perception(object):
 
         print("model_infer: mask saved in", savepath_mask)
 
-        print("model_infer_change_detection_with_sac_points_of_interest: end")
+        print("model_infer_change_detection_with_anychange_points_of_interest: end")
         return img_rgb
 
     def compute_object_num(self, changed_mask, object):
@@ -454,5 +456,7 @@ if __name__ == "__main__":
     Change_Perception.compute_object_num(mask, "deforestation patches")
 
     base, ext = os.path.splitext(args.mask_save_path)
-    sac_mask_filename = f"{base}_sac{ext}"
-    Change_Perception.sac_change_detection(imgA_path, imgB_path, sac_mask_filename)
+    anychange_mask_filename = f"{base}_anychange{ext}"
+    Change_Perception.anychange_change_detection(
+        imgA_path, imgB_path, anychange_mask_filename
+    )
