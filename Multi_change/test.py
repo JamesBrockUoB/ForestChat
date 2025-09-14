@@ -9,8 +9,8 @@ import numpy as np
 import torch.optim
 from data.ForestChange import ForestChangeDataset
 from data.LEVIR_MCI import LEVIRCCDataset
-from model.model_decoder import DecoderTransformer
-from model.model_encoder_att import AttentiveEncoder, Encoder
+from mci_model.model_decoder import DecoderTransformer
+from mci_model.model_encoder_att import AttentiveEncoder, Encoder
 from torch.utils import data
 from tqdm import tqdm
 from utils_tool.metrics import Evaluator

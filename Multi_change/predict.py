@@ -12,8 +12,8 @@ import torch.optim
 from genericpath import exists
 from griffe import check
 from imageio.v2 import imread
-from model.model_decoder import DecoderTransformer
-from model.model_encoder_att import AttentiveEncoder, Encoder
+from mci_model.model_decoder import DecoderTransformer
+from mci_model.model_encoder_att import AttentiveEncoder, Encoder
 from skimage import measure
 from skimage.segmentation import find_boundaries
 from torchange.models.segment_any_change import AnyChange

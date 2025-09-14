@@ -9,16 +9,20 @@ import numpy as np
 import wandb
 from data.ForestChange import ForestChangeDataset
 from data.LEVIR_MCI import LEVIRCCDataset
-from model.model_decoder import DecoderTransformer
-from model.model_encoder_att import AttentiveEncoder, Encoder
+from mci_model.model_decoder import DecoderTransformer
+from mci_model.model_encoder_att import AttentiveEncoder, Encoder
+from torch.autograd import set_detect_anomaly
 from torch.nn.utils.rnn import pack_padded_sequence
 from torch.utils import data
 from tqdm import tqdm
+from utils_tool.loss_funcs import compute_cd_loss, compute_multitask_loss
 from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DISPLAY_PARAMS = False
+
+# set_detect_anomaly(True)
 
 
 class Trainer(object):
@@ -68,9 +72,6 @@ class Trainer(object):
         print_log("=>num_epochs: {}".format(args.num_epochs), self.log)
         print_log("=>train_batchsize: {}".format(args.train_batchsize), self.log)
 
-        self.log_vars = torch.nn.Parameter(
-            torch.zeros(2).to(DEVICE)
-        )  # only used if using dynamic loss weighting
         self.best_bleu4 = 0.4  # BLEU-4 score right now
         self.MIou = 0.4
         self.Sum_Metric = 0.4
@@ -137,7 +138,9 @@ class Trainer(object):
 
         # Loss function
         self.criterion_cap = torch.nn.CrossEntropyLoss().to(DEVICE)
-        self.criterion_det = torch.nn.CrossEntropyLoss().to(DEVICE)
+
+        self.l_cd_prev = torch.tensor(1.0).to(DEVICE)
+        self.l_cc_prev = torch.tensor(1.0).to(DEVICE)
         # Epochs
 
         self.evaluator = Evaluator(num_class=args.num_classes)
@@ -212,8 +215,6 @@ class Trainer(object):
         decoder_params = list(
             filter(lambda p: p.requires_grad, self.decoder.parameters())
         )
-        if args.train_goal == 2 and args.dynamic_loss_weighting:
-            decoder_params += [self.log_vars]
         self.decoder_optimizer = (
             torch.optim.Adam(
                 decoder_params,
@@ -292,13 +293,14 @@ class Trainer(object):
         if self.encoder_optimizer is not None:
             self.encoder_optimizer.zero_grad()
 
+        accum_steps = 64 // args.train_batchsize
+
         for id, (imgA, imgB, seg_label, _, _, token, token_len, _) in enumerate(
             self.train_loader
         ):
             # if id == 120:
             #    break
             start_time = time.time()
-            accum_steps = 64 // args.train_batchsize
 
             # Move to GPU, if available
             imgA = imgA.to(DEVICE)
@@ -308,7 +310,8 @@ class Trainer(object):
             token_len = token_len.to(DEVICE)
             # Forward prop.
             feat1, feat2 = self.encoder(imgA, imgB)
-            feat1, feat2, seg_pre = self.encoder_trans(feat1, feat2)
+            feat1, feat2, seg_pred = self.encoder_trans(feat1, feat2)
+
             if self.args.train_goal != 0:
                 scores, caps_sorted, decode_lengths, sort_ind = self.decoder(
                     feat1, feat2, token, token_len
@@ -323,27 +326,22 @@ class Trainer(object):
                 ).data
                 # Calculate loss
                 cap_loss = self.criterion_cap(scores, targets.to(torch.int64))
-            det_loss = self.criterion_det(seg_pre, seg_label.to(torch.int64))
-            if self.args.train_goal == 0:
-                if self.start_train_goal == 2:
-                    if epoch < 100:
-                        det_loss = det_loss  # / det_loss.detach().item()
-                loss = det_loss
-            elif self.args.train_goal == 1:
-                loss = cap_loss
             else:
-                # balance two losses
-                if args.dynamic_loss_weighting:
-                    precision_det = torch.exp(-self.log_vars[0])
-                    precision_cap = torch.exp(-self.log_vars[1])
+                cap_loss = torch.tensor(0.0, device=DEVICE)
 
-                    loss = precision_det * det_loss + self.log_vars[0] * 0.5
-                    loss += precision_cap * cap_loss + self.log_vars[1] * 0.5
-                else:
-                    if args.train_stage == "s1":
-                        det_loss = det_loss / det_loss.detach().item()
-                        cap_loss = cap_loss / cap_loss.detach().item()
-                    loss = det_loss + cap_loss
+            if self.args.train_goal == 0 or self.args.train_goal == 2:
+                det_loss = compute_cd_loss(seg_pred, seg_label)
+            else:
+                det_loss = torch.tensor(0.0, device=DEVICE)
+
+            if self.args.train_goal == 2:
+                loss = compute_multitask_loss(
+                    det_loss, cap_loss, self.l_cd_prev, self.l_cc_prev
+                )
+            elif self.args.train_goal == 0:
+                loss = det_loss
+            else:
+                loss = cap_loss
 
             # Back prop.
             loss = loss / accum_steps
@@ -391,7 +389,7 @@ class Trainer(object):
             if self.args.train_goal == 0 or self.args.train_goal == 2:
                 self.hist[self.index_i, 1] = det_loss.item()  # train_loss
                 self.hist[self.index_i, 2] = accuracy(
-                    seg_pre.permute(0, 2, 3, 1).reshape(-1, seg_pre.size(1)),
+                    seg_pred.permute(0, 2, 3, 1).reshape(-1, seg_pred.size(1)),
                     seg_label.reshape(-1),
                     1,
                 )
@@ -861,12 +859,6 @@ if __name__ == "__main__":
         "--feature_dim", type=int, default=512, help="embedding dimension"
     )
     parser.add_argument("--num_classes", type=int, default=2)
-    parser.add_argument(
-        "--dynamic_loss_weighting",
-        type=str2bool,
-        default=True,
-        help="whether to use dynamic uncertainty weighting (True) or normalised equal loss scaling (False)",
-    )
     args = parser.parse_args()
 
     trainer = Trainer(args)
