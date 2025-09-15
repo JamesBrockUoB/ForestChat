@@ -11,18 +11,15 @@ from data.ForestChange import ForestChangeDataset
 from data.LEVIR_MCI import LEVIRCCDataset
 from mci_model.model_decoder import DecoderTransformer
 from mci_model.model_encoder_att import AttentiveEncoder, Encoder
-from torch.autograd import set_detect_anomaly
 from torch.nn.utils.rnn import pack_padded_sequence
 from torch.utils import data
 from tqdm import tqdm
-from utils_tool.loss_funcs import compute_cd_loss, compute_multitask_loss
+from utils_tool.loss_funcs import EDWA
 from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DISPLAY_PARAMS = False
-
-# set_detect_anomaly(True)
 
 
 class Trainer(object):
@@ -138,10 +135,9 @@ class Trainer(object):
 
         # Loss function
         self.criterion_cap = torch.nn.CrossEntropyLoss().to(DEVICE)
+        self.criterion_det = torch.nn.CrossEntropyLoss().to(DEVICE)
 
-        self.l_cd_prev = torch.tensor(1.0).to(DEVICE)
-        self.l_cc_prev = torch.tensor(1.0).to(DEVICE)
-        # Epochs
+        self.edwa = EDWA(num_epochs=args.num_epochs)
 
         self.evaluator = Evaluator(num_class=args.num_classes)
 
@@ -330,14 +326,13 @@ class Trainer(object):
                 cap_loss = torch.tensor(0.0, device=DEVICE)
 
             if self.args.train_goal == 0 or self.args.train_goal == 2:
-                det_loss = compute_cd_loss(seg_pred, seg_label)
+                det_loss = self.criterion_det(seg_pred, seg_label.to(torch.int64))
             else:
                 det_loss = torch.tensor(0.0, device=DEVICE)
 
             if self.args.train_goal == 2:
-                loss = compute_multitask_loss(
-                    det_loss, cap_loss, self.l_cd_prev, self.l_cc_prev
-                )
+                loss = self.edwa.combine(det_loss, cap_loss, epoch)
+
             elif self.args.train_goal == 0:
                 loss = det_loss
             else:

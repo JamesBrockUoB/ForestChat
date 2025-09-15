@@ -1,93 +1,67 @@
+import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
 
-class FocalLoss(nn.Module):
-    def __init__(self, alpha=1.0, gamma=0.5, reduction="mean", eps=1e-8):
-        super(FocalLoss, self).__init__()
-        self.alpha = alpha
-        self.gamma = gamma
-        self.reduction = reduction
-        self.eps = eps
+class EDWA:
+    """
+    Enhanced Dynamic Weight Averaging (EDWA) for multitask learning
+    """
 
-    def forward(self, inputs, targets):
-        num_classes = inputs.shape[1]
-        inputs_soft = F.softmax(inputs, dim=1).clamp(min=self.eps, max=1.0 - self.eps)
+    def __init__(self, num_epochs, T=2.0, device="cpu"):
+        self.T = T
+        self.num_epochs = num_epochs
+        self.device = device
 
-        targets_one_hot = F.one_hot(targets.long(), num_classes=num_classes)
-        targets_one_hot = targets_one_hot.permute(0, 3, 1, 2).float()
+        self.loss_history_cd = []
+        self.loss_history_cc = []
 
-        # Gather p_t directly instead of using BCE → avoids sqrt(0) issue
-        p_t = (
-            (inputs_soft * targets_one_hot)
-            .sum(dim=1)
-            .clamp(min=self.eps, max=1.0 - self.eps)
-        )
+        self.lambda_weights = np.ones((2, num_epochs), dtype=np.float32)
 
-        focal_factor = (1.0 - p_t).pow(self.gamma)  # safe now, never 0^fractional
-        loss = -self.alpha * focal_factor * torch.log(p_t)
+        self.eps = 1e-8
+        self.max_exp_arg = 20.0
+        self.min_ratio = 1e-6
+        self.max_ratio = 1e6
 
-        if self.reduction == "mean":
-            return loss.mean()
-        elif self.reduction == "sum":
-            return loss.sum()
-        return loss
+    def update_epoch_losses(self, L_cd_avg, L_cc_avg):
+        self.loss_history_cd.append(float(L_cd_avg))
+        self.loss_history_cc.append(float(L_cc_avg))
 
+        idx = len(self.loss_history_cd) - 1
+        if idx < 2:
+            self.lambda_weights[:, idx] = 1.0
+        else:
+            w_cd = self.loss_history_cd[idx - 1] / (
+                self.loss_history_cd[idx - 2] + self.eps
+            )
+            w_cc = self.loss_history_cc[idx - 1] / (
+                self.loss_history_cc[idx - 2] + self.eps
+            )
 
-class DiceLoss(nn.Module):
-    def __init__(self, smooth=1.0):
-        super(DiceLoss, self).__init__()
-        self.smooth = smooth
+            a_cd = np.clip(w_cd / self.T, -self.max_exp_arg, self.max_exp_arg)
+            a_cc = np.clip(w_cc / self.T, -self.max_exp_arg, self.max_exp_arg)
 
-    def forward(self, inputs, targets):
-        num_classes = inputs.shape[1]
+            exp_cd, exp_cc = np.exp(a_cd), np.exp(a_cc)
+            denom = exp_cd + exp_cc + self.eps
 
-        inputs_soft = F.softmax(inputs, dim=1)
-        targets_one_hot = F.one_hot(targets.long(), num_classes=num_classes)
-        targets_one_hot = targets_one_hot.permute(0, 3, 1, 2).float()  # (N, C, H, W)
-        inputs_flat = inputs_soft.reshape(inputs_soft.shape[0], num_classes, -1)
-        targets_flat = targets_one_hot.reshape(
-            targets_one_hot.shape[0], num_classes, -1
-        )
+            self.lambda_weights[0, idx] = 2.0 * exp_cd / denom
+            self.lambda_weights[1, idx] = 2.0 * exp_cc / denom
 
-        intersection = (inputs_flat * targets_flat).sum(dim=2)
-        dice = (2.0 * intersection + self.smooth) / (
-            inputs_flat.sum(dim=2) + targets_flat.sum(dim=2) + self.smooth
-        )
-        return 1 - dice.mean()
+    def combine(self, L_cd, L_cc, epoch):
+        lambda_cd_np = self.lambda_weights[0, epoch]
+        lambda_cc_np = self.lambda_weights[1, epoch]
 
+        lambda_cd = torch.tensor(lambda_cd_np, dtype=L_cd.dtype, device=self.device)
+        lambda_cc = torch.tensor(lambda_cc_np, dtype=L_cc.dtype, device=self.device)
 
-def compute_cd_loss(seg_pred, seg_label):
-    focal = FocalLoss(alpha=1.0, gamma=0.5)
-    dice = DiceLoss()
-    return focal(seg_pred, seg_label) + dice(seg_pred, seg_label)
+        if L_cd.item() > L_cc.item():
+            ratio = float(L_cd.item() / (L_cc.item() + self.eps))
+            ratio = np.clip(ratio, self.min_ratio, self.max_ratio)
+            alpha_s = lambda_cc * ratio
+            total_loss = alpha_s * L_cc + lambda_cd * L_cd
+        else:
+            ratio = float(L_cc.item() / (L_cd.item() + self.eps))
+            ratio = np.clip(ratio, self.min_ratio, self.max_ratio)
+            alpha_s = lambda_cd * ratio
+            total_loss = alpha_s * L_cd + lambda_cc * L_cc
 
-
-# ----------------------
-# EDWA Dynamic Task Weighting
-# ----------------------
-def compute_multitask_loss(l_cd_curr, l_cc_curr, l_cd_prev, l_cc_prev, T=2.0):
-    eps = 1e-8
-    # Relative rates
-    w_cd = l_cd_curr / (l_cd_prev + eps)
-    w_cc = l_cc_curr / (l_cc_prev + eps)
-
-    # Clamp to avoid overflow in exp
-    w_cd_clamped = torch.clamp(w_cd / T, -20.0, 20.0)
-    w_cc_clamped = torch.clamp(w_cc / T, -20.0, 20.0)
-
-    exp_cd = torch.exp(w_cd_clamped)
-    exp_cc = torch.exp(w_cc_clamped)
-
-    lambda_cd = 2 * exp_cd / (exp_cd + exp_cc + eps)
-    lambda_cc = 2 * exp_cc / (exp_cd + exp_cc + eps)
-
-    if l_cd_curr.item() > l_cc_curr.item():
-        alpha_s = lambda_cc * (l_cd_curr.item() / (l_cc_curr.item() + eps))
-        final_loss = alpha_s * l_cc_curr + lambda_cd * l_cd_curr
-    else:
-        alpha_s = lambda_cd * (l_cc_curr.item() / (l_cd_curr.item() + eps))
-        final_loss = alpha_s * l_cd_curr + lambda_cc * l_cc_curr
-
-    return final_loss
+        return total_loss
