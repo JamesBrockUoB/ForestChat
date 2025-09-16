@@ -65,10 +65,10 @@ class StreamlitUI:
         """Initialize Streamlit's UI settings."""
         st.set_page_config(
             layout="wide",
-            page_title="ForestChatAgent-web",
+            page_title="Forest-ChatAgent-web",
             page_icon="./docs/imgs/lagent_icon.png",
         )
-        st.header("🌏 :blue[ForestChat] Agent ", divider="rainbow")
+        st.header("🌏 :blue[Forest-Chat] Agent ", divider="rainbow")
 
         st.sidebar.title("Configuration")
 
@@ -383,10 +383,10 @@ def main():
     else:
         st.set_page_config(
             layout="wide",
-            page_title="ForestChatAgent-web",
+            page_title="Forest-ChatAgent-web",
             page_icon="./docs/imgs/lagent_icon.png",
         )
-        st.header("🌏:blue[ForestChat] Agent ", divider="rainbow")
+        st.header("🌏:blue[Forest-Chat] Agent ", divider="rainbow")
     model_name, model, plugin_action, uploaded_file_A, uploaded_file_B = (
         st.session_state["ui"].setup_sidebar()
     )
@@ -398,9 +398,9 @@ def main():
             model, plugin_action
         )
 
-    tab_selection = st.selectbox("Choose a mode:", ["ForestChat Agent", "AnyChange"])
+    tab_selection = st.selectbox("Choose a mode:", ["Forest-Chat Agent", "AnyChange"])
 
-    if tab_selection == "ForestChat Agent":
+    if tab_selection == "Forest-Chat Agent":
         for prompt, agent_return in zip(
             st.session_state["user"], st.session_state["assistant"]
         ):

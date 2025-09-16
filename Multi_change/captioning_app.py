@@ -409,11 +409,11 @@ class CaptioningApp:
     def __init__(self):
         st.set_page_config(
             layout="wide",
-            page_title="ForestChat-change-captioning",
+            page_title="Forest-Chat-change-captioning",
             page_icon="🌳",
         )
 
-        st.header("🌳 :blue[ForestChat] 🌲 Change Captioning Tool ", divider="rainbow")
+        st.header("🌳 :blue[Forest-Chat] 🌲 Change Captioning Tool ", divider="rainbow")
         self._initialise_session_state()
         self.base_folder = self._select_base_folder()
 
