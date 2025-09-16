@@ -69,6 +69,9 @@ class Trainer(object):
         print_log("=>num_epochs: {}".format(args.num_epochs), self.log)
         print_log("=>train_batchsize: {}".format(args.train_batchsize), self.log)
 
+        if args.loss_balancing_method == "uncertainty_weighting":
+            self.log_vars = torch.nn.Parameter(torch.zeros(2).to(DEVICE))
+
         self.best_bleu4 = 0.4  # BLEU-4 score right now
         self.MIou = 0.4
         self.Sum_Metric = 0.4
@@ -211,6 +214,9 @@ class Trainer(object):
         decoder_params = list(
             filter(lambda p: p.requires_grad, self.decoder.parameters())
         )
+        if args.loss_balancing_method == "uncertainty_weighting":
+            decoder_params += [self.log_vars]
+
         self.decoder_optimizer = (
             torch.optim.Adam(
                 decoder_params,
@@ -331,7 +337,13 @@ class Trainer(object):
                 det_loss = torch.tensor(0.0, device=DEVICE)
 
             if self.args.train_goal == 2:
-                loss = self.edwa.combine(det_loss, cap_loss, epoch)
+                if args.loss_balancing_method == "uncertainty_weighting":
+                    precision_det = torch.exp(-self.log_vars[0])
+                    precision_cap = torch.exp(-self.log_vars[1])
+                    loss = precision_det * det_loss + self.log_vars[0] * 0.5
+                    loss += precision_cap * cap_loss + self.log_vars[1] * 0.5
+                else:
+                    loss = self.edwa.combine(det_loss, cap_loss, epoch)
 
             elif self.args.train_goal == 0:
                 loss = det_loss
@@ -854,6 +866,11 @@ if __name__ == "__main__":
         "--feature_dim", type=int, default=512, help="embedding dimension"
     )
     parser.add_argument("--num_classes", type=int, default=2)
+    parser.add_argument(
+        "--loss_balancing_method",
+        default="edwa",
+        help="Loss balancing approach with choices of: [edwa, uncertainty_weighting]",
+    )
     args = parser.parse_args()
 
     trainer = Trainer(args)

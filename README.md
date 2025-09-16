@@ -135,6 +135,7 @@ This is now configured to use the Forest-Change dataset by default, check comman
 python test.py --data_folder /DATA_PATH_ROOT/Levir-MCI-dataset/images --checkpoint {checkpoint_PATH}
 ```
 We recommend training the model 5 times to get an average score.
+
 This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI. E.g. NUM_CLASSES has been changed from 3 to 2.
 
 ### Inference
