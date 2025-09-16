@@ -69,7 +69,7 @@ class Trainer(object):
         print_log("=>num_epochs: {}".format(args.num_epochs), self.log)
         print_log("=>train_batchsize: {}".format(args.train_batchsize), self.log)
 
-        if args.loss_balancing_method == "uncertainty_weighting":
+        if args.loss_balancing_method == "uncert":
             self.log_vars = torch.nn.Parameter(torch.zeros(2).to(DEVICE))
 
         self.best_bleu4 = 0.4  # BLEU-4 score right now
@@ -214,7 +214,7 @@ class Trainer(object):
         decoder_params = list(
             filter(lambda p: p.requires_grad, self.decoder.parameters())
         )
-        if args.loss_balancing_method == "uncertainty_weighting":
+        if args.loss_balancing_method == "uncert":
             decoder_params += [self.log_vars]
 
         self.decoder_optimizer = (
@@ -337,13 +337,18 @@ class Trainer(object):
                 det_loss = torch.tensor(0.0, device=DEVICE)
 
             if self.args.train_goal == 2:
-                if args.loss_balancing_method == "uncertainty_weighting":
+                if args.loss_balancing_method == "uncert":
                     precision_det = torch.exp(-self.log_vars[0])
                     precision_cap = torch.exp(-self.log_vars[1])
                     loss = precision_det * det_loss + self.log_vars[0] * 0.5
                     loss += precision_cap * cap_loss + self.log_vars[1] * 0.5
-                else:
+                elif args.loss_balancing_method == "edwa":
                     loss = self.edwa.combine(det_loss, cap_loss, epoch)
+                else:
+                    if self.args.train_stage == "s1":
+                        det_loss = det_loss / det_loss.detach().item()
+                        cap_loss = cap_loss / cap_loss.detach().item()
+                    loss = det_loss + cap_loss
 
             elif self.args.train_goal == 0:
                 loss = det_loss
@@ -868,8 +873,8 @@ if __name__ == "__main__":
     parser.add_argument("--num_classes", type=int, default=2)
     parser.add_argument(
         "--loss_balancing_method",
-        default="edwa",
-        help="Loss balancing approach with choices of: [edwa, uncertainty_weighting]",
+        default="uncert",
+        help="Loss balancing approach with choices of: [edwa, uncert, normalised]",
     )
     args = parser.parse_args()
 
