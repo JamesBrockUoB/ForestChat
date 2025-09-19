@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from scipy.optimize import minimize
 
 
 class EDWA:
@@ -65,3 +66,65 @@ class EDWA:
             total_loss = alpha_s * L_cd + lambda_cc * L_cc
 
         return total_loss
+
+
+def cagrad(grads, num_tasks, alpha=0.5, rescale=1):
+    GG = grads.t().mm(grads).cpu()  # [num_tasks, num_tasks]
+    g0_norm = (GG.mean() + 1e-8).sqrt()  # norm of the average gradient
+
+    x_start = np.ones(num_tasks) / num_tasks
+    bnds = tuple((0, 1) for x in x_start)
+    cons = {"type": "eq", "fun": lambda x: 1 - sum(x)}
+    A = GG.numpy()
+    b = x_start.copy()
+    c = (alpha * g0_norm + 1e-8).item()
+
+    def objfn(x):
+        return (
+            x.reshape(1, num_tasks).dot(A).dot(b.reshape(num_tasks, 1))
+            + c
+            * np.sqrt(
+                x.reshape(1, num_tasks).dot(A).dot(x.reshape(num_tasks, 1)) + 1e-8
+            )
+        ).sum()
+
+    res = minimize(objfn, x_start, bounds=bnds, constraints=cons)
+    w_cpu = res.x
+    ww = torch.Tensor(w_cpu).to(grads.device)
+    gw = (grads * ww.view(1, -1)).sum(1)
+    gw_norm = gw.norm()
+    lmbda = c / (gw_norm + 1e-8)
+    g = grads.mean(1) + lmbda * gw
+    if rescale == 0:
+        return g
+    elif rescale == 1:
+        return g / (1 + alpha**2)
+    else:
+        return g / (1 + alpha)
+
+
+def grad2vec(shared_modules, grads, grad_dims, task):
+    # store the gradients
+    grads[:, task].fill_(0.0)
+    cnt = 0
+    for mm in shared_modules:
+        for p in mm.parameters():
+            grad = p.grad
+            if grad is not None:
+                grad_cur = grad.data.detach().clone()
+                beg = 0 if cnt == 0 else sum(grad_dims[:cnt])
+                en = sum(grad_dims[: cnt + 1])
+                grads[beg:en, task].copy_(grad_cur.data.view(-1))
+            cnt += 1
+
+
+def overwrite_grad(shared_modules, newgrad, grad_dims, num_tasks):
+    newgrad = newgrad * num_tasks  # to match the sum loss
+    cnt = 0
+    for mm in shared_modules:
+        for param in mm.parameters():
+            beg = 0 if cnt == 0 else sum(grad_dims[:cnt])
+            en = sum(grad_dims[: cnt + 1])
+            this_grad = newgrad[beg:en].contiguous().view(param.data.size())
+            param.grad = this_grad.data.clone()
+            cnt += 1

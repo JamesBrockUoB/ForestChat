@@ -14,12 +14,13 @@ from mci_model.model_encoder_att import AttentiveEncoder, Encoder
 from torch.nn.utils.rnn import pack_padded_sequence
 from torch.utils import data
 from tqdm import tqdm
-from utils_tool.loss_funcs import EDWA
+from utils_tool.loss_funcs import *
 from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DISPLAY_PARAMS = False
+NUM_TASKS = 2
 
 
 class Trainer(object):
@@ -70,7 +71,7 @@ class Trainer(object):
         print_log("=>train_batchsize: {}".format(args.train_batchsize), self.log)
 
         if args.loss_balancing_method == "uncert":
-            self.log_vars = torch.nn.Parameter(torch.zeros(2).to(DEVICE))
+            self.log_vars = torch.nn.Parameter(torch.zeros(NUM_TASKS).to(DEVICE))
 
         self.best_bleu4 = 0.4  # BLEU-4 score right now
         self.MIou = 0.4
@@ -85,6 +86,14 @@ class Trainer(object):
             self.max_length = json.load(f)["max_length"]
         # Initialize / load checkpoint
         self.build_mci_model()
+
+        if args.use_cagrad:
+            self.grad_dims = []
+            for mm in self.shared_modules:
+                for param in mm.parameters():
+                    self.grad_dims.append(param.data.numel())
+
+            self.grads = torch.zeros(sum(self.grad_dims), NUM_TASKS).to(DEVICE)
 
         # Custom dataloaders
         if args.data_name in ["LEVIR_MCI", "Forest-Change"]:
@@ -248,6 +257,11 @@ class Trainer(object):
             else None
         )
 
+        self.shared_modules = []
+        for m in [self.decoder, self.encoder_trans, self.encoder]:
+            if m is not None:
+                self.shared_modules.append(m)
+
         if DISPLAY_PARAMS:
             total_params = 0
             for k, v in {
@@ -269,7 +283,7 @@ class Trainer(object):
     def training(self, args, epoch):
         # Only need one epoch of hist for printing as is stored in wandb to reduce memory
         self.index_i = 0
-        self.hist = np.zeros((args.num_epochs * 2 * len(self.train_loader), 5))
+        self.hist = np.zeros((args.num_epochs * NUM_TASKS * len(self.train_loader), 5))
 
         if self.start_train_goal != 2:
             self.encoder.train()
@@ -355,9 +369,22 @@ class Trainer(object):
             else:
                 loss = cap_loss
 
-            # Back prop.
-            loss = loss / accum_steps
-            loss.backward()
+            if self.args.use_cagrad and self.args.train_stage == "s2":
+                (det_loss / accum_steps).backward(retain_graph=True)
+                grad2vec(self.shared_modules, self.grads, self.grad_dims, 0)
+                for mm in self.shared_modules:
+                    mm.zero_grad()
+
+                (cap_loss / accum_steps).backward(retain_graph=False)
+                grad2vec(self.shared_modules, self.grads, self.grad_dims, 1)
+                for mm in self.shared_modules:
+                    mm.zero_grad()
+
+                g = cagrad(self.grads, NUM_TASKS, 0.4, rescale=1)
+                overwrite_grad(self.shared_modules, g, self.grad_dims, NUM_TASKS)
+            else:
+                (loss / accum_steps).backward()
+
             # Clip gradients
             if args.grad_clip is not None:
                 torch.nn.utils.clip_grad_value_(
@@ -377,7 +404,6 @@ class Trainer(object):
                     self.decoder_optimizer.step()
                 self.encoder_trans_optimizer.step()
                 if self.encoder_optimizer is not None:
-                    # if epoch >10:
                     self.encoder_optimizer.step()
 
                 # Adjust learning rate
@@ -386,7 +412,6 @@ class Trainer(object):
                 # print(decoder_optimizer.param_groups[0]['lr'])
                 self.encoder_trans_lr_scheduler.step()
                 if self.encoder_lr_scheduler is not None:
-                    # if epoch > 10:
                     self.encoder_lr_scheduler.step()
                     # print(encoder_optimizer.param_groups[0]['lr'])
 
@@ -874,7 +899,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--loss_balancing_method",
         default="uncert",
-        help="Loss balancing approach with choices of: [edwa, uncert, normalised]",
+        help="loss balancing approach with choices of: [edwa, uncert, normalised]",
+    )
+    parser.add_argument(
+        "--use_cagrad",
+        type=str2bool,
+        default=False,
+        help="whether to employ conflict-averse gradient descent to regularise multi-task gradient trajectories",
     )
     args = parser.parse_args()
 
