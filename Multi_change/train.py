@@ -369,7 +369,7 @@ class Trainer(object):
             else:
                 loss = cap_loss
 
-            if self.args.use_cagrad and self.args.train_stage == "s2":
+            if self.args.use_cagrad and self.args.train_stage == "s1":
                 (det_loss / accum_steps).backward(retain_graph=True)
                 grad2vec(self.shared_modules, self.grads, self.grad_dims, 0)
                 for mm in self.shared_modules:
