@@ -706,9 +706,11 @@ class Trainer(object):
                 metric = f"Sum_{round(100000 * self.Sum_Metric)}_MIou_{round(100000 * self.MIou)}_Bleu4_{round(100000 * self.best_bleu4)}"
                 model_name = f"{args.data_name}_bts_{args.train_batchsize}_{args.network}_epo_{epoch}_{metric}.pth"
 
-                if epoch > 10:
-                    print("Save Model")
-                    torch.save(state, os.path.join(args.savepath, model_name))
+                print("Save Model")
+                torch.save(state, os.path.join(args.savepath, model_name))
+
+                self.best_epoch = epoch
+                self.best_model_path = best_model_path
         # if True:
         elif self.start_train_goal == 2:
             Sum_Metric = mIoU_seg + Bleu_4
@@ -928,18 +930,6 @@ if __name__ == "__main__":
                     for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
                         trainer.training(trainer.args, epoch)
                         trainer.validation(epoch)
-                        if epoch - trainer.best_epoch > trainer.args.patience:
-                            print_log(
-                                f"Model did not improve after {trainer.args.patience} epochs. Stopping training early.",
-                                trainer.log,
-                            )
-                            trainer.start_epoch = trainer.best_epoch + 1
-                            break
-                        elif epoch == trainer.args.num_epochs - 1:
-                            trainer.start_epoch = trainer.best_epoch + 1
-                            trainer.args.num_epochs = (
-                                trainer.start_epoch + args.num_epochs
-                            )
                 else:
                     trainer.args.train_stage = "s2"
                     trainer.args.checkpoint = trainer.best_model_path
@@ -947,21 +937,32 @@ if __name__ == "__main__":
                     for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
                         trainer.training(trainer.args, epoch)
                         trainer.validation(epoch)
-                        if epoch - trainer.best_epoch > trainer.args.patience:
-                            trainer.start_epoch = trainer.best_epoch + 1
-                            trainer.args.num_epochs = (
-                                trainer.start_epoch + trainer.args.num_epochs
-                            )
-                            print_log(
-                                f"Model did not improve after {trainer.args.patience} epochs. Stopping training early.",
-                                trainer.log,
-                            )
-                            break
+
+                if epoch - trainer.best_epoch > trainer.args.patience:
+                    trainer.start_epoch = trainer.best_epoch + 1
+                    trainer.args.num_epochs = (
+                        trainer.start_epoch + trainer.args.num_epochs
+                    )
+                    print_log(
+                        f"Model did not improve after {trainer.args.patience} epochs. Stopping training early.",
+                        trainer.log,
+                    )
+                    break
                     # trainer.args.num_epochs = trainer.start_epoch + trainer.args.num_epochs
         else:
             for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
                 trainer.training(trainer.args, epoch)
                 # if not trainer.args.no_val and epoch % args.eval_interval == (args.eval_interval - 1):
                 trainer.validation(epoch)
+                if epoch - trainer.best_epoch > trainer.args.patience:
+                    trainer.start_epoch = trainer.best_epoch + 1
+                    trainer.args.num_epochs = (
+                        trainer.start_epoch + trainer.args.num_epochs
+                    )
+                    print_log(
+                        f"Model did not improve after {trainer.args.patience} epochs. Stopping training early.",
+                        trainer.log,
+                    )
+                    break
     except Exception as e:
         print_log("Hit an exception: {}".format(e), trainer.log)
