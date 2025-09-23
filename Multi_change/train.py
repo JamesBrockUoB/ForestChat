@@ -705,6 +705,7 @@ class Trainer(object):
                 }
                 metric = f"Sum_{round(100000 * self.Sum_Metric)}_MIou_{round(100000 * self.MIou)}_Bleu4_{round(100000 * self.best_bleu4)}"
                 model_name = f"{args.data_name}_bts_{args.train_batchsize}_{args.network}_epo_{epoch}_{metric}.pth"
+                best_model_path = os.path.join(self.args.savepath, model_name)
 
                 print("Save Model")
                 torch.save(state, os.path.join(args.savepath, model_name))
