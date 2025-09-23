@@ -73,9 +73,9 @@ class Trainer(object):
         if args.loss_balancing_method == "uncert":
             self.log_vars = torch.nn.Parameter(torch.zeros(NUM_TASKS).to(DEVICE))
 
-        self.best_bleu4 = 0.4  # BLEU-4 score right now
-        self.MIou = 0.4
-        self.Sum_Metric = 0.4
+        self.best_bleu4 = 0.3  # BLEU-4 score right now
+        self.MIou = 0.3
+        self.Sum_Metric = 0.3
         self.start_epoch = 0
         with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
             self.word_vocab = json.load(f)
