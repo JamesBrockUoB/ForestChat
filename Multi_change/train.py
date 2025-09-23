@@ -927,16 +927,14 @@ if __name__ == "__main__":
                 if goal == 2:
                     trainer.args.train_stage = "s1"
                     trainer.args.checkpoint = None
-                    for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
-                        trainer.training(trainer.args, epoch)
-                        trainer.validation(epoch)
                 else:
                     trainer.args.train_stage = "s2"
                     trainer.args.checkpoint = trainer.best_model_path
                     trainer.build_mci_model()
-                    for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
-                        trainer.training(trainer.args, epoch)
-                        trainer.validation(epoch)
+
+                for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
+                    trainer.training(trainer.args, epoch)
+                    trainer.validation(epoch)
 
                 if epoch - trainer.best_epoch > trainer.args.patience:
                     trainer.start_epoch = trainer.best_epoch + 1
