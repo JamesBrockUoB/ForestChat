@@ -937,17 +937,17 @@ if __name__ == "__main__":
                     trainer.training(trainer.args, epoch)
                     trainer.validation(epoch)
 
-                if epoch - trainer.best_epoch > trainer.args.patience:
-                    trainer.start_epoch = trainer.best_epoch + 1
-                    trainer.args.num_epochs = (
-                        trainer.start_epoch + trainer.args.num_epochs
-                    )
-                    print_log(
-                        f"Model did not improve after {trainer.args.patience} epochs. Stopping training early.",
-                        trainer.log,
-                    )
-                    break
-                    # trainer.args.num_epochs = trainer.start_epoch + trainer.args.num_epochs
+                    if epoch - trainer.best_epoch > trainer.args.patience:
+                        trainer.start_epoch = trainer.best_epoch + 1
+                        trainer.args.num_epochs = (
+                            trainer.start_epoch + trainer.args.num_epochs
+                        )
+                        print_log(
+                            f"Model did not improve after {trainer.args.patience} epochs. Stopping training early.",
+                            trainer.log,
+                        )
+                        break
+                        # trainer.args.num_epochs = trainer.start_epoch + trainer.args.num_epochs
         else:
             for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
                 trainer.training(trainer.args, epoch)
