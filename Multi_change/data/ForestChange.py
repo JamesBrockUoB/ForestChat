@@ -26,7 +26,7 @@ class ForestChangeDataset(Dataset):
         token_folder=None,
         vocab_file=None,
         max_length=42,
-        allow_unk=0,
+        allow_unk=False,
         transform=None,
         img_size=(256, 256),
         max_iters=None,
@@ -207,9 +207,7 @@ class ForestChangeDataset(Dataset):
                 ]
                 if self.split == "train" and nochange_cap in caption_list:
                     tokens = nochange_cap
-                tokens_encode = encode(
-                    tokens, self.word_vocab, allow_unk=self.allow_unk == 1
-                )
+                tokens_encode = encode(tokens, self.word_vocab, self.allow_unk)
                 token_all[j, : len(tokens_encode)] = tokens_encode
                 token_all_len[j] = len(tokens_encode)
             if datafiles["token_id"] is not None:

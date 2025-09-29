@@ -197,7 +197,7 @@ if __name__ == "__main__":
     parser.add_argument("--test_batchsize", default=1, help="batch_size for test")
     parser.add_argument("--workers", type=int, default=0, help="for data-loading")
     parser.add_argument(
-        "--save_mask", action="store_false", help="save the result of masks"
+        "--save_mask", type=str2bool, default=True, help="save the result of masks"
     )
     parser.add_argument(
         "--result_path",

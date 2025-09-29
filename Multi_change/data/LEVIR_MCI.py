@@ -25,7 +25,7 @@ class LEVIRCCDataset(Dataset):
         token_folder=None,
         vocab_file=None,
         max_length=41,
-        allow_unk=0,
+        allow_unk=False,
         max_iters=None,
         num_classes=3,
     ):
@@ -163,9 +163,7 @@ class LEVIRCCDataset(Dataset):
                 ]
                 if self.split == "train" and nochange_cap in caption_list:
                     tokens = nochange_cap
-                tokens_encode = encode(
-                    tokens, self.word_vocab, allow_unk=self.allow_unk == 1
-                )
+                tokens_encode = encode(tokens, self.word_vocab, self.allow_unk)
                 token_all[j, : len(tokens_encode)] = tokens_encode
                 token_all_len[j] = len(tokens_encode)
             if datafiles["token_id"] is not None:

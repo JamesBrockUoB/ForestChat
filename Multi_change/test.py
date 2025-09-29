@@ -440,7 +440,10 @@ if __name__ == "__main__":
         help="path of the metadata file for the dataset",
     )
     parser.add_argument(
-        "--allow_unk", type=int, default=1, help="if unknown token is allowed"
+        "--allow_unk",
+        type=str2bool,
+        default=True,
+        help="if unknown token is allowed",
     )
     parser.add_argument(
         "--data_name", default="Forest-Change", help="base name shared by data files."
@@ -464,10 +467,13 @@ if __name__ == "__main__":
     parser.add_argument("--dropout", type=float, default=0.1, help="dropout")
     # save masks and captions?
     parser.add_argument(
-        "--save_mask", action="store_false", help="save the result of masks"
+        "--save_mask", type=str2bool, default=True, help="save the result of masks"
     )
     parser.add_argument(
-        "--save_caption", action="store_false", help="save the result of captions"
+        "--save_caption",
+        type=str2bool,
+        default=True,
+        help="save the result of captions",
     )
     parser.add_argument(
         "--result_path",

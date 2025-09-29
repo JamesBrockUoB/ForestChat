@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import numpy as np
 import torch
 from scipy.optimize import minimize
@@ -66,6 +68,39 @@ class EDWA:
             total_loss = alpha_s * L_cd + lambda_cc * L_cc
 
         return total_loss
+
+
+def graddrop(grads):
+    P = 0.5 * (1.0 + grads.sum(1) / (grads.abs().sum(1) + 1e-8))
+    U = torch.rand_like(grads[:, 0])
+    M = P.gt(U).view(-1, 1) * grads.gt(0) + P.lt(U).view(-1, 1) * grads.lt(0)
+    g = (grads * M.float()).mean(1)
+    return g
+
+
+def pcgrad(grads, rng, num_tasks):
+    grad_vec = grads.t()
+
+    shuffled_task_indices = np.zeros((num_tasks, num_tasks - 1), dtype=int)
+    for i in range(num_tasks):
+        task_indices = np.arange(num_tasks)
+        task_indices[i] = task_indices[-1]
+        shuffled_task_indices[i] = task_indices[:-1]
+        rng.shuffle(shuffled_task_indices[i])
+    shuffled_task_indices = shuffled_task_indices.T
+
+    normalized_grad_vec = grad_vec / (
+        grad_vec.norm(dim=1, keepdim=True) + 1e-8
+    )  # num_tasks x dim
+    modified_grad_vec = deepcopy(grad_vec)
+    for task_indices in shuffled_task_indices:
+        normalized_shuffled_grad = normalized_grad_vec[task_indices]  # num_tasks x dim
+        dot = (modified_grad_vec * normalized_shuffled_grad).sum(
+            dim=1, keepdim=True
+        )  # num_tasks x dim
+        modified_grad_vec -= torch.clamp_max(dot, 0) * normalized_shuffled_grad
+    g = modified_grad_vec.mean(dim=0)
+    return g
 
 
 def cagrad(grads, num_tasks, alpha=0.5, rescale=1):

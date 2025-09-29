@@ -4,6 +4,7 @@ import json
 import os
 import random
 import time
+from distutils.util import strtobool
 
 import numpy as np
 import wandb
@@ -87,7 +88,8 @@ class Trainer(object):
         # Initialize / load checkpoint
         self.build_mci_model()
 
-        if args.use_cagrad:
+        if args.grad_method != "none":
+            self.rng = np.random.default_rng()
             self.grad_dims = []
             for mm in self.shared_modules:
                 for param in mm.parameters():
@@ -369,7 +371,7 @@ class Trainer(object):
             else:
                 loss = cap_loss
 
-            if self.args.use_cagrad and self.args.train_stage == "s1":
+            if self.args.train_stage == "s1" and self.args.grad_method != "none":
                 (det_loss / accum_steps).backward(retain_graph=True)
                 grad2vec(self.shared_modules, self.grads, self.grad_dims, 0)
                 for mm in self.shared_modules:
@@ -380,23 +382,31 @@ class Trainer(object):
                 for mm in self.shared_modules:
                     mm.zero_grad()
 
-                g = cagrad(self.grads, NUM_TASKS, 0.4, rescale=1)
+                grad_methods = {
+                    "cagrad": lambda: cagrad(self.grads, NUM_TASKS, 0.4, rescale=1),
+                    "pcgrad": lambda: pcgrad(self.grads, self.rng, NUM_TASKS),
+                    "graddrop": lambda: graddrop(self.grads),
+                }
+
+                try:
+                    g = grad_methods[self.args.grad_method]()
+                except KeyError as e:
+                    raise ValueError(
+                        f"Unknown grad_method: {self.args.grad_method}"
+                    ) from e
+
                 overwrite_grad(self.shared_modules, g, self.grad_dims, NUM_TASKS)
+
             else:
                 (loss / accum_steps).backward()
 
-            # Clip gradients
             if args.grad_clip is not None:
-                torch.nn.utils.clip_grad_value_(
-                    self.decoder.parameters(), args.grad_clip
-                )
-                torch.nn.utils.clip_grad_value_(
-                    self.encoder_trans.parameters(), args.grad_clip
-                )
-                if self.encoder_optimizer is not None:
-                    torch.nn.utils.clip_grad_value_(
-                        self.encoder.parameters(), args.grad_clip
-                    )
+                for params in [
+                    self.decoder.parameters(),
+                    self.encoder_trans.parameters(),
+                    (self.encoder.parameters() if self.encoder_optimizer else []),
+                ]:
+                    torch.nn.utils.clip_grad_value_(params, args.grad_clip)
 
             # Update weights
             if (id + 1) % accum_steps == 0 or (id + 1) == len(self.train_loader):
@@ -780,7 +790,7 @@ if __name__ == "__main__":
         help="path of the metadata file for the dataset",
     )
     parser.add_argument(
-        "--allow_unk", type=int, default=1, help="if unknown token is allowed"
+        "--allow_unk", type=str2bool, default=True, help="if unknown token is allowed"
     )
     parser.add_argument(
         "--data_name", default="Forest-Change", help="base name shared by data files."
@@ -800,13 +810,18 @@ if __name__ == "__main__":
     )
     # Training parameters
     parser.add_argument(
-        "--train_goal", type=int, default=2, help="0:det; 1:cap; 2:two tasks"
+        "--train_goal",
+        type=int,
+        default=2,
+        help="0:det; 1:cap; 2:two tasks",
+        choices=[0, 1, 2],
     )
     parser.add_argument(
         "--train_stage",
         default="s1",
         help="s1: pretrain backbone under two loss;"
         " s2: train two branch respectively",
+        choices=["s1", "s2"],
     )
     parser.add_argument(
         "--fine_tune_encoder",
@@ -902,13 +917,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--loss_balancing_method",
         default="uncert",
-        help="loss balancing approach with choices of: [edwa, uncert, normalised]",
+        help="loss balancing approach method",
+        choices=["edwa", "uncert", "normalised"],
     )
     parser.add_argument(
-        "--use_cagrad",
-        type=str2bool,
-        default=False,
-        help="whether to employ conflict-averse gradient descent to regularise multi-task gradient trajectories",
+        "--grad_method",
+        default="none",
+        help="gradient adjustment method for resolving potential conflicts between multiple learning tasks",
+        choices=["none", "pcgrad", "graddrop", "cagrad"],
     )
     args = parser.parse_args()
 
