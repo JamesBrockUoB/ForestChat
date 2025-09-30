@@ -928,12 +928,6 @@ if __name__ == "__main__":
         help="gradient adjustment method for resolving potential conflicts between multiple learning tasks",
         choices=["none", "pcgrad", "graddrop", "cagrad"],
     )
-    parser.add_argument(
-        "--model_name",
-        default="mci",
-        help="name of the model to train",
-        choices=["mci", "change3d"],
-    )
     args = parser.parse_args()
 
     trainer = Trainer(args)
