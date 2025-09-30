@@ -52,7 +52,6 @@ class Trainer(object):
                 "feature_dim": args.feature_dim,
                 "loss_balancing_method": args.loss_balancing_method,
                 "grad_method": args.grad_method,
-                "model_name": args.model_name,
             },
         )
         random_str = str(random.randint(10, 100))
