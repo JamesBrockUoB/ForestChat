@@ -47,13 +47,15 @@
 
 ## LEVIR-MCI dataset 
   <details open>
+  
   - Download the LEVIR_MCI dataset: [LEVIR-MCI](https://huggingface.co/datasets/lcybuaa/LEVIR-MCI/tree/main).
   - This dataset is an extension of the previously established [LEVIR-CC dataset](https://github.com/Chen-Yang-Liu/RSICC). It contains bi-temporal images as well as diverse change detection masks and descriptive sentences. It provides a crucial data foundation for exploring multi-task learning for change detection and change captioning.
-    <br>
-    <div align="center">
-      <img src="resource/dataset.png" width="800"/>
-    </div>
-    <br>
+  <br>
+  <div align="center">
+    <img src="resource/dataset.png" width="800"/>
+  </div>
+  <br>
+
   - The data structure of LEVIR-MCI is organized as follows:
     ```
     ├─/DATA_PATH_ROOT/Levir-MCI-dataset/
@@ -86,6 +88,7 @@
 
 ## Forest-Change dataset
 <details open>
+
 - Data is available in the `Multi_change/data/Forest-Change` folder and can be prepared by running `python preprocess_data.py` in `Multi_change`.
 - If you wish to download the original data and create your own captions, then download the images from [here](https://www.kaggle.com/datasets/asheniranga/change-detection-in-forest-covers)
 - Name the downloaded folder as `archive`, and place it in the `Multi_change/data` folder
