@@ -16,42 +16,11 @@
 - [Construction of Forest-Chat Agent](#Construction-of-Change-Agent)
 - [Citation](#Citation)
 
-## LEVIR-MCI dataset 
-- Download the LEVIR_MCI dataset: [LEVIR-MCI](https://huggingface.co/datasets/lcybuaa/LEVIR-MCI/tree/main).
-- This dataset is an extension of our previously established [LEVIR-CC dataset](https://github.com/Chen-Yang-Liu/RSICC). It contains bi-temporal images as well as diverse change detection masks and descriptive sentences. It provides a crucial data foundation for exploring multi-task learning for change detection and change captioning.
-    <br>
-    <div align="center">
-      <img src="resource/dataset.png" width="800"/>
-    </div>
-    <br>
-
-## Forest-Change dataset
-- Data is available in the `Multi_change/data/Forest-Change` folder and can be prepared by running `python preprocess_data.py` in `Multi_change`.
-- If you wish to download the original data and create your own captions, then download the images from [here](https://www.kaggle.com/datasets/asheniranga/change-detection-in-forest-covers)
-- Name the downloaded folder as `archive`, and place it in the `Multi_change/data` folder
-- In the `dataset_utils_notebook.ipynb` file in the project root, run the first three code blocks to format the downloaded data as required
-- This should create the `Forest-Change-dataset` folder in the /data directory.
-- From here, you can run the captioning app via `streamlit run captioning_app.py` in the `/Multi_change` directory. This will allow you to provide a single human annotated caption, and optionally four rule-based captions per sample. Future work will allow for any number of human captions to be provided.
-- Once captioning is complete, the data can be pre-processed as needed by running `python preprocess_data.py` in `/Multi_change`
-<br>
-  <div align="center">
-    <img src="resource/dataset_examples.png" width="800"/>
-  </div>
-<br>
-
-## Training of the adapted multi-level change interpretation model
-The overview of the MCI model as adapted to Forest-Chat:
-<br>
-    <div align="center">
-      <img src="resource/mci_model_forestchat.png" width="800"/>
-    </div>
-<br>
-
 ### Preparation
-    
-- **Environment Installation**:
-    <details open>
-    
+<details open>
+  
+  - **Environment Installation**:
+
     **Step 1**: Create a virtual environment named `Multi_change_env` and activate it.
     ```python
     conda create -n Multi_change_env python=3.9
@@ -68,19 +37,24 @@ The overview of the MCI model as adapted to Forest-Chat:
     ```python
     pip install -r requirements.txt
     ```
-    </details>
 
     **Step 4**: Setup .env file.
     Create a file in the project root folder called `.env` with the following variables:
       - OPEN_AI_KEY: Your OPEN_AI API key - https://platform.openai.com/api-keys
       - SERPER_API_KEY - Your Google Search / Scholar API key - https://serpapi.com/
       - WANDB_USERNAME - Your Weights & Biases username for run logging - https://wandb.ai/site/
+</details>
 
-- **Download Dataset**:
+## LEVIR-MCI dataset 
   <details open>
-      
-  Link: [LEVIR-MCI](https://huggingface.co/datasets/lcybuaa/LEVIR-MCI/tree/main). The data structure of LEVIR-MCI is organized as follows:
-
+  - Download the LEVIR_MCI dataset: [LEVIR-MCI](https://huggingface.co/datasets/lcybuaa/LEVIR-MCI/tree/main).
+  - This dataset is an extension of the previously established [LEVIR-CC dataset](https://github.com/Chen-Yang-Liu/RSICC). It contains bi-temporal images as well as diverse change detection masks and descriptive sentences. It provides a crucial data foundation for exploring multi-task learning for change detection and change captioning.
+    <br>
+    <div align="center">
+      <img src="resource/dataset.png" width="800"/>
+    </div>
+    <br>
+  - The data structure of LEVIR-MCI is organized as follows:
     ```
     ├─/DATA_PATH_ROOT/Levir-MCI-dataset/
             ├─LevirCCcaptions.json
@@ -99,9 +73,8 @@ The overview of the MCI model as adapted to Forest-Chat:
                  │  ├─label
     ```
     where folder ``A`` contains pre-phase images, folder ``B`` contains post-phase images, and folder ``label`` contains the change detection masks.
-    </details>
 
-- **Extract text files for the descriptions of each image pair in LEVIR-MCI**:
+  - **Extract text files for the descriptions of each image pair in LEVIR-MCI**:
 
     ```
     python preprocess_data.py --dataset LEVIR_MCI-dataset --captions_json LevirCCcaptions.json
@@ -109,9 +82,28 @@ The overview of the MCI model as adapted to Forest-Chat:
 
     If you wish to create a subset of LEVIR-MCI that explicitly contains changes to trees called `LEVIR-MCI-Trees`, then add: --keep_only_trees True
     After that, you can find some generated files in `./data/LEVIR_MCI/`. 
+  </details>
 
-- **Download AnyChange**:
+## Forest-Change dataset
+<details open>
+- Data is available in the `Multi_change/data/Forest-Change` folder and can be prepared by running `python preprocess_data.py` in `Multi_change`.
+- If you wish to download the original data and create your own captions, then download the images from [here](https://www.kaggle.com/datasets/asheniranga/change-detection-in-forest-covers)
+- Name the downloaded folder as `archive`, and place it in the `Multi_change/data` folder
+- In the `dataset_utils_notebook.ipynb` file in the project root, run the first three code blocks to format the downloaded data as required
+- This should create the `Forest-Change-dataset` folder in the /data directory.
+- From here, you can run the captioning app via `streamlit run captioning_app.py` in the `/Multi_change` directory. This will allow you to provide a single human annotated caption, and optionally four rule-based captions per sample. Future work will allow for any number of human captions to be provided.
+- Once captioning is complete, the data can be pre-processed as needed by running `python preprocess_data.py` in `/Multi_change`
+<br>
+  <div align="center">
+    <img src="resource/dataset_examples.png" width="800"/>
+  </div>
+<br>
+</details>
+
+### Download AnyChange model for Zero-shot segmentation
   <details open>
+
+  AnyChange provided out-of-the-box zero-shot bi-temporal change detection segmentation for the Forest-Chat agent.
   
   Link: [AnyChange](https://github.com/facebookresearch/segment-anything?tab=readme-ov-file#model-checkpoints)
 
@@ -122,6 +114,15 @@ The overview of the MCI model as adapted to Forest-Chat:
   <div align="center">
         <img src="resource/any_change_simplified_diagram.png" width="800"/>
   </div>
+  </details>
+
+## Training of the adapted multi-level change interpretation model
+The overview of the MCI model as adapted to Forest-Chat:
+<br>
+    <div align="center">
+      <img src="resource/mci_model_forestchat.png" width="800"/>
+    </div>
+<br>
 
 ### Train
 Make sure you performed the data preparation above. Then, start training as follows:
