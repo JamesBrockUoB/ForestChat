@@ -19,7 +19,7 @@ scikit-image==0.24.0
 albumentations==2.0.8
 pyproj==3.6.1
 python-dotenv==1.1.1
-git+https://github.com/Z-Zheng/pytorch-change-models
+git+https://github.com/Z-Zheng/pytorch-change-models.git@v0.0.1
 huggingface-hub==0.23.0
 datasets==2.15.0
 ever-beta==0.5.1
