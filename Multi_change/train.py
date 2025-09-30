@@ -50,6 +50,9 @@ class Trainer(object):
                 "n_layers": args.n_layers,
                 "decoder_n_layers": args.decoder_n_layers,
                 "feature_dim": args.feature_dim,
+                "loss_balancing_method": args.loss_balancing_method,
+                "grad_method": args.grad_method,
+                "model_name": args.model_name,
             },
         )
         random_str = str(random.randint(10, 100))
@@ -354,10 +357,9 @@ class Trainer(object):
 
             if self.args.train_goal == 2:
                 if args.loss_balancing_method == "uncert":
-                    precision_det = torch.exp(-self.log_vars[0])
-                    precision_cap = torch.exp(-self.log_vars[1])
-                    loss = precision_det * det_loss + self.log_vars[0] * 0.5
-                    loss += precision_cap * cap_loss + self.log_vars[1] * 0.5
+                    loss = calc_uncertainty_weighting_loss(
+                        det_loss, cap_loss, self.log_vars
+                    )
                 elif args.loss_balancing_method == "edwa":
                     loss = self.edwa.combine(det_loss, cap_loss, epoch)
                 else:
@@ -925,6 +927,12 @@ if __name__ == "__main__":
         default="none",
         help="gradient adjustment method for resolving potential conflicts between multiple learning tasks",
         choices=["none", "pcgrad", "graddrop", "cagrad"],
+    )
+    parser.add_argument(
+        "--model_name",
+        default="mci",
+        help="name of the model to train",
+        choices=["mci", "change3d"],
     )
     args = parser.parse_args()
 

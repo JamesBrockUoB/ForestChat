@@ -70,6 +70,14 @@ class EDWA:
         return total_loss
 
 
+def calc_uncertainty_weighting_loss(det_loss, cap_loss, log_vars):
+    precision_det = torch.exp(-log_vars[0])
+    precision_cap = torch.exp(-log_vars[1])
+    loss = precision_det * det_loss + log_vars[0] * 0.5
+    loss += precision_cap * cap_loss + log_vars[1] * 0.5
+    return loss
+
+
 def graddrop(grads):
     P = 0.5 * (1.0 + grads.sum(1) / (grads.abs().sum(1) + 1e-8))
     U = torch.rand_like(grads[:, 0])
