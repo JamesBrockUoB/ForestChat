@@ -43,11 +43,18 @@
       - OPEN_AI_KEY: Your OPEN_AI API key - https://platform.openai.com/api-keys
       - SERPER_API_KEY - Your Google Search / Scholar API key - https://serpapi.com/
       - WANDB_USERNAME - Your Weights & Biases username for run logging - https://wandb.ai/site/
+    
+    **Step 5**: Authenticate with Weights and Biases.
+    1. Load up a python terminal through `python`
+    1. Import the library: `import wandb`
+    1. Login: `wandb.login()`
+    1. Paste in your WandB API key
+    1. Exit: `exit()`
 </details>
 
 ## LEVIR-MCI dataset 
   <details open>
-  
+
   - Download the LEVIR_MCI dataset: [LEVIR-MCI](https://huggingface.co/datasets/lcybuaa/LEVIR-MCI/tree/main).
   - This dataset is an extension of the previously established [LEVIR-CC dataset](https://github.com/Chen-Yang-Liu/RSICC). It contains bi-temporal images as well as diverse change detection masks and descriptive sentences. It provides a crucial data foundation for exploring multi-task learning for change detection and change captioning.
   <br>
