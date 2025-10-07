@@ -1,16 +1,14 @@
 import json
 import os
-from random import *
+from random import randint
 
 import cv2
 import numpy as np
-import torch
 
 # import cv2 as cv
 from imageio import imread
 from preprocess_data import encode
-from torch.utils.data import DataLoader, Dataset
-from utils_tool.utils import *
+from torch.utils.data import Dataset
 
 
 class ForestChangeDataset(Dataset):

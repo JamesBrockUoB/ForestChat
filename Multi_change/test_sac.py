@@ -205,7 +205,7 @@ if __name__ == "__main__":
         help="path to save the result of masks and captions",
     )
     parser.add_argument("--split", default="test")
-    parser.add_argument("--num_classes", default=2)
+    parser.add_argument("--num_classes", type=int, default=2)
 
     args = parser.parse_args()
 

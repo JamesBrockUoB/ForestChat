@@ -6,11 +6,14 @@ import albumentations as A
 import cv2
 import numpy as np
 import torch
+from data.ForestChange import ForestChangeDataset
+from data.LEVIR_MCI import LEVIRCCDataset
 from eval_func.bleu.bleu import Bleu
 from eval_func.cider.cider import Cider
 from eval_func.meteor.meteor import Meteor
 from eval_func.rouge.rouge import Rouge
 from skimage.io import imread
+from torch.utils.data import DataLoader
 from torchange.models.segment_any_change.segment_anything.utils.amg import (
     MaskData,
     area_from_rle,
@@ -114,51 +117,6 @@ def get_image_transforms():
     return transform
 
 
-def save_checkpoint(
-    args,
-    data_name,
-    epoch,
-    encoder,
-    encoder_feat,
-    decoder,
-    encoder_optimizer,
-    encoder_feat_optimizer,
-    decoder_optimizer,
-    best_bleu4,
-):
-    """
-    Saves model checkpoint.
-
-    :param data_name: base name of processed dataset
-    :param epoch: epoch number
-    :param epochs_since_improvement: number of epochs since last improvement in BLEU-4 score
-    :param encoder: encoder model
-    :param decoder: decoder model
-    :param encoder_optimizer: optimizer to update encoder's weights, if fine-tuning
-    :param decoder_optimizer: optimizer to update decoder's weights
-    :param bleu4: validation BLEU-4 score for this epoch
-    :param is_best: is this checkpoint the best so far?
-    """
-    state = {
-        "epoch": epoch,
-        "best_bleu-4": best_bleu4,
-        "encoder": encoder,
-        "encoder_feat": encoder_feat,
-        "decoder": decoder,
-        "encoder_optimizer": encoder_optimizer,
-        "encoder_feat_optimizer": encoder_feat_optimizer,
-        "decoder_optimizer": decoder_optimizer,
-    }
-    # filename = 'checkpoint_' + data_name + '_' + args.network + '.pth.tar'
-    path = args.savepath  #'./models_checkpoint/mymodel/3-times/'
-    if os.path.exists(path) == False:
-        os.makedirs(path)
-        # If this checkpoint is the best so far, store a copy so it doesn't get overwritten by a worse checkpoint
-    torch.save(state, os.path.join(path, "BEST_" + data_name))
-
-    # torch.save(state, os.path.join(path, 'checkpoint_' + data_name +'_epoch_'+str(epoch) + '.pth.tar'))
-
-
 def accuracy(scores, targets, k):
     """
     Computes top-k accuracy, from predicted and true labels.
@@ -209,54 +167,6 @@ def get_eval_score(references, hypotheses):
     return score_dict
 
 
-def clip_gradient(optimizer, grad_clip):
-    """
-    Clips gradients computed during backpropagation to avoid explosion of gradients.
-
-    :param optimizer: optimizer with the gradients to be clipped
-    :param grad_clip: clip value
-    """
-    for group in optimizer.param_groups:
-        for param in group["params"]:
-            if param.grad is not None:
-                param.grad.data.clamp_(-grad_clip, grad_clip)
-
-
-def adjust_learning_rate(optimizer, shrink_factor):
-    """
-    Shrinks learning rate by a specified factor.
-
-    :param optimizer: optimizer whose learning rate must be shrunk.
-    :param shrink_factor: factor in interval (0, 1) to multiply learning rate with.
-    """
-
-    print("\nDECAYING learning rate.")
-    for param_group in optimizer.param_groups:
-        param_group["lr"] = param_group["lr"] * shrink_factor
-    print("The new learning rate is %f\n" % (optimizer.param_groups[0]["lr"],))
-
-
-class AverageMeter(object):
-    """
-    Keeps track of most recent, average, sum, and count of a metric.
-    """
-
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
-
-
 def time_file_str():
     ISOTIMEFORMAT = "%Y-%m-%d-%H-%M-%S"
     string = "{}".format(time.strftime(ISOTIMEFORMAT, time.gmtime(time.time())))
@@ -267,5 +177,59 @@ def print_log(print_string, log):
     print("{:}".format(print_string))
     log.write("{:}\n".format(print_string))
     log.flush()
-    log.flush()
-    log.flush()
+
+
+def build_dataloaders(args, max_length):
+    datasets = []
+    for split in ["train", "val"]:
+        if "Forest-Change" in args.data_name:
+            dataset = ForestChangeDataset(
+                data_folder=args.data_folder,
+                list_path=args.list_path,
+                split=split,
+                token_folder=args.token_folder,
+                vocab_file=args.vocab_file,
+                max_length=max_length,
+                allow_unk=args.allow_unk,
+                transform=(
+                    get_image_transforms()
+                    if (args.augment and split == "train")
+                    else None
+                ),
+                max_iters=(
+                    args.increased_train_data_size
+                    if split == "train"
+                    else args.increased_val_data_size
+                ),
+                num_classes=args.num_classes,
+            )
+        else:  # LEVIR_MCI
+            dataset = LEVIRCCDataset(
+                data_folder=args.data_folder,
+                list_path=args.list_path,
+                split=split,
+                token_folder=args.token_folder,
+                vocab_file=args.vocab_file,
+                max_length=max_length,
+                allow_unk=args.allow_unk,
+                num_classes=args.num_classes,
+            )
+        datasets.append(dataset)
+
+    train_dataset_size = len(datasets[0])
+    train_loader = DataLoader(
+        datasets[0],
+        batch_size=args.train_batchsize,
+        shuffle=True,
+        num_workers=args.workers,
+        pin_memory=True,
+    )
+    val_loader = DataLoader(
+        datasets[1],
+        batch_size=args.val_batchsize,
+        shuffle=False,
+        num_workers=args.workers,
+        pin_memory=True,
+    )
+
+    return train_dataset_size, train_loader, val_loader

@@ -7,16 +7,20 @@ import time
 
 import numpy as np
 import wandb
-from data.ForestChange import ForestChangeDataset
-from data.LEVIR_MCI import LEVIRCCDataset
 from mci_model.model_decoder import DecoderTransformer
 from mci_model.model_encoder_att import AttentiveEncoder, Encoder
 from torch.nn.utils.rnn import pack_padded_sequence
-from torch.utils import data
 from tqdm import tqdm
 from utils_tool.loss_funcs import *
 from utils_tool.metrics import Evaluator
-from utils_tool.utils import *
+from utils_tool.utils import (
+    accuracy,
+    build_dataloaders,
+    get_eval_score,
+    print_log,
+    str2bool,
+    time_file_str,
+)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DISPLAY_PARAMS = False
@@ -54,15 +58,10 @@ class Trainer(object):
             },
         )
         random_str = str(random.randint(10, 100))
-        name = (
-            "baseline_"
-            + time_file_str()
-            + f"_train_goal_{args.train_goal}_"
-            + random_str
-        )
+        name = "mci_" + time_file_str() + f"_train_goal_{args.train_goal}_" + random_str
         self.args.savepath = os.path.join(args.savepath, name)
         self.args.savepath = os.path.join(args.savepath, name)
-        if os.path.exists(self.args.savepath) == False:
+        if os.path.exists(self.args.savepath) is False:
             os.makedirs(self.args.savepath)
         self.log = open(os.path.join(self.args.savepath, "{}.log".format(name)), "w")
         print_log("=>dataset: {}".format(args.data_name), self.log)
@@ -75,10 +74,14 @@ class Trainer(object):
         if args.loss_balancing_method == "uncert":
             self.log_vars = torch.nn.Parameter(torch.zeros(NUM_TASKS).to(DEVICE))
 
+        if args.loss_balancing_method == "edwa":
+            self.edwa = EDWA(num_epochs=args.num_epochs)
+
         self.best_bleu4 = 0.3  # BLEU-4 score right now
         self.MIou = 0.3
         self.Sum_Metric = 0.3
         self.start_epoch = 0
+
         with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
             self.word_vocab = json.load(f)
 
@@ -98,61 +101,9 @@ class Trainer(object):
 
             self.grads = torch.zeros(sum(self.grad_dims), NUM_TASKS).to(DEVICE)
 
-        # Custom dataloaders
-        if args.data_name in ["LEVIR_MCI", "Forest-Change"]:
-            datasets = []
-            for split in ["train", "val"]:
-                dataset = (
-                    ForestChangeDataset(
-                        data_folder=args.data_folder,
-                        list_path=args.list_path,
-                        split=split,
-                        token_folder=args.token_folder,
-                        vocab_file=args.vocab_file,
-                        max_length=self.max_length,
-                        allow_unk=args.allow_unk,
-                        transform=get_image_transforms() if args.augment else None,
-                        max_iters=(
-                            args.increased_train_data_size
-                            if split == "train"
-                            else args.increased_val_data_size
-                        ),
-                        num_classes=args.num_classes,
-                    )
-                    if "Forest-Change" in args.data_name
-                    else LEVIRCCDataset(
-                        data_folder=args.data_folder,
-                        list_path=args.list_path,
-                        split=split,
-                        token_folder=args.token_folder,
-                        vocab_file=args.vocab_file,
-                        max_length=self.max_length,
-                        allow_unk=args.allow_unk,
-                        num_classes=args.num_classes,
-                    )
-                )
-                datasets.append(dataset)
-            self.train_dataset_size = len(datasets[0])
-            self.train_loader = data.DataLoader(
-                datasets[0],
-                batch_size=args.train_batchsize,
-                shuffle=True,
-                num_workers=args.workers,
-                pin_memory=True,
-            )
-            self.val_loader = data.DataLoader(
-                datasets[1],
-                batch_size=args.val_batchsize,
-                shuffle=False,
-                num_workers=args.workers,
-                pin_memory=True,
-            )
-
-        # Loss function
-        self.criterion_cap = torch.nn.CrossEntropyLoss().to(DEVICE)
-        self.criterion_det = torch.nn.CrossEntropyLoss().to(DEVICE)
-
-        self.edwa = EDWA(num_epochs=args.num_epochs)
+        self.train_dataset_size, self.train_loader, self.val_loader = build_dataloaders(
+            args, self.max_length
+        )
 
         self.evaluator = Evaluator(num_class=args.num_classes)
 
@@ -259,6 +210,9 @@ class Trainer(object):
             if fine_tune_capdecoder
             else None
         )
+
+        self.criterion_cap = torch.nn.CrossEntropyLoss().to(DEVICE)
+        self.criterion_det = torch.nn.CrossEntropyLoss().to(DEVICE)
 
         self.shared_modules = []
         for m in [self.decoder, self.encoder_trans, self.encoder]:
@@ -769,7 +723,6 @@ if __name__ == "__main__":
     )
 
     # Data parameters
-    parser.add_argument("--sys", default="win", help="system win or linux")
     parser.add_argument(
         "--data_folder",
         default="./data/Forest-Change-dataset/images",

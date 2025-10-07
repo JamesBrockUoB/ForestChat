@@ -89,7 +89,7 @@
     python preprocess_data.py --dataset LEVIR_MCI-dataset --captions_json LevirCCcaptions.json
     ```
 
-    If you wish to create a subset of LEVIR-MCI that explicitly contains changes to trees called `LEVIR-MCI-Trees`, then add: --keep_only_trees True
+    If you wish to create a subset of LEVIR-MCI that explicitly contains changes to trees called `LEVIR-MCI-Trees`, then add the parameter flag: --keep_only_trees
     After that, you can find some generated files in `./data/LEVIR_MCI/`. 
   </details>
 
@@ -137,13 +137,13 @@ The overview of the MCI model as adapted to Forest-Chat:
 ### Train
 Make sure you performed the data preparation above. Then, start training as follows:
 ```python
-python train.py --train_goal 2 --data_folder /DATA_PATH_ROOT/Levir-MCI-dataset/images --savepath ./models_ckpt/
+python train_mci.py --train_goal 2 --data_folder /DATA_PATH_ROOT/Levir-MCI-dataset/images --savepath ./models_ckpt/
 ```
 This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI. E.g. NUM_CLASSES has been changed from 3 to 2.
 
 ### Evaluate
 ```python
-python test.py --data_folder /DATA_PATH_ROOT/Levir-MCI-dataset/images --checkpoint {checkpoint_PATH}
+python test_mci.py --data_folder /DATA_PATH_ROOT/Levir-MCI-dataset/images --checkpoint {checkpoint_PATH}
 ```
 We recommend training the model 5 times to get an average score.
 

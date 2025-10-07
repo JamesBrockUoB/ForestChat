@@ -1,11 +1,6 @@
-import os
-import sys
-
-from utils_tool.utils import str2bool
-
-sys.path.insert(0, os.path.abspath("."))
 import argparse
 import json
+import os
 
 parser = argparse.ArgumentParser()
 
@@ -21,7 +16,7 @@ parser.add_argument(
 parser.add_argument(
     "--word_count_threshold", default=5, type=int
 )  # default 5, might change to 3 but needs retraining
-parser.add_argument("--keep_only_trees", default=False, type=str2bool)
+parser.add_argument("--keep_only_trees", action="store_true")
 
 SPECIAL_TOKENS = {
     "<NULL>": 0,
@@ -36,9 +31,6 @@ def main(args):
     if args.dataset in ["LEVIR_MCI", "Forest-Change"]:
         input_captions_json = os.path.join(
             DATA_PATH_ROOT, f"{args.dataset}-dataset", args.captions_json
-        )
-        input_image_dir = os.path.join(
-            DATA_PATH_ROOT, f"{args.dataset}-dataset", "images"
         )
         input_vocab_json = ""
         output_vocab_json = "vocab.json"
@@ -86,7 +78,6 @@ def main(args):
         print("Saving captions")
         for img, tokens_list in all_cap_tokens:
             i = img.split(".")[0]
-            token_len = len(tokens_list)
             tokens_list = json.dumps(tokens_list)
             with open(os.path.join(save_dir + "tokens/" + i + ".txt"), "w") as f:
                 f.write(tokens_list)

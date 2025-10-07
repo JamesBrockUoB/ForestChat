@@ -419,7 +419,6 @@ if __name__ == "__main__":
     )
 
     # Data parameters
-    parser.add_argument("--sys", default="linux", help="system win or linux")
     parser.add_argument(
         "--data_folder",
         default="./data/Forest-Change-dataset/images",
