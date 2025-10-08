@@ -262,7 +262,8 @@ class Trainer(object):
 
         if self.decoder_optimizer is not None:
             self.decoder_optimizer.zero_grad()
-        self.encoder_trans_optimizer.zero_grad()
+        if self.encoder_trans is not None:
+            self.encoder_trans_optimizer.zero_grad()
         if self.encoder_optimizer is not None:
             self.encoder_optimizer.zero_grad()
 
@@ -366,7 +367,8 @@ class Trainer(object):
             if (id + 1) % accum_steps == 0 or (id + 1) == len(self.train_loader):
                 if self.decoder_optimizer is not None:
                     self.decoder_optimizer.step()
-                self.encoder_trans_optimizer.step()
+                if self.encoder_trans_optimizer is not None:
+                    self.encoder_trans_optimizer.step()
                 if self.encoder_optimizer is not None:
                     self.encoder_optimizer.step()
 
@@ -374,14 +376,16 @@ class Trainer(object):
                 if self.decoder_lr_scheduler is not None:
                     self.decoder_lr_scheduler.step()
                 # print(decoder_optimizer.param_groups[0]['lr'])
-                self.encoder_trans_lr_scheduler.step()
+                if self.encoder_trans_lr_scheduler is not None:
+                    self.encoder_trans_lr_scheduler.step()
                 if self.encoder_lr_scheduler is not None:
                     self.encoder_lr_scheduler.step()
                     # print(encoder_optimizer.param_groups[0]['lr'])
 
                 if self.decoder_optimizer is not None:
                     self.decoder_optimizer.zero_grad()
-                self.encoder_trans_optimizer.zero_grad()
+                if self.encoder_trans_optimizer is not None:
+                    self.encoder_trans_optimizer.zero_grad()
                 if self.encoder_optimizer is not None:
                     self.encoder_optimizer.zero_grad()
 

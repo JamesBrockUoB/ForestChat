@@ -2,6 +2,7 @@ from copy import deepcopy
 
 import numpy as np
 import torch
+import torch.nn as nn
 from scipy.optimize import minimize
 
 
@@ -146,28 +147,95 @@ def cagrad(grads, num_tasks, alpha=0.5, rescale=1):
         return g / (1 + alpha)
 
 
-def grad2vec(shared_modules, grads, grad_dims, task):
-    # store the gradients
+def grad2vec(target, grads: torch.Tensor, task: int, grad_dims: list[int] = None):
+    """
+    Flatten and store gradients of all parameters in a model or list of modules into a vector.
+
+    Args:
+        target (nn.Module or list[nn.Module]): Model or list of modules.
+        grads (torch.Tensor): Tensor to store flattened gradients, shape [total_params, num_tasks].
+        task (int): Index of the task to store gradients for.
+        grad_dims (list[int], optional): Number of parameters per parameter. Computed if None.
+    """
+    # Convert single module to list
+    if isinstance(target, nn.Module):
+        modules = [target]
+    elif isinstance(target, (list, tuple)):
+        modules = target
+    else:
+        raise ValueError("target must be a nn.Module or a list/tuple of modules.")
+
+    # Flatten all parameters
+    all_params = []
+    for m in modules:
+        all_params.extend(list(m.parameters()))
+
+    # Compute grad_dims if not provided
+    if grad_dims is None:
+        grad_dims = [p.numel() for p in all_params]
+
+    if grads.size(0) != sum(grad_dims):
+        raise ValueError(
+            f"Size mismatch: grads has {grads.size(0)} elements, "
+            f"expected {sum(grad_dims)} based on model parameters."
+        )
+
+    # Reset task column
     grads[:, task].fill_(0.0)
+
+    # Store gradients
     cnt = 0
-    for mm in shared_modules:
-        for p in mm.parameters():
-            grad = p.grad
-            if grad is not None:
-                grad_cur = grad.data.detach().clone()
-                beg = 0 if cnt == 0 else sum(grad_dims[:cnt])
-                en = sum(grad_dims[: cnt + 1])
-                grads[beg:en, task].copy_(grad_cur.data.view(-1))
-            cnt += 1
+    for param, dim in zip(all_params, grad_dims):
+        if param.grad is not None:
+            grad_cur = param.grad.data.detach().clone().view(-1)
+            beg = sum(grad_dims[:cnt])
+            en = beg + dim
+            grads[beg:en, task].copy_(grad_cur)
+        cnt += 1
 
 
-def overwrite_grad(shared_modules, newgrad, grad_dims, num_tasks):
-    newgrad = newgrad * num_tasks  # to match the sum loss
+def overwrite_grad(
+    target, newgrad: torch.Tensor, num_tasks: int = 1, grad_dims: list[int] = None
+):
+    """
+    Overwrite gradients of all parameters in a model or list of modules from a flattened gradient vector.
+
+    Args:
+        target (nn.Module or list[nn.Module]): Model or list of submodules to update.
+        newgrad (torch.Tensor): Flattened gradient vector (sum of task gradients).
+        num_tasks (int): Number of tasks used to scale the gradient.
+        grad_dims (list[int], optional): Number of parameters per parameter. If None, computed automatically.
+    """
+    # Convert single module to list
+    if isinstance(target, nn.Module):
+        modules = [target]
+    elif isinstance(target, (list, tuple)):
+        modules = target
+    else:
+        raise ValueError("target must be a nn.Module or a list/tuple of modules.")
+
+    # Flatten all parameters
+    all_params = []
+    for m in modules:
+        all_params.extend(list(m.parameters()))
+
+    # Compute grad_dims if not provided
+    if grad_dims is None:
+        grad_dims = [p.numel() for p in all_params]
+
+    if newgrad.numel() != sum(grad_dims):
+        raise ValueError(
+            f"Size mismatch: newgrad has {newgrad.numel()} elements, "
+            f"expected {sum(grad_dims)} based on model parameters."
+        )
+
+    # Scale gradient
+    newgrad = newgrad * num_tasks
+
+    # Overwrite each parameter's gradient
     cnt = 0
-    for mm in shared_modules:
-        for param in mm.parameters():
-            beg = 0 if cnt == 0 else sum(grad_dims[:cnt])
-            en = sum(grad_dims[: cnt + 1])
-            this_grad = newgrad[beg:en].contiguous().view(param.data.size())
-            param.grad = this_grad.data.clone()
-            cnt += 1
+    for param, dim in zip(all_params, grad_dims):
+        beg = sum(grad_dims[:cnt])
+        en = beg + dim
+        param.grad = newgrad[beg:en].contiguous().view(param.size()).clone()
+        cnt += 1

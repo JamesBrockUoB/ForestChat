@@ -83,8 +83,8 @@ def adjust_learning_rate(
     args,
     optimizer,
     epoch=None,
-    iter=None,
-    max_batches=None,
+    batch_idx=None,
+    total_batches=None,
     lr_factor=1.0,
     shrink_factor=None,
     verbose=True,
@@ -111,53 +111,48 @@ def adjust_learning_rate(
     Returns:
         float: Current learning rate after adjustment
     """
+
+    base_lr = args.lr
+
+    # --- Manual shrink override ---
     if shrink_factor is not None:
-        # Manual shrinking mode (from the second implementation)
         if not 0 < shrink_factor < 1:
-            raise ValueError(
-                f"Shrink factor must be between 0 and 1, got {shrink_factor}"
-            )
+            raise ValueError(f"shrink_factor must be in (0,1), got {shrink_factor}")
+
+        for pg in optimizer.param_groups:
+            pg["lr"] *= shrink_factor
 
         if verbose:
-            print("\nDECAYING learning rate.")
-
-        for param_group in optimizer.param_groups:
-            param_group["lr"] = param_group["lr"] * shrink_factor
-
-        if verbose:
-            print(f"The new learning rate is {optimizer.param_groups[0]['lr']:.6f}\n")
-
+            print(f"[LR Shrink] New LR: {optimizer.param_groups[0]['lr']:.6f}")
         return optimizer.param_groups[0]["lr"]
 
-    # Scheduler-based learning rate adjustment
+    # --- Scheduler-based update ---
     if args.lr_mode == "step":
-        if epoch is None:
-            raise ValueError("Epoch must be provided for step lr_mode")
-        lr = args.lr * (0.1 ** (epoch // args.step_loss))
+        # Step decay every N epochs
+        lr = base_lr * (0.1 ** (epoch // args.step_loss))
 
     elif args.lr_mode == "poly":
-        if any(param is None for param in [epoch, iter, max_batches]):
-            raise ValueError(
-                "Epoch, iter, and max_batches must be provided for poly lr_mode"
-            )
-
-        cur_iter = iter
-        max_iter = max_batches * args.max_epochs
-        lr = args.lr * (1 - cur_iter * 1.0 / max_iter) ** 0.9
+        # Polynomial decay across total epochs
+        if total_batches is not None and batch_idx is not None:
+            progress = (epoch + batch_idx / total_batches) / args.max_epochs
+        else:
+            progress = epoch / args.max_epochs
+        lr = base_lr * (1 - progress) ** 0.9
 
     else:
-        raise ValueError(f"Unknown lr mode {args.lr_mode}")
+        raise ValueError(f"Unknown lr_mode '{args.lr_mode}'")
 
-    # Apply warm-up phase if we're in the first epoch
-    if epoch == 0 and iter is not None and iter < 200:
-        lr = args.lr * 0.9 * (iter + 1) / 200 + 0.1 * args.lr
+    # --- Warmup (optional) ---
+    if epoch == 0 and batch_idx is not None and batch_idx < 200:
+        warmup = 0.9 * (batch_idx + 1) / 200 + 0.1
+        lr = base_lr * warmup
 
-    # Apply additional lr factor
+    # --- Apply scaling factor ---
     lr *= lr_factor
 
-    # Update learning rate for all parameter groups
-    for param_group in optimizer.param_groups:
-        param_group["lr"] = lr
+    # --- Update optimizer ---
+    for pg in optimizer.param_groups:
+        pg["lr"] = lr
 
     return lr
 

@@ -188,6 +188,15 @@ class Trainer(nn.Module):
         # For change caption task
         self.decoder_cc = CaptionDecoder(args)
 
+    def forward(self, x: torch.Tensor, y: torch.Tensor):
+        "Produce both change mask and caption features"
+        features = self.encoder(x, y)
+        perception_change_feat = list(map(lambda x: x[0], features))
+        mask_pred = self.decoder_cd(perception_change_feat)
+        percep_feat = self.encoder(x, y, output_final=True)
+
+        return mask_pred, percep_feat
+
     def update_bcd(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through the complete model.
@@ -199,16 +208,9 @@ class Trainer(nn.Module):
         Returns:
             Predicted frame tensor
         """
-        # Extract features using encoder
         features = self.encoder(x, y)
-
-        # perception feature
         perception_change_feat = list(map(lambda x: x[0], features))
-
-        # Generate prediction using decoder
-        prediction = self.decoder_cd(perception_change_feat)
-
-        return prediction
+        return self.decoder_cd(perception_change_feat)
 
     def update_cc(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """
@@ -221,7 +223,4 @@ class Trainer(nn.Module):
         Returns:
             Predicted frame tensor
         """
-        # Extract features using encoder
-        features = self.encoder(x, y, output_final=True)
-
-        return features
+        return self.encoder(x, y, output_final=True)
