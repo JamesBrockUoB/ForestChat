@@ -27,3 +27,5 @@ scikit-image==0.24.0
 git+https://github.com/huggingface/transformers.git@v4.38.2
 accelerate==0.32.1
 wandb==0.21.0
+fvcore==0.1.5.post20221221
+pytorchvideo==0.1.5

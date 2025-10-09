@@ -7,6 +7,8 @@ from torch import Tensor, nn
 from torch.nn import functional as F
 from torch.nn.init import xavier_uniform_
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class CrossTransformer(nn.Module):
     """
@@ -222,8 +224,8 @@ class MCCFormers_diff_as_Q(nn.Module):
             img_feat2 = self.projection4(img_feat2)
 
         # Generate positional embeddings
-        pos_w = torch.arange(w).cuda()
-        pos_h = torch.arange(h).cuda()
+        pos_w = torch.arange(w).to(DEVICE)
+        pos_h = torch.arange(h).to(DEVICE)
         embed_w = self.w_embedding(pos_w)
         embed_h = self.h_embedding(pos_h)
 
@@ -261,7 +263,7 @@ class MCCFormers_diff_as_Q(nn.Module):
             output2_list.append(output2)
 
         # Multi-scale feature fusion
-        output = torch.zeros((196, batch, self.d_model * 2)).cuda()
+        output = torch.zeros((196, batch, self.d_model * 2)).to(DEVICE)
 
         for i, res in enumerate(self.resblock):
             # Concatenate outputs from both branches
@@ -425,6 +427,7 @@ class Mesh_TransformerDecoderLayer(nn.Module):
         memory_mask: Optional[Tensor] = None,
         tgt_key_padding_mask: Optional[Tensor] = None,
         memory_key_padding_mask: Optional[Tensor] = None,
+        **kwargs,
     ) -> Tensor:
         """
         Forward pass of transformer decoder layer.
@@ -652,7 +655,7 @@ class CaptionDecoder(nn.Module):
             .masked_fill(mask == 0, float("-inf"))
             .masked_fill(mask == 1, float(0.0))
         )
-        mask = mask.cuda()
+        mask = mask.to(DEVICE)
 
         # Embed target sequence and add positional encoding
         tgt_embedding = self.vocab_embedding(tgt)
@@ -665,7 +668,7 @@ class CaptionDecoder(nn.Module):
         pred = self.wdc(self.dropout_layer(pred)).permute(1, 0, 2)
 
         # Sort by caption length for packing
-        caption_lengths, sort_ind = caption_lengths.squeeze(1).sort(
+        caption_lengths, sort_ind = caption_lengths.view(-1).sort(
             dim=0, descending=True
         )
         encoded_captions = encoded_captions[sort_ind]

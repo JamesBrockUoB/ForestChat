@@ -1,13 +1,11 @@
 import argparse
 import json
 import time
-
 import cv2
 import numpy as np
 from data.ForestChange import ForestChangeDataset
 from data.LEVIR_MCI import LEVIRCCDataset
-from mci_model.model_decoder import DecoderTransformer
-from mci_model.model_encoder_att import AttentiveEncoder, Encoder
+
 from torch.utils import data
 from tqdm import tqdm
 from utils_tool.metrics import Evaluator

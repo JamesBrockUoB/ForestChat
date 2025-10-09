@@ -140,6 +140,7 @@ class Mesh_TransformerDecoderLayer(nn.Module):
         memory_mask: Optional[Tensor] = None,
         tgt_key_padding_mask: Optional[Tensor] = None,
         memory_key_padding_mask: Optional[Tensor] = None,
+        **kwargs,
     ) -> Tensor:
         self_att_tgt = self.norm1(
             tgt + self._sa_block(tgt, tgt_mask, tgt_key_padding_mask)
@@ -213,6 +214,7 @@ class StackTransformer(nn.Module):
         memory_mask: Optional[Tensor] = None,
         tgt_key_padding_mask: Optional[Tensor] = None,
         memory_key_padding_mask: Optional[Tensor] = None,
+        **kwargs,
     ) -> Tensor:
         r"""Pass the inputs (and mask) through the decoder layer in turn.
 

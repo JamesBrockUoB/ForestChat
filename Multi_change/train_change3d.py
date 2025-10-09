@@ -7,6 +7,8 @@ import time
 
 import numpy as np
 import wandb
+from change3d.trainer import Trainer
+from change3d.utils import BCEDiceLoss
 from einops import rearrange
 from torch.nn import functional as F
 from torch.nn.utils.rnn import pack_padded_sequence
@@ -21,9 +23,6 @@ from utils_tool.utils import (
     str2bool,
     time_file_str,
 )
-
-from Multi_change.change3d.trainer import Trainer
-from Multi_change.change3d.utils import BCEDiceLoss, adjust_learning_rate
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DISPLAY_PARAMS = False
@@ -45,7 +44,9 @@ class Change3DTrainer(object):
                 "val_batchsize": args.val_batchsize,
                 "num_epochs": args.num_epochs,
                 "patience": args.patience,
-                "lr": args.lr,
+                "encoder_lr": args.encoder_lr,
+                "decoder_cd_lr": args.cd_lr,
+                "decoder_cc_lr": args.cc_lr,
                 "num_classes": args.num_classes,
                 "augment": args.augment,
                 "num_perception_frame": args.num_perception_frame,
@@ -64,7 +65,9 @@ class Change3DTrainer(object):
             os.makedirs(self.args.savepath)
         self.log = open(os.path.join(self.args.savepath, "{}.log".format(name)), "w")
         print_log(f"=>dataset: {args.data_name}", self.log)
-        print_log(f"=>lr: {args.lr}", self.log)
+        print_log(f"=>encoder_lr: {args.encoder_lr}", self.log)
+        print_log(f"=>decoder_cd_lr: {args.cd_lr}", self.log)
+        print_log(f"=>decoder_cc_lr: {args.cc_lr}", self.log)
         print_log(f"=>num_epochs: {args.num_epochs}", self.log)
         print_log(f"=>train_batchsize: {args.train_batchsize}", self.log)
 
@@ -82,7 +85,7 @@ class Change3DTrainer(object):
         with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
             self.word_vocab = json.load(f)
 
-        self.vocab_size = len(self.word_vocab)
+        args.vocab_size = len(self.word_vocab)
         self.beam_size = args.beam_size
 
         with open(
@@ -186,7 +189,7 @@ class Change3DTrainer(object):
 
             print(f"Total parameters: {total_params}")
 
-    def training(self, args, epoch, lr_factor=1.0):
+    def training(self, args, epoch):
         # Only need one epoch of hist for printing as is stored in wandb to reduce memory
         self.index_i = 0
         self.hist = np.zeros((args.num_epochs * NUM_TASKS * len(self.train_loader), 5))
@@ -194,17 +197,6 @@ class Change3DTrainer(object):
         self.model.encoder.train()
         self.model.decoder_cd.train()
         self.model.decoder_cc.train()
-
-        if epoch > 0 and epoch % args.step_loss == 0:
-            adjust_learning_rate(
-                args=None, optimizer=self.encoder_optimizer, shrink_factor=0.5
-            )
-            adjust_learning_rate(
-                args=None, optimizer=self.cd_optimizer, shrink_factor=0.5
-            )
-            adjust_learning_rate(
-                args=None, optimizer=self.cc_optimizer, shrink_factor=0.5
-            )
 
         accum_steps = 64 // args.train_batchsize
 
@@ -235,6 +227,10 @@ class Change3DTrainer(object):
                 targets, decode_lengths, batch_first=True
             ).data
 
+            if seg_label.ndim == 3:
+                seg_label = seg_label.unsqueeze(1)
+            seg_label = seg_label.float()
+
             det_loss = BCEDiceLoss(seg_pred, seg_label)
             cap_loss = self.criterion(scores, targets)
 
@@ -247,6 +243,7 @@ class Change3DTrainer(object):
             else:
                 det_loss = det_loss / det_loss.detach().item()
                 cap_loss = cap_loss / cap_loss.detach().item()
+                loss = det_loss + cap_loss
 
             if self.args.grad_method != "none":
                 (det_loss / accum_steps).backward(retain_graph=True)
@@ -437,167 +434,103 @@ class Change3DTrainer(object):
                 self.evaluator.add_batch(seg_label, pred_seg)
 
                 # for captioning
-                tgt = torch.zeros(52, k).to(DEVICE).to(torch.int64)
-                tgt_length = tgt.size(0)
-                mask = (torch.triu(torch.ones(tgt_length, tgt_length)) == 1).transpose(
-                    0, 1
+                S, batch, encoder_dim = encoder_out.size()
+                assert batch == 1, "Beam search only supports batch size 1."
+                encoder_out = encoder_out.expand(S, k, encoder_dim).permute(1, 0, 2)
+
+                tgt = torch.zeros(k, self.max_length, dtype=torch.int64, device=DEVICE)
+                tgt[:, 0] = self.word_vocab["<START>"]
+                seqs = torch.full(
+                    (k, 1), self.word_vocab["<START>"], dtype=torch.int64, device=DEVICE
                 )
-                mask = (
-                    mask.float()
-                    .masked_fill(mask == 0, float("-inf"))
-                    .masked_fill(mask == 1, float(0.0))
-                )
-                mask = mask.to(DEVICE)
+                top_k_scores = torch.zeros(k, 1, device=DEVICE)
 
-                # Set start token
-                tgt[0, :] = torch.LongTensor([self.word_vocab["<START>"]] * k).to(
-                    DEVICE
-                )  # k_prev_words:[52,k]
-
-                # Tensor to store top k sequences; initially just <start>
-                seqs = torch.LongTensor([[self.word_vocab["<START>"]] * 1] * k).to(
-                    DEVICE
-                )  # [1,k]
-
-                # Tensor to store top k sequences' scores; initially 0
-                top_k_scores = torch.zeros(k, 1).to(DEVICE)
-
-                # Lists to store completed sequences and scores
                 complete_seqs = []
-                complete_seqs_scores = []
-                step = 1
+                complete_scores = []
 
-                k_prev_words = tgt.permute(1, 0)
-                S = encoder_out.size(0)
-                encoder_dim = encoder_out.size(-1)
+                # causal mask
+                mask = torch.triu(
+                    torch.ones(self.max_length, self.max_length, device=DEVICE),
+                    diagonal=1,
+                )
+                mask = mask.masked_fill(mask == 1, float("-inf")).masked_fill(
+                    mask == 0, 0.0
+                )
 
-                # Expand encoder_out for beam search
-                encoder_out = encoder_out.expand(
-                    S, k, encoder_dim
-                )  # [S,k, encoder_dim]
-                encoder_out = encoder_out.permute(1, 0, 2)
+                for step in range(1, self.max_length):
+                    # embedding + positional encoding
+                    word_emb = self.model.decoder_cc.vocab_embedding(tgt[:, :step])
+                    word_emb = word_emb.transpose(0, 1)
+                    word_emb = self.model.decoder_cc.position_encoding(word_emb)
 
-                # Start decoding
-                # Note: s is a number less than or equal to k, as sequences are removed once they hit <end>
-                while True:
-                    tgt = k_prev_words.permute(1, 0)
-                    tgt_embedding = self.model.decoder_cc.vocab_embedding(tgt)
-                    tgt_embedding = self.model.decoder_cc.position_encoding(
-                        tgt_embedding
-                    )  # (length, batch, feature_dim)
+                    # transformer forward
+                    enc = encoder_out.permute(1, 0, 2)
+                    preds = self.model.decoder_cc.transformer(
+                        word_emb, enc, tgt_mask=mask[:step, :step]
+                    )
+                    preds = self.model.decoder_cc.wdc(preds)
+                    scores = F.log_softmax(preds[-1], dim=-1)
+                    scores = (
+                        top_k_scores.expand_as(scores) + scores
+                    )  # add accumulated scores
 
-                    encoder_out = encoder_out.permute(1, 0, 2)
-                    pred = self.model.decoder_cc.transformer(
-                        tgt_embedding, encoder_out, tgt_mask=mask
-                    )  # (length, batch, feature_dim)
-                    encoder_out = encoder_out.permute(1, 0, 2)
-                    pred = self.model.decoder_cc.wdc(
-                        pred
-                    )  # (length, batch, vocab_size)
-                    scores = pred.permute(1, 0, 2)  # (batch, length, vocab_size)
-                    scores = scores[:, step - 1, :].squeeze(
-                        1
-                    )  # [s, 1, vocab_size] -> [s, vocab_size]
-                    scores = F.log_softmax(scores, dim=1)
-
-                    # top_k_scores: [s, 1]
-                    scores = top_k_scores.expand_as(scores) + scores  # [s, vocab_size]
-
-                    # For the first step, all k points have the same scores (since same k previous words)
+                    # select top k
                     if step == 1:
-                        top_k_scores, top_k_words = scores[0].topk(
-                            k, 0, True, True
-                        )  # (s)
+                        top_k_scores, top_k_words = scores[0].topk(k, 0, True, True)
                     else:
-                        # Unroll and find top scores, and their unrolled indices
                         top_k_scores, top_k_words = scores.view(-1).topk(
                             k, 0, True, True
-                        )  # (s)
+                        )
 
-                    # Convert unrolled indices to actual indices of scores
-                    prev_word_inds = top_k_words // self.vocab_size  # (s)
-                    # if max(top_k_words)>vocab_size:
-                    #     print(">>>>>>>>>>>>>>>>>>")
-                    # prev_word_inds = torch.div(top_k_words, vocab_size, rounding_mode='floor')
-                    next_word_inds = top_k_words % self.vocab_size  # (s)
+                    prev_word_inds = torch.div(
+                        top_k_words, args.vocab_size, rounding_mode="floor"
+                    )
+                    next_word_inds = top_k_words % args.vocab_size
 
-                    # Add new words to sequences
+                    # build sequences
                     seqs = torch.cat(
                         [seqs[prev_word_inds], next_word_inds.unsqueeze(1)], dim=1
-                    )  # (s, step+1)
+                    )
 
-                    # Which sequences are incomplete (didn't reach <end>)?
+                    # find completed and incomplete
                     incomplete_inds = [
-                        ind
-                        for ind, next_word in enumerate(next_word_inds)
-                        if next_word != self.word_vocab["<END>"]
+                        i
+                        for i, w in enumerate(next_word_inds)
+                        if w != self.word_vocab["<END>"]
                     ]
                     complete_inds = list(
                         set(range(len(next_word_inds))) - set(incomplete_inds)
                     )
 
-                    # Store completed sequences
                     if len(complete_inds) > 0:
-                        Caption_End = True
                         complete_seqs.extend(seqs[complete_inds].tolist())
-                        complete_seqs_scores.extend(top_k_scores[complete_inds])
+                        complete_scores.extend(top_k_scores[complete_inds].tolist())
 
-                    k -= len(complete_inds)  # Reduce beam length accordingly
-
-                    # Exit if no incomplete sequences remain
+                    k -= len(complete_inds)
                     if k == 0:
                         break
 
-                    # Continue with incomplete sequences
                     seqs = seqs[incomplete_inds]
                     encoder_out = encoder_out[prev_word_inds[incomplete_inds]]
                     top_k_scores = top_k_scores[incomplete_inds].unsqueeze(1)
+                    tgt = tgt[incomplete_inds]
+                    tgt[:, : step + 1] = seqs
 
-                    # Important: this won't work since decoder has self-attention
-                    # k_prev_words = next_word_inds[incomplete_inds].unsqueeze(1).repeat(k, 52)
-                    k_prev_words = k_prev_words[incomplete_inds]
-                    k_prev_words[:, : step + 1] = seqs  # [s, 52]
-                    # k_prev_words[:, step] = next_word_inds[incomplete_inds]  # [s, 52]
+                # fallback if no completed sequences
+                if len(complete_seqs) == 0:
+                    complete_seqs = seqs.tolist()
+                    complete_scores = top_k_scores.squeeze(1).tolist()
 
-                    # Break if process has been going on too long
-                    if step > 50:
-                        break
-                    step += 1
+                # pick best sequence
+                i = complete_scores.index(max(complete_scores))
+                seq = complete_seqs[i]
 
-                # Select caption with best score
-                if len(complete_seqs_scores) == 0:
-                    complete_seqs.extend(seqs[complete_inds].tolist())
-                    complete_seqs_scores.extend(top_k_scores[complete_inds])
-
-                if len(complete_seqs_scores) > 0:
-                    assert Caption_End
-                    indices = complete_seqs_scores.index(max(complete_seqs_scores))
-                    seq = complete_seqs[indices]
-
-                    # References
-                    img_caps = token_all.tolist()
-                    img_captions = list(
-                        map(
-                            lambda c: [
-                                w
-                                for w in c
-                                if w
-                                not in {
-                                    self.word_vocab["<START>"],
-                                    self.word_vocab["<END>"],
-                                    self.word_vocab["<NULL>"],
-                                }
-                            ],
-                            img_caps,
-                        )
-                    )  # Remove <start> and padding
-
-                    references.append(img_captions)
-
-                    # Hypotheses
-                    new_sent = [
+                # --- reference and hypothesis lists ---
+                img_caps = token_all.tolist()
+                img_captions = [
+                    [
                         w
-                        for w in seq
+                        for w in c
                         if w
                         not in {
                             self.word_vocab["<START>"],
@@ -605,19 +538,28 @@ class Change3DTrainer(object):
                             self.word_vocab["<NULL>"],
                         }
                     ]
-                    hypotheses.append(new_sent)
-                    assert len(references) == len(hypotheses)
+                    for c in img_caps
+                ]
+                references.append(img_captions)
 
-                    if ind % self.args.print_freq == 0:
-                        pred_caption = ""
-                        ref_caption = ""
-                        for i in img_captions:
-                            pred_caption += (list(self.word_vocab.keys())[i]) + " "
-                        ref_caption = ""
-                        for i in img_caps:
-                            for j in i:
-                                ref_caption += (list(self.word_vocab.keys())[j]) + " "
-                            ref_caption += ".    "
+                hyp = [
+                    w
+                    for w in seq
+                    if w
+                    not in {
+                        self.word_vocab["<START>"],
+                        self.word_vocab["<END>"],
+                        self.word_vocab["<NULL>"],
+                    }
+                ]
+                hypotheses.append(hyp)
+                assert len(references) == len(hypotheses)
+
+                # if ind % self.args.print_freq == 0:
+                #     pred_caption = " ".join(
+                #         [list(self.word_vocab.keys())[i] for i in hyp]
+                #     )
+                #     print(f"[{ind}] Pred: {pred_caption}")
 
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
@@ -725,7 +667,7 @@ class Change3DTrainer(object):
             }
             metric = f"Sum_{round(100000*self.Sum_Metric)}_MIou_{round(100000*self.MIou)}_Bleu4_{round(100000*self.best_bleu4)}"
             # metric = f'MIou_{round(10000 * self.MIou)}_Bleu4_{round(10000 * self.best_bleu4)}'
-            model_name = f"{self.args.data_name}_bts_{self.args.train_batchsize}_{self.args.network}_epo_{epoch}_{metric}.pth"
+            model_name = f"{self.args.data_name}_bts_{self.args.train_batchsize}_epo_{epoch}_{metric}.pth"
             best_model_path = os.path.join(self.args.savepath, model_name)
 
             if epoch > 10:
@@ -777,6 +719,12 @@ if __name__ == "__main__":
         help="path to checkpoint",
     )
     parser.add_argument(
+        "--pretrained",
+        default="models_ckpt/X3D_L.pyth",
+        type=str,
+        help="Path to pretrained weight",
+    )
+    parser.add_argument(
         "--print_freq",
         type=int,
         default=5,
@@ -785,7 +733,7 @@ if __name__ == "__main__":
     # Training parameters
     parser.add_argument(
         "--load_from_checkpoint_and_train",
-        train=str2bool,
+        type=str2bool,
         default=False,
         help="whether to load a checkpoint and continue training from it",
     )
@@ -830,22 +778,22 @@ if __name__ == "__main__":
     )
     parser.add_argument("--workers", type=int, default=4, help="for data-loading")
     parser.add_argument(
-        "--lr",
+        "--encoder_lr",
         type=float,
-        default=2e-4,
-        help="learning rate.",
+        default=1e-4,
+        help="Learning rate for encoder if fine-tuning.",
     )
     parser.add_argument(
-        "--lr_mode",
-        default="poly",
-        help="learning rate policy.",
-        choices=["step", "poly"],
+        "--cd_lr",
+        type=float,
+        default=1e-4,
+        help="Learning rate for cd decoder.",
     )
     parser.add_argument(
-        "--step_loss",
-        type=int,
-        default=10,
-        help="decrease learning rate after how many epochs",
+        "--cc_lr",
+        type=float,
+        default=1e-4,
+        help="Learning rate for cc decoder.",
     )
     parser.add_argument(
         "--grad_clip",
@@ -853,41 +801,11 @@ if __name__ == "__main__":
         default=None,
         help="clip gradients at an absolute value of.",
     )
-    parser.add_argument("--dropout", type=float, default=0.1, help="dropout")
     # Validation
     parser.add_argument(
         "--val_batchsize", type=int, default=1, help="batch_size for validation"
     )
     parser.add_argument("--savepath", default="./models_ckpt/")
-    # backbone parameters
-    parser.add_argument(
-        "--network",
-        default="segformer-mit_b1",
-        help="define the backbone encoder to extract features",
-    )
-    parser.add_argument(
-        "--encoder_dim",
-        type=int,
-        default=512,
-        help="the dimension of extracted features using backbone ",
-    )
-    parser.add_argument(
-        "--feat_size",
-        type=int,
-        default=16,
-        help="define the output size of encoder to extract features",
-    )
-    # Model parameters
-    parser.add_argument(
-        "--n_heads", type=int, default=8, help="Multi-head attention in Transformer."
-    )
-    parser.add_argument(
-        "--n_layers", type=int, default=3, help="Number of layers in AttentionEncoder."
-    )
-    parser.add_argument("--decoder_n_layers", type=int, default=1)
-    parser.add_argument(
-        "--feature_dim", type=int, default=512, help="embedding dimension"
-    )
     parser.add_argument("--num_classes", type=int, default=2)
     parser.add_argument(
         "--loss_balancing_method",
@@ -902,8 +820,25 @@ if __name__ == "__main__":
         choices=["none", "pcgrad", "graddrop", "cagrad"],
     )
     parser.add_argument(
+        "--n_head", type=int, default=8, help="Multi-head attention in Transformer."
+    )
+    parser.add_argument("--n_layer", type=int, default=3)
+    parser.add_argument("--decoder_n_layers", type=int, default=1)
+    parser.add_argument("--embed_dim", type=int, default=192)
+    parser.add_argument("--dropout", type=float, default=0.1, help="Dropout rate")
+    parser.add_argument(
+        "--num_perception_frame",
+        type=int,
+        default=1,
+        help="Number of perception frames",
+    )
+    parser.add_argument(
         "--beam_size", type=int, default=1, help="Beam size for beam search."
     )
+    parser.add_argument(
+        "--in_height", type=int, default=256, help="Height of RGB image"
+    )
+    parser.add_argument("--in_width", type=int, default=256, help="Width of RGB image")
     args = parser.parse_args()
 
     trainer = Change3DTrainer(args)
