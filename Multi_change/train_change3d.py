@@ -203,6 +203,7 @@ class Change3DTrainer(object):
         for id, (imgA, imgB, seg_label, _, _, token, token_len, _) in enumerate(
             self.train_loader
         ):
+
             start_time = time.time()
 
             # Move to GPU, if available
@@ -388,8 +389,6 @@ class Change3DTrainer(object):
     # One epoch's validation
     @torch.no_grad()
     def validation(self, epoch):
-        Caption_End = False
-
         self.model.encoder.eval()
         self.model.decoder_cd.eval()
         self.model.decoder_cc.eval()
@@ -555,11 +554,18 @@ class Change3DTrainer(object):
                 hypotheses.append(hyp)
                 assert len(references) == len(hypotheses)
 
-                # if ind % self.args.print_freq == 0:
-                #     pred_caption = " ".join(
-                #         [list(self.word_vocab.keys())[i] for i in hyp]
-                #     )
-                #     print(f"[{ind}] Pred: {pred_caption}")
+                if ind % self.args.print_freq == 0:
+                    pred_caption = ""
+                    ref_caption = ""
+                    for i in hyp:
+                        pred_caption += (list(self.word_vocab.keys())[i]) + " "
+                    ref_caption = ""
+                    for i in img_captions:
+                        for j in i:
+                            ref_caption += (list(self.word_vocab.keys())[j]) + " "
+                        ref_caption += ".    "
+                    print(pred_caption)
+                    print(ref_caption)
 
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()

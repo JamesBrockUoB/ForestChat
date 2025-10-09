@@ -562,6 +562,8 @@ class Trainer(object):
                             for j in i:
                                 ref_caption += (list(word_vocab.keys())[j]) + " "
                             ref_caption += ".    "
+                        print(pred_caption)
+                        print(ref_caption)
 
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
