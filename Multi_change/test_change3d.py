@@ -1,11 +1,15 @@
 import argparse
 import json
+import os
 import time
+
 import cv2
 import numpy as np
+import torch
+from change3d.trainer import Trainer
 from data.ForestChange import ForestChangeDataset
 from data.LEVIR_MCI import LEVIRCCDataset
-
+from einops import rearrange
 from torch.utils import data
 from tqdm import tqdm
 from utils_tool.metrics import Evaluator
@@ -103,10 +107,12 @@ def main(args):
     """
 
     with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
-        word_vocab = json.load(f)
+        args.word_vocab = json.load(f)
+
+    args.vocab_size = len(args.word_vocab)
 
     with open(os.path.join(args.list_path) + args.metadata_file + ".json", "r") as f:
-        max_length = json.load(f)["max_length"]
+        args.max_length = json.load(f)["max_length"]
 
     # Load checkpoint
     snapshot_full_path = args.checkpoint
@@ -126,36 +132,18 @@ def main(args):
             for name in dirs:
                 os.rmdir(os.path.join(root, name))
 
-    encoder = Encoder(args.network)
-    encoder_trans = AttentiveEncoder(
-        train_stage=None,
-        n_layers=args.n_layers,
-        feature_size=[args.feat_size, args.feat_size, args.encoder_dim],
-        heads=args.n_heads,
-        num_classes=args.num_classes,
-        dropout=args.dropout,
-    )
-    decoder = DecoderTransformer(
-        encoder_dim=args.encoder_dim,
-        feature_dim=args.feature_dim,
-        vocab_size=len(word_vocab),
-        max_lengths=max_length,
-        word_vocab=word_vocab,
-        n_head=args.n_heads,
-        n_layers=args.decoder_n_layers,
-        dropout=args.dropout,
-    )
+    model = Trainer(args).to(DEVICE)
 
-    encoder.load_state_dict(checkpoint["encoder_dict"])
-    encoder_trans.load_state_dict(checkpoint["encoder_trans_dict"], strict=False)
-    decoder.load_state_dict(checkpoint["decoder_dict"])
+    model.encoder.load_state_dict(checkpoint["encoder_dict"])
+    model.decoder_cd.load_state_dict(checkpoint["decoder_cd_dict"])
+    model.decoder_cc.load_state_dict(checkpoint["decoder_cc_dict"])
     # Move to GPU, if available
-    encoder.eval()
-    encoder = encoder.to(DEVICE)
-    encoder_trans.eval()
-    encoder_trans = encoder_trans.to(DEVICE)
-    decoder.eval()
-    decoder = decoder.to(DEVICE)
+    model.encoder.eval()
+    model.encoder = model.encoder.to(DEVICE)
+    model.decoder_cd.eval()
+    model.decoder_cd = model.decoder_cd.to(DEVICE)
+    model.decoder_cc.eval()
+    model.decoder_cc = model.decoder_cc.to(DEVICE)
 
     # Custom dataloaders
     if args.data_name in ["LEVIR_MCI", "Forest-Change"]:
@@ -173,7 +161,7 @@ def main(args):
                 split=args.split,
                 token_folder=args.token_folder,
                 vocab_file=args.vocab_file,
-                max_length=max_length,
+                max_length=args.max_length,
                 allow_unk=args.allow_unk,
                 num_classes=args.num_classes,
             )
@@ -184,7 +172,7 @@ def main(args):
                 split=args.split,
                 token_folder=args.token_folder,
                 vocab_file=args.vocab_file,
-                max_length=max_length,
+                max_length=args.max_length,
                 allow_unk=args.allow_unk,
                 num_classes=args.num_classes,
             )
@@ -225,12 +213,9 @@ def main(args):
             imgA = imgA.to(DEVICE)
             imgB = imgB.to(DEVICE)
             token_all = token_all.squeeze(0).to(DEVICE)
-            # decode_lengths = max(token_all_len.squeeze(0)).item()
-            # Forward prop.
-            if encoder is not None:
-                feat1, feat2 = encoder(imgA, imgB)
-            feat1, feat2, seg_pre = encoder_trans(feat1, feat2)
-            seq = decoder.sample(feat1, feat2, k=1)
+            # Forward prop
+            seg_pre, encoder_out = model(imgA, imgB)
+            encoder_out = rearrange(encoder_out, "b c h w -> (h w) b c")
 
             # for segmentation
             pred_seg = seg_pre.data.cpu().numpy()
@@ -240,51 +225,54 @@ def main(args):
             # for change detection: save mask?
             if args.save_mask:
                 save_mask(pred_seg, seg_label, name, args.result_path, args)
+
             # Add batch sample into evaluator
             evaluator.add_batch(seg_label, pred_seg)
 
             # for captioning
-            img_token = token_all.tolist()
-            img_tokens = list(
-                map(
-                    lambda c: [
-                        w
-                        for w in c
-                        if w
-                        not in {
-                            word_vocab["<START>"],
-                            word_vocab["<END>"],
-                            word_vocab["<NULL>"],
-                        }
-                    ],
-                    img_token,
-                )
-            )  # remove <start> and pads
-            references.append(img_tokens)
+            seq = model.decoder_cc.sample_beam(encoder_out, k=args.beam_size)
 
-            pred_seq = [
+            # --- reference and hypothesis lists ---
+            img_caps = token_all.tolist()
+            img_captions = [
+                [
+                    w
+                    for w in c
+                    if w
+                    not in {
+                        args.word_vocab["<START>"],
+                        args.word_vocab["<END>"],
+                        args.word_vocab["<NULL>"],
+                    }
+                ]
+                for c in img_caps
+            ]
+            references.append(img_captions)
+
+            hyp = [
                 w
                 for w in seq
                 if w
                 not in {
-                    word_vocab["<START>"],
-                    word_vocab["<END>"],
-                    word_vocab["<NULL>"],
+                    args.word_vocab["<START>"],
+                    args.word_vocab["<END>"],
+                    args.word_vocab["<NULL>"],
                 }
             ]
-            hypotheses.append(pred_seq)
+            hypotheses.append(hyp)
             assert len(references) == len(hypotheses)
+
             pred_caption = ""
             ref_caption = ""
-            for i in pred_seq:
-                pred_caption += (list(word_vocab.keys())[i]) + " "
+            for i in hyp:
+                pred_caption += (list(args.word_vocab.keys())[i]) + " "
             ref_caption = ""
-            for i in img_tokens[0]:
-                ref_caption += (list(word_vocab.keys())[i]) + " "
+            for i in img_captions[0]:
+                ref_caption += (list(args.word_vocab.keys())[i]) + " "
             ref_captions = ""
-            for i in img_tokens:
+            for i in img_captions:
                 for j in i:
-                    ref_captions += (list(word_vocab.keys())[j]) + " "
+                    ref_captions += (list(args.word_vocab.keys())[j]) + " "
                 ref_captions += ".    "
             # for captioning: save captions?
             if args.save_caption:
@@ -297,13 +285,13 @@ def main(args):
                     args.result_path,
                 )
             if ref_caption in nochange_list:
-                nochange_references.append(img_tokens)
-                nochange_hypotheses.append(pred_seq)
+                nochange_references.append(img_captions)
+                nochange_hypotheses.append(hyp)
                 if pred_caption in nochange_list:
                     nochange_acc = nochange_acc + 1
             else:
-                change_references.append(img_tokens)
-                change_hypotheses.append(pred_seq)
+                change_references.append(img_captions)
+                change_hypotheses.append(hyp)
                 if pred_caption not in nochange_list:
                     change_acc = change_acc + 1
 
@@ -450,15 +438,8 @@ if __name__ == "__main__":
         default="./models_ckpt/Forest-Change_model.pth",
         help="path to checkpoint",
     )
-    parser.add_argument(
-        "--print_freq",
-        type=int,
-        default=10,
-        help="print training/validation stats every __ batches",
-    )
     parser.add_argument("--test_batchsize", default=1, help="batch_size for test")
     parser.add_argument("--workers", type=int, default=0, help="for data-loading")
-    parser.add_argument("--dropout", type=float, default=0.1, help="dropout")
     # save masks and captions?
     parser.add_argument(
         "--save_mask", type=str2bool, default=True, help="save the result of masks"
@@ -476,33 +457,31 @@ if __name__ == "__main__":
     )
     # backbone parameters
     parser.add_argument(
-        "--network",
-        default="segformer-mit_b1",
-        help="define the backbone encoder to extract features",
+        "--n_head", type=int, default=8, help="Multi-head attention in Transformer."
     )
     parser.add_argument(
-        "--encoder_dim",
-        type=int,
-        default=512,
-        help="the dimension of extracted features using backbone ",
+        "--pretrained",
+        default="models_ckpt/X3D_L.pyth",
+        type=str,
+        help="Path to pretrained weight",
     )
-    parser.add_argument(
-        "--feat_size",
-        type=int,
-        default=16,
-        help="define the output size of encoder to extract features",
-    )
-    # Model parameters
-    parser.add_argument(
-        "--n_heads", type=int, default=8, help="Multi-head attention in Transformer."
-    )
-    parser.add_argument(
-        "--n_layers", type=int, default=3, help="Number of layers in AttentionEncoder."
-    )
+    parser.add_argument("--n_layer", type=int, default=3)
     parser.add_argument("--decoder_n_layers", type=int, default=1)
+    parser.add_argument("--embed_dim", type=int, default=192)
+    parser.add_argument("--dropout", type=float, default=0.1, help="Dropout rate")
     parser.add_argument(
-        "--feature_dim", type=int, default=512, help="embedding dimension"
+        "--num_perception_frame",
+        type=int,
+        default=1,
+        help="Number of perception frames",
     )
+    parser.add_argument(
+        "--beam_size", type=int, default=1, help="Beam size for beam search."
+    )
+    parser.add_argument(
+        "--in_height", type=int, default=256, help="Height of RGB image"
+    )
+    parser.add_argument("--in_width", type=int, default=256, help="Width of RGB image")
     parser.add_argument("--num_classes", type=int, default=2)
     parser.add_argument("--split", default="test")
 

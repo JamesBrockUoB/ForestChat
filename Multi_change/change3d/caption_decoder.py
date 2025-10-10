@@ -593,15 +593,15 @@ class CaptionDecoder(nn.Module):
         Initialize the caption decoder.
 
         Args:
-            embed_dim (int): Dimension of input features.
-            vocab_size (int): Size of vocabulary.
-            n_head (int): Number of attention heads.
-            n_layer (int): Number of decoder layers.
-            dropout (float): Dropout rate.
+            args (args.Argparse): Commandline arguments.
         """
         super(CaptionDecoder, self).__init__()
 
         print(f"decoder_n_layers={args.n_layer}")
+
+        self.vocab_size = args.vocab_size
+        self.max_length = args.max_length
+        self.word_vocab = args.word_vocab
 
         # Embedding layer for vocabulary
         self.vocab_embedding = nn.Embedding(args.vocab_size, args.embed_dim)
@@ -678,3 +678,137 @@ class CaptionDecoder(nn.Module):
         decode_lengths = (caption_lengths - 1).tolist()
 
         return pred, encoded_captions, decode_lengths, sort_ind
+
+    def sample(self, x):
+        """
+        :param x1, encoded images, a tensor of dimension (enc_image_size, enc_image_size batch_size, channel)
+        """
+
+        batch = x.size(2)
+        tgt = (
+            torch.zeros(batch, self.max_lengths).to(torch.int64).to(DEVICE)
+        )  # (batch_size, self.max_lengths)
+
+        mask = torch.triu(
+            torch.ones(self.max_lengths, self.max_lengths) * float("-inf"), diagonal=1
+        )
+        mask = mask.to(DEVICE)
+        tgt[:, 0] = torch.LongTensor([self.word_vocab["<START>"]] * batch).to(
+            DEVICE
+        )  # (batch_size, 1)
+        seqs = torch.LongTensor([[self.word_vocab["<START>"]]] * batch).to(
+            DEVICE
+        )  # (batch_size, 1)
+        # Weight = torch.zeros(1, self.max_lengths, x.size(0)).cuda()
+        for step in range(self.max_lengths):
+            tgt_pad_mask = tgt == self.word_vocab["<NULL>"]
+            word_emb = self.vocab_embedding(tgt)
+            word_emb = word_emb.transpose(1, 0)  # (length, batch, feature_dim)
+
+            word_emb = self.position_encoding(word_emb)
+            pred = self.transformer(
+                word_emb, x, tgt_mask=mask, tgt_key_padding_mask=tgt_pad_mask
+            )
+
+            pred = self.wdc(self.dropout(pred))  # (length, batch, vocab_size)
+            scores = pred.permute(1, 0, 2)  # (batch, length, vocab_size)
+            scores = scores[:, step, :].squeeze(
+                1
+            )  # [batch, 1, vocab_size] -> [batch, vocab_size]
+            predicted_id = torch.argmax(scores, axis=-1)
+            seqs = torch.cat([seqs, predicted_id.unsqueeze(1)], dim=-1)
+            # Weight = torch.cat([Weight, weight], dim = 0)
+            if predicted_id == self.word_vocab["<END>"]:
+                break
+            if step < (self.max_lengths - 1):  # except <END> node
+                tgt[:, step + 1] = predicted_id
+        seqs = seqs.squeeze(0)
+        seqs = seqs.tolist()
+
+        # feature=x.clone()
+        # Weight1=Weight.clone()
+        return seqs
+
+    def sample_beam(self, x, k=1):
+        """
+        :param x encoded image features, a tensor of dimension (enc_image_size, enc_image_size, batch_size, channel)
+        :param k: beam_size
+        """
+        S, batch, encoder_dim = x.size()
+        assert batch == 1, "Beam search only supports batch size 1."
+        x = x.expand(S, k, encoder_dim).permute(1, 0, 2)
+
+        tgt = torch.zeros(k, self.max_length, dtype=torch.int64, device=DEVICE)
+        tgt[:, 0] = self.word_vocab["<START>"]
+        seqs = torch.full(
+            (k, 1), self.word_vocab["<START>"], dtype=torch.int64, device=DEVICE
+        )
+        top_k_scores = torch.zeros(k, 1, device=DEVICE)
+
+        complete_seqs = []
+        complete_scores = []
+
+        # causal mask
+        mask = torch.triu(
+            torch.ones(self.max_length, self.max_length, device=DEVICE),
+            diagonal=1,
+        )
+        mask = mask.masked_fill(mask == 1, float("-inf")).masked_fill(mask == 0, 0.0)
+
+        for step in range(1, self.max_length):
+            # embedding + positional encoding
+            word_emb = self.vocab_embedding(tgt[:, :step])
+            word_emb = word_emb.transpose(0, 1)
+            word_emb = self.position_encoding(word_emb)
+
+            # transformer forward
+            enc = x.permute(1, 0, 2)
+            preds = self.transformer(word_emb, enc, tgt_mask=mask[:step, :step])
+            preds = self.wdc(preds)
+            scores = F.log_softmax(preds[-1], dim=-1)
+            scores = top_k_scores.expand_as(scores) + scores  # add accumulated scores
+
+            # select top k
+            if step == 1:
+                top_k_scores, top_k_words = scores[0].topk(k, 0, True, True)
+            else:
+                top_k_scores, top_k_words = scores.view(-1).topk(k, 0, True, True)
+
+            prev_word_inds = torch.div(
+                top_k_words, self.vocab_size, rounding_mode="floor"
+            )
+            next_word_inds = top_k_words % self.vocab_size
+
+            # build sequences
+            seqs = torch.cat([seqs[prev_word_inds], next_word_inds.unsqueeze(1)], dim=1)
+
+            # find completed and incomplete
+            incomplete_inds = [
+                i for i, w in enumerate(next_word_inds) if w != self.word_vocab["<END>"]
+            ]
+            complete_inds = list(set(range(len(next_word_inds))) - set(incomplete_inds))
+
+            if len(complete_inds) > 0:
+                complete_seqs.extend(seqs[complete_inds].tolist())
+                complete_scores.extend(top_k_scores[complete_inds].tolist())
+
+            k -= len(complete_inds)
+            if k == 0:
+                break
+
+            seqs = seqs[incomplete_inds]
+            x = x[prev_word_inds[incomplete_inds]]
+            top_k_scores = top_k_scores[incomplete_inds].unsqueeze(1)
+            tgt = tgt[incomplete_inds]
+            tgt[:, : step + 1] = seqs
+
+        # fallback if no completed sequences
+        if len(complete_seqs) == 0:
+            complete_seqs = seqs.tolist()
+            complete_scores = top_k_scores.squeeze(1).tolist()
+
+        # pick best sequence
+        i = complete_scores.index(max(complete_scores))
+        seq = complete_seqs[i]
+
+        return seq

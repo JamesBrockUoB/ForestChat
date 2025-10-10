@@ -413,7 +413,6 @@ class DecoderTransformer(nn.Module):
     def sample_beam(self, x1, x2, k=1):
         """
         :param x1, x2: encoded images, a tensor of dimension (batch_size, channel, enc_image_size, enc_image_size)
-        :param max_lengths: maximum length of the generated captions
         :param k: beam_size
         """
 

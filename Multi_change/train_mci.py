@@ -311,7 +311,7 @@ class Trainer(object):
             if self.args.train_goal == 2:
                 if args.loss_balancing_method == "uncert":
                     loss = calc_uncertainty_weighting_loss(
-                        det_loss, cap_loss, self.log_vars
+                        det_loss.detach(), cap_loss.detach(), self.log_vars
                     )
                 elif args.loss_balancing_method == "edwa":
                     loss = self.edwa.combine(det_loss, cap_loss, epoch)
@@ -562,8 +562,8 @@ class Trainer(object):
                             for j in i:
                                 ref_caption += (list(word_vocab.keys())[j]) + " "
                             ref_caption += ".    "
-                        print(pred_caption)
-                        print(ref_caption)
+                        # print(pred_caption)
+                        # print(ref_caption)
 
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()

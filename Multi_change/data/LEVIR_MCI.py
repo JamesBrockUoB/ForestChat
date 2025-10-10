@@ -3,13 +3,11 @@ import os
 from random import *
 
 import numpy as np
-import torch
 
 # import cv2 as cv
 from imageio import imread
 from preprocess_data import encode
-from torch.utils.data import DataLoader, Dataset
-from utils_tool.utils import *
+from torch.utils.data import Dataset
 
 
 class LEVIRCCDataset(Dataset):
@@ -36,8 +34,8 @@ class LEVIRCCDataset(Dataset):
         :param token_folder: folder where token files are stored
         :param vocab_file: the name of vocab file
         :param max_length: the maximum length of each caption sentence
-        :param max_iters: the maximum iteration when loading the data
         :param allow_unk: whether to allow the tokens have unknow word or not
+        :param max_iters: the maximum iteration when loading the data
         :param num_classes: the number of classes in the dataset
         """
         self.list_path = list_path

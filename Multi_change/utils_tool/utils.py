@@ -5,7 +5,6 @@ import time
 import albumentations as A
 import cv2
 import numpy as np
-import torch
 from data.ForestChange import ForestChangeDataset
 from data.LEVIR_MCI import LEVIRCCDataset
 from eval_func.bleu.bleu import Bleu

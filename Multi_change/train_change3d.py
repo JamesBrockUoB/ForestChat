@@ -56,7 +56,7 @@ class Change3DTrainer(object):
         name = (
             "change3d_"
             + time_file_str()
-            + f"_loss_balancing_{args.loss_balancing_method}_"
+            + f"_loss_balancing_{args.loss_balancing_method}"
             + f"_grad_method_{args.grad_method}_"
             + random_str
         )
@@ -83,15 +83,15 @@ class Change3DTrainer(object):
         self.start_epoch = 0
 
         with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
-            self.word_vocab = json.load(f)
+            args.word_vocab = json.load(f)
 
-        args.vocab_size = len(self.word_vocab)
+        args.vocab_size = len(args.word_vocab)
         self.beam_size = args.beam_size
 
         with open(
             os.path.join(args.list_path) + args.metadata_file + ".json", "r"
         ) as f:
-            self.max_length = json.load(f)["max_length"]
+            args.max_length = json.load(f)["max_length"]
 
         self.build_change3d_model()
 
@@ -104,7 +104,7 @@ class Change3DTrainer(object):
             self.grads = torch.zeros(sum(self.grad_dims), NUM_TASKS).to(DEVICE)
 
         self.train_dataset_size, self.train_loader, self.val_loader = build_dataloaders(
-            args, self.max_length
+            args, args.max_length
         )
         self.max_batches = len(self.train_loader)
 
@@ -118,10 +118,7 @@ class Change3DTrainer(object):
 
         self.model = Trainer(args).to(DEVICE)
 
-        if args.load_from_checkpoint_and_train:
-            if args.checkpoint is None:
-                raise ValueError("Error: checkpoint is None.")
-
+        if args.checkpoint is not None:
             checkpoint = torch.load(args.checkpoint)
             print(f"Load Model from {args.checkpoint}")
 
@@ -203,7 +200,6 @@ class Change3DTrainer(object):
         for id, (imgA, imgB, seg_label, _, _, token, token_len, _) in enumerate(
             self.train_loader
         ):
-
             start_time = time.time()
 
             # Move to GPU, if available
@@ -415,7 +411,6 @@ class Change3DTrainer(object):
                     desc="val_" + "EVALUATING AT BEAM SIZE " + str(self.beam_size),
                 )
             ):
-                k = self.beam_size
                 # Move to GPU, if available
                 imgA = imgA.to(DEVICE)
                 imgB = imgB.to(DEVICE)
@@ -433,96 +428,7 @@ class Change3DTrainer(object):
                 self.evaluator.add_batch(seg_label, pred_seg)
 
                 # for captioning
-                S, batch, encoder_dim = encoder_out.size()
-                assert batch == 1, "Beam search only supports batch size 1."
-                encoder_out = encoder_out.expand(S, k, encoder_dim).permute(1, 0, 2)
-
-                tgt = torch.zeros(k, self.max_length, dtype=torch.int64, device=DEVICE)
-                tgt[:, 0] = self.word_vocab["<START>"]
-                seqs = torch.full(
-                    (k, 1), self.word_vocab["<START>"], dtype=torch.int64, device=DEVICE
-                )
-                top_k_scores = torch.zeros(k, 1, device=DEVICE)
-
-                complete_seqs = []
-                complete_scores = []
-
-                # causal mask
-                mask = torch.triu(
-                    torch.ones(self.max_length, self.max_length, device=DEVICE),
-                    diagonal=1,
-                )
-                mask = mask.masked_fill(mask == 1, float("-inf")).masked_fill(
-                    mask == 0, 0.0
-                )
-
-                for step in range(1, self.max_length):
-                    # embedding + positional encoding
-                    word_emb = self.model.decoder_cc.vocab_embedding(tgt[:, :step])
-                    word_emb = word_emb.transpose(0, 1)
-                    word_emb = self.model.decoder_cc.position_encoding(word_emb)
-
-                    # transformer forward
-                    enc = encoder_out.permute(1, 0, 2)
-                    preds = self.model.decoder_cc.transformer(
-                        word_emb, enc, tgt_mask=mask[:step, :step]
-                    )
-                    preds = self.model.decoder_cc.wdc(preds)
-                    scores = F.log_softmax(preds[-1], dim=-1)
-                    scores = (
-                        top_k_scores.expand_as(scores) + scores
-                    )  # add accumulated scores
-
-                    # select top k
-                    if step == 1:
-                        top_k_scores, top_k_words = scores[0].topk(k, 0, True, True)
-                    else:
-                        top_k_scores, top_k_words = scores.view(-1).topk(
-                            k, 0, True, True
-                        )
-
-                    prev_word_inds = torch.div(
-                        top_k_words, args.vocab_size, rounding_mode="floor"
-                    )
-                    next_word_inds = top_k_words % args.vocab_size
-
-                    # build sequences
-                    seqs = torch.cat(
-                        [seqs[prev_word_inds], next_word_inds.unsqueeze(1)], dim=1
-                    )
-
-                    # find completed and incomplete
-                    incomplete_inds = [
-                        i
-                        for i, w in enumerate(next_word_inds)
-                        if w != self.word_vocab["<END>"]
-                    ]
-                    complete_inds = list(
-                        set(range(len(next_word_inds))) - set(incomplete_inds)
-                    )
-
-                    if len(complete_inds) > 0:
-                        complete_seqs.extend(seqs[complete_inds].tolist())
-                        complete_scores.extend(top_k_scores[complete_inds].tolist())
-
-                    k -= len(complete_inds)
-                    if k == 0:
-                        break
-
-                    seqs = seqs[incomplete_inds]
-                    encoder_out = encoder_out[prev_word_inds[incomplete_inds]]
-                    top_k_scores = top_k_scores[incomplete_inds].unsqueeze(1)
-                    tgt = tgt[incomplete_inds]
-                    tgt[:, : step + 1] = seqs
-
-                # fallback if no completed sequences
-                if len(complete_seqs) == 0:
-                    complete_seqs = seqs.tolist()
-                    complete_scores = top_k_scores.squeeze(1).tolist()
-
-                # pick best sequence
-                i = complete_scores.index(max(complete_scores))
-                seq = complete_seqs[i]
+                seq = self.model.decoder_cc.sample_beam(encoder_out, k=self.beam_size)
 
                 # --- reference and hypothesis lists ---
                 img_caps = token_all.tolist()
@@ -532,9 +438,9 @@ class Change3DTrainer(object):
                         for w in c
                         if w
                         not in {
-                            self.word_vocab["<START>"],
-                            self.word_vocab["<END>"],
-                            self.word_vocab["<NULL>"],
+                            args.word_vocab["<START>"],
+                            args.word_vocab["<END>"],
+                            args.word_vocab["<NULL>"],
                         }
                     ]
                     for c in img_caps
@@ -546,9 +452,9 @@ class Change3DTrainer(object):
                     for w in seq
                     if w
                     not in {
-                        self.word_vocab["<START>"],
-                        self.word_vocab["<END>"],
-                        self.word_vocab["<NULL>"],
+                        args.word_vocab["<START>"],
+                        args.word_vocab["<END>"],
+                        args.word_vocab["<NULL>"],
                     }
                 ]
                 hypotheses.append(hyp)
@@ -558,11 +464,11 @@ class Change3DTrainer(object):
                     pred_caption = ""
                     ref_caption = ""
                     for i in hyp:
-                        pred_caption += (list(self.word_vocab.keys())[i]) + " "
+                        pred_caption += (list(args.word_vocab.keys())[i]) + " "
                     ref_caption = ""
                     for i in img_captions:
                         for j in i:
-                            ref_caption += (list(self.word_vocab.keys())[j]) + " "
+                            ref_caption += (list(args.word_vocab.keys())[j]) + " "
                         ref_caption += ".    "
                     print(pred_caption)
                     print(ref_caption)
@@ -737,12 +643,6 @@ if __name__ == "__main__":
         help="print training/validation stats every __ batches",
     )
     # Training parameters
-    parser.add_argument(
-        "--load_from_checkpoint_and_train",
-        type=str2bool,
-        default=False,
-        help="whether to load a checkpoint and continue training from it",
-    )
     parser.add_argument(
         "--fine_tune_encoder",
         type=str2bool,

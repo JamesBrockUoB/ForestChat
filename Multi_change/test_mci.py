@@ -1,9 +1,11 @@
 import argparse
 import json
+import os
 import time
 
 import cv2
 import numpy as np
+import torch
 from data.ForestChange import ForestChangeDataset
 from data.LEVIR_MCI import LEVIRCCDataset
 from mci_model.model_decoder import DecoderTransformer
@@ -451,12 +453,6 @@ if __name__ == "__main__":
         "--checkpoint",
         default="./models_ckpt/Forest-Change_model.pth",
         help="path to checkpoint",
-    )
-    parser.add_argument(
-        "--print_freq",
-        type=int,
-        default=10,
-        help="print training/validation stats every __ batches",
     )
     parser.add_argument("--test_batchsize", default=1, help="batch_size for test")
     parser.add_argument("--workers", type=int, default=0, help="for data-loading")
