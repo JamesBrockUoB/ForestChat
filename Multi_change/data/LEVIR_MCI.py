@@ -3,13 +3,11 @@ import os
 from random import *
 
 import numpy as np
-import torch
 
 # import cv2 as cv
 from imageio import imread
 from preprocess_data import encode
-from torch.utils.data import DataLoader, Dataset
-from utils_tool.utils import *
+from torch.utils.data import Dataset
 
 
 class LEVIRCCDataset(Dataset):
@@ -28,6 +26,7 @@ class LEVIRCCDataset(Dataset):
         allow_unk=False,
         max_iters=None,
         num_classes=3,
+        binary_class_weight=0.2234,
     ):
         """
         :param data_folder: folder where image files are stored
@@ -36,14 +35,15 @@ class LEVIRCCDataset(Dataset):
         :param token_folder: folder where token files are stored
         :param vocab_file: the name of vocab file
         :param max_length: the maximum length of each caption sentence
-        :param max_iters: the maximum iteration when loading the data
         :param allow_unk: whether to allow the tokens have unknow word or not
+        :param max_iters: the maximum iteration when loading the data
         :param num_classes: the number of classes in the dataset
         """
         self.list_path = list_path
         self.split = split
         self.max_length = max_length
         self.num_classes = num_classes
+        self.binary_class_weight = binary_class_weight
 
         assert self.split in {"train", "val", "test"}
         self.img_ids = [
@@ -132,8 +132,12 @@ class LEVIRCCDataset(Dataset):
         imgA = imgA.transpose(2, 0, 1)
         imgB = imgB.transpose(2, 0, 1)
         seg_label = seg_label.transpose(2, 0, 1)[0]
-        seg_label[seg_label == 255] = 2
-        seg_label[seg_label == 128] = 1
+
+        if self.num_classes == 3:
+            seg_label[seg_label == 255] = 2
+            seg_label[seg_label == 128] = 1
+        else:
+            seg_label[seg_label != 0] = 1
 
         mean = [0.39073 * 255, 0.38623 * 255, 0.32989 * 255]
         std = [0.15329 * 255, 0.14628 * 255, 0.13648 * 255]

@@ -15,7 +15,6 @@ from utils_tool.utils import *
 load_dotenv()
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-NUM_CLASS = 2  # 3 for LEVIR-MCI
 
 SWEEP_CONFIG = {
     "name": "AnyChange Hyperparameter Search",
@@ -54,7 +53,7 @@ class AnyChangeHyperparameterSearcher(object):
 
     # One epoch's validation
     def validation(self, config):
-        evaluator = Evaluator(num_class=NUM_CLASS)
+        evaluator = Evaluator(num_class=args.num_classes)
         val_start_time = time.time()
 
         # Batches
@@ -142,6 +141,7 @@ if __name__ == "__main__":
         default="./models_ckpt/sam_vit_h_4b8939.pth",
         help="path of the backbone architecture used by AnyChange",
     )
+    parser.add_argument("--num_classes", type=int, default=2)
     args = parser.parse_args()
 
     sweep_id = wandb.sweep(

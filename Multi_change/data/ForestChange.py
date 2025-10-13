@@ -1,16 +1,14 @@
 import json
 import os
-from random import *
+from random import randint
 
 import cv2
 import numpy as np
-import torch
 
 # import cv2 as cv
 from imageio import imread
 from preprocess_data import encode
-from torch.utils.data import DataLoader, Dataset
-from utils_tool.utils import *
+from torch.utils.data import Dataset
 
 
 class ForestChangeDataset(Dataset):
@@ -31,6 +29,7 @@ class ForestChangeDataset(Dataset):
         img_size=(256, 256),
         max_iters=None,
         num_classes=2,
+        binary_class_weight=0.0545,
     ):
         """
         :param data_folder: folder where image files are stored
@@ -51,6 +50,7 @@ class ForestChangeDataset(Dataset):
         self.transform = transform
         self.img_size = img_size
         self.num_classes = num_classes
+        self.binary_class_weight = binary_class_weight
 
         assert self.split in {"train", "val", "test"}
         self.img_ids = [
