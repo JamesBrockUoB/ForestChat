@@ -26,6 +26,7 @@ class LEVIRCCDataset(Dataset):
         allow_unk=False,
         max_iters=None,
         num_classes=3,
+        binary_class_weight=0.2234,
     ):
         """
         :param data_folder: folder where image files are stored
@@ -42,6 +43,7 @@ class LEVIRCCDataset(Dataset):
         self.split = split
         self.max_length = max_length
         self.num_classes = num_classes
+        self.binary_class_weight = binary_class_weight
 
         assert self.split in {"train", "val", "test"}
         self.img_ids = [
@@ -130,8 +132,12 @@ class LEVIRCCDataset(Dataset):
         imgA = imgA.transpose(2, 0, 1)
         imgB = imgB.transpose(2, 0, 1)
         seg_label = seg_label.transpose(2, 0, 1)[0]
-        seg_label[seg_label == 255] = 2
-        seg_label[seg_label == 128] = 1
+
+        if self.num_classes == 3:
+            seg_label[seg_label == 255] = 2
+            seg_label[seg_label == 128] = 1
+        else:
+            seg_label[seg_label != 0] = 1
 
         mean = [0.39073 * 255, 0.38623 * 255, 0.32989 * 255]
         std = [0.15329 * 255, 0.14628 * 255, 0.13648 * 255]

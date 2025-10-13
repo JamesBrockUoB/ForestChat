@@ -196,10 +196,15 @@ class Change3DTrainer(object):
         self.model.decoder_cc.train()
 
         accum_steps = 64 // args.train_batchsize
+        count = 0
 
         for id, (imgA, imgB, seg_label, _, _, token, token_len, _) in enumerate(
             self.train_loader
         ):
+            if count > 1:
+                break
+
+            count += 1
             start_time = time.time()
 
             # Move to GPU, if available
@@ -228,7 +233,11 @@ class Change3DTrainer(object):
                 seg_label = seg_label.unsqueeze(1)
             seg_label = seg_label.float()
 
-            det_loss = BCEDiceLoss(seg_pred, seg_label)
+            det_loss = BCEDiceLoss(
+                seg_pred,
+                seg_label,
+                weight=self.train_loader.dataset.binary_class_weight,
+            )
             cap_loss = self.criterion(scores, targets)
 
             if args.loss_balancing_method == "uncert":
@@ -621,7 +630,9 @@ if __name__ == "__main__":
         "--allow_unk", type=str2bool, default=True, help="if unknown token is allowed"
     )
     parser.add_argument(
-        "--data_name", default="Forest-Change", help="base name shared by data files."
+        "--data_name",
+        default="Forest-Change",
+        help="base name shared by data files. (Forest-Change or LEVIR_MCI)",
     )
 
     parser.add_argument("--gpu_id", type=int, default=0, help="gpu id in the training.")
@@ -643,12 +654,6 @@ if __name__ == "__main__":
         help="print training/validation stats every __ batches",
     )
     # Training parameters
-    parser.add_argument(
-        "--fine_tune_encoder",
-        type=str2bool,
-        default=True,
-        help="whether fine-tune encoder or not",
-    )
     parser.add_argument(
         "--train_batchsize", type=int, default=32, help="batch_size for training"
     )
@@ -700,6 +705,26 @@ if __name__ == "__main__":
         type=float,
         default=1e-4,
         help="Learning rate for cc decoder.",
+    )
+    parser.add_argument(
+        "--train_goal",
+        type=int,
+        default=2,
+        help="0:det; 1:cap; 2:two tasks",
+        choices=[0, 1, 2],
+    )
+    parser.add_argument(
+        "--train_stage",
+        default="s1",
+        help="s1: pretrain backbone under two loss;"
+        " s2: train two branch respectively",
+        choices=["s1", "s2"],
+    )
+    parser.add_argument(
+        "--fine_tune_encoder",
+        type=str2bool,
+        default=True,
+        help="whether fine-tune encoder or not",
     )
     parser.add_argument(
         "--grad_clip",

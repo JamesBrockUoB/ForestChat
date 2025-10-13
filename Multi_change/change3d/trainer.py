@@ -158,6 +158,10 @@ class Encoder(nn.Module):
 
         return features
 
+    def fine_tune(self, fine_tune=True):
+        for p in self.parameters():
+            p.requires_grad = fine_tune
+
 
 class Trainer(nn.Module):
     """

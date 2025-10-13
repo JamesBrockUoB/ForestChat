@@ -90,3 +90,7 @@ class ChangeDecoder(nn.Module):
             pred = torch.sigmoid(pred)
 
         return pred
+
+    def fine_tune(self, fine_tune=True):
+        for p in self.parameters():
+            p.requires_grad = fine_tune

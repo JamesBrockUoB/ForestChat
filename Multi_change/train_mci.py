@@ -752,7 +752,9 @@ if __name__ == "__main__":
         "--allow_unk", type=str2bool, default=True, help="if unknown token is allowed"
     )
     parser.add_argument(
-        "--data_name", default="Forest-Change", help="base name shared by data files."
+        "--data_name",
+        default="Forest-Change",
+        help="base name shared by data files. (Forest-Change or LEVIR_MCI)",
     )
 
     parser.add_argument("--gpu_id", type=int, default=0, help="gpu id in the training.")

@@ -444,7 +444,9 @@ if __name__ == "__main__":
         help="if unknown token is allowed",
     )
     parser.add_argument(
-        "--data_name", default="Forest-Change", help="base name shared by data files."
+        "--data_name",
+        default="Forest-Change",
+        help="base name shared by data files. (Forest-Change or LEVIR_MCI)",
     )
 
     # Test

@@ -79,7 +79,7 @@ def weight_init(module):
             weight_init(child_module)
 
 
-def BCEDiceLoss(inputs, targets, eps=1e-5):
+def BCEDiceLoss(inputs, targets, eps=1e-5, weight=None):
     """
     Combined BCE and Dice loss for binary segmentation.
 
@@ -90,7 +90,7 @@ def BCEDiceLoss(inputs, targets, eps=1e-5):
     Returns:
         Combined loss value
     """
-    bce = F.binary_cross_entropy(inputs, targets)
+    bce = F.binary_cross_entropy(inputs, targets, weight=weight)
 
     inter = (inputs * targets).sum(dim=(2, 3))
     union = inputs.sum(dim=(2, 3)) + targets.sum(dim=(2, 3))
