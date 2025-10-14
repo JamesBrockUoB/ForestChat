@@ -129,12 +129,15 @@ class Change_Perception(object):
         checkpoint = torch.load(snapshot_full_path, map_location=DEVICE)
 
         self.encoder = Encoder(args.network)
+
+        dims = [32, 64, 160, 256] if "mit_b0" in args.network else [64, 128, 320, 512]
         self.encoder_trans = AttentiveEncoder(
             train_stage=None,
             n_layers=args.n_layers,
             feature_size=[args.feat_size, args.feat_size, args.encoder_dim],
             heads=args.n_heads,
             num_classes=args.num_classes,
+            dims=dims,
             dropout=args.dropout,
         )
         self.decoder = DecoderTransformer(

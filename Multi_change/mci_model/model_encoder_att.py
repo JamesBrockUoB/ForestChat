@@ -379,7 +379,14 @@ class AttentiveEncoder(nn.Module):
     """
 
     def __init__(
-        self, train_stage, n_layers, feature_size, heads, num_classes, dropout=0.0
+        self,
+        train_stage,
+        n_layers,
+        feature_size,
+        heads,
+        num_classes,
+        dims,
+        dropout=0.0,
     ):
         super(AttentiveEncoder, self).__init__()
         h_feat, w_feat, channels = feature_size
@@ -424,7 +431,6 @@ class AttentiveEncoder(nn.Module):
         # change detection branch
         self.h_embedding_CD = nn.Embedding(h_feat, int(channels / 2))
         self.w_embedding_CD = nn.Embedding(w_feat, int(channels / 2))
-        dims = [64, 128, 320, 512]
         decoder_dim = 512
         self.Transformer_aug_CD = nn.ModuleList(
             [
