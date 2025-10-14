@@ -33,88 +33,86 @@ DATA_PATH_ROOT = "data"
 
 
 def main(args):
-    if args.dataset in ["LEVIR_MCI", "Forest-Change"]:
-        input_captions_json = os.path.join(
-            DATA_PATH_ROOT, f"{args.dataset}-dataset", args.captions_json
-        )
-        input_image_dir = os.path.join(
-            DATA_PATH_ROOT, f"{args.dataset}-dataset", "images"
-        )
-        input_vocab_json = ""
-        output_vocab_json = "vocab.json"
-        save_dir = f"./data/{args.dataset}/"
+    dataset_folder_map = {
+        "LEVIR_MCI": "LEVIR-MCI-dataset",
+        "Forest-Change": "Forest-Change-dataset",
+    }
+
+    if args.dataset not in dataset_folder_map:
+        raise ValueError(f"Unknown dataset: {args.dataset}")
+
+    dataset_folder = dataset_folder_map[args.dataset]
+
+    input_captions_json = os.path.join(
+        DATA_PATH_ROOT, dataset_folder, args.captions_json
+    )
+    input_vocab_json = ""
+    output_vocab_json = "vocab.json"
+    save_dir = f"./data/{args.dataset}/"
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     if not os.path.exists(os.path.join(save_dir + "tokens/")):
         os.makedirs(os.path.join(save_dir + "tokens/"))
+
     print("Loading captions")
-    assert args.dataset in {"LEVIR_MCI", "Forest-Change"}
 
-    if args.dataset in ["LEVIR_MCI", "Forest-Change"]:
-        with open(input_captions_json, "r") as f:
-            data = json.load(f)
-        # Read image paths and captions for each image
-        max_length = -1
-        all_cap_tokens = []
-        for img in data["images"]:
-            captions = []
-            assert len(img["sentences"]) > 0, "error: some image has no captions"
-            captions = []
+    with open(input_captions_json, "r") as f:
+        data = json.load(f)
+    # Read image paths and captions for each image
+    max_length = -1
+    all_cap_tokens = []
+    for img in data["images"]:
+        captions = []
+        assert len(img["sentences"]) > 0, "error: some image has no captions"
+        captions = []
 
-            for c in img["sentences"]:
-                if len(c["raw"]) == 0:
-                    continue
-                captions.append(c["raw"])
+        for c in img["sentences"]:
+            if len(c["raw"]) == 0:
+                continue
+            captions.append(c["raw"])
 
-            tokens_list = []
-            for cap in captions:
-                cap_tokens = tokenize(
-                    cap,
-                    add_start_token=True,
-                    add_end_token=True,
-                    punct_to_keep=[";", ","],
-                    punct_to_remove=["?", "."],
-                )
-                tokens_list.append(cap_tokens)
-                max_length = max(max_length, len(cap_tokens))
-            all_cap_tokens.append((img["filename"], tokens_list))
+        tokens_list = []
+        for cap in captions:
+            cap_tokens = tokenize(
+                cap,
+                add_start_token=True,
+                add_end_token=True,
+                punct_to_keep=[";", ","],
+                punct_to_remove=["?", "."],
+            )
+            tokens_list.append(cap_tokens)
+            max_length = max(max_length, len(cap_tokens))
+        all_cap_tokens.append((img["filename"], tokens_list))
 
-        all_cap_tokens.sort()
+    all_cap_tokens.sort()
 
-        # Then save the tokenized captions in txt
-        print("Saving captions")
-        for img, tokens_list in all_cap_tokens:
-            i = img.split(".")[0]
-            token_len = len(tokens_list)
-            tokens_list = json.dumps(tokens_list)
-            with open(os.path.join(save_dir + "tokens/" + i + ".txt"), "w") as f:
-                f.write(tokens_list)
+    # Then save the tokenized captions in txt
+    print("Saving captions")
+    for img, tokens_list in all_cap_tokens:
+        i = img.split(".")[0]
+        tokens_list = json.dumps(tokens_list)
+        with open(os.path.join(save_dir + "tokens/" + i + ".txt"), "w") as f:
+            f.write(tokens_list)
+            f.close()
+
+        # Considering each image pair has 5 annotations, two strategies can be adopted to generate list for training:
+        # a: creating training list with a self-defined token_id[0:4], each token list corresponds to specific captions;
+        # or b: randomly select one of the five captions during training;
+
+        if i.split("_")[0] == "train":
+            with open(os.path.join(save_dir + "train" + ".txt"), "a") as f:
+                f.write(img + "\n")
                 f.close()
 
-            # Considering each image pair has 5 annotations, two strategies can be adopted to generate list for training:
-            # a: creating training list with a self-defined token_id[0:4], each token list corresponds to specific captions;
-            # or b: randomly select one of the five captions during training;
-
-            if i.split("_")[0] == "train":
-                with open(os.path.join(save_dir + "train" + ".txt"), "a") as f:
-                    f.write(img + "\n")
-                    f.close()
-
-            # if i.split('_')[0] == 'train':
-            #     f = open(os.path.join(save_dir + 'train' + '.txt'), 'a')
-            #     for j in range(token_len):
-            #         f.write(img + '-' + str(j) + '\n')
-            #     f.close
-
-            elif i.split("_")[0] == "val":
-                with open(os.path.join(save_dir + "val" + ".txt"), "a") as f:
-                    f.write(img + "\n")
-                    f.close()
-            elif i.split("_")[0] == "test":
-                with open(os.path.join(save_dir + "test" + ".txt"), "a") as f:
-                    f.write(img + "\n")
-                    f.close()
+        elif i.split("_")[0] == "val":
+            with open(os.path.join(save_dir + "val" + ".txt"), "a") as f:
+                f.write(img + "\n")
+                f.close()
+        elif i.split("_")[0] == "test":
+            with open(os.path.join(save_dir + "test" + ".txt"), "a") as f:
+                f.write(img + "\n")
+                f.close()
 
     print("max_length of the dataset:", max_length)
     with open(os.path.join(save_dir + "metadata.json"), "w") as f:
