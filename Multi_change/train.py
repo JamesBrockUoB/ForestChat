@@ -64,6 +64,7 @@ class Trainer(object):
         if os.path.exists(self.args.savepath) == False:
             os.makedirs(self.args.savepath)
         self.log = open(os.path.join(self.args.savepath, "{}.log".format(name)), "w")
+        print_log("=>device: {}".format(DEVICE), self.log)
         print_log("=>dataset: {}".format(args.data_name), self.log)
         print_log("=>network: {}".format(args.network), self.log)
         print_log("=>encoder_lr: {}".format(args.encoder_lr), self.log)
