@@ -128,7 +128,7 @@ Make sure you performed the data preparation above. Then, start training as foll
 ```python
 python train.py --train_goal 2 --savepath ./models_ckpt/
 ```
-This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI. E.g. --data_folder ./data/LEVIR-MCI-dataset/images --list_path ./data/LEVIR_MCI --token_folder ./data/LEVIR_MCI/tokens/ --data_name LEVIR_MCI --num_classes 3
+This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI. E.g. --data_folder ./data/LEVIR-MCI-dataset/images --list_path ./data/LEVIR_MCI/ --token_folder ./data/LEVIR_MCI/tokens/ --data_name LEVIR_MCI --num_classes 3
 
 ### Evaluate
 ```python
@@ -136,7 +136,7 @@ python test.py --checkpoint {checkpoint_PATH}
 ```
 We recommend training the model 5 times to get an average score.
 
-This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI. E.g. --data_folder ./data/LEVIR-MCI-dataset/images --list_path ./data/LEVIR_MCI --token_folder ./data/LEVIR_MCI/tokens/ --data_name LEVIR_MCI --num_classes 3
+This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI. E.g. --data_folder ./data/LEVIR-MCI-dataset/images --list_path ./data/LEVIR_MCI/ --token_folder ./data/LEVIR_MCI/tokens/ --data_name LEVIR_MCI --num_classes 3
 
 ### Inference
 Run inference to get started as follows:
@@ -145,7 +145,7 @@ python predict.py --imgA_path {imgA_path} --imgB_path {imgA_path} --mask_save_pa
 ```
 You can modify ``--checkpoint`` of ``Change_Perception.define_args()`` in ``predict.py``. Then you can use your own model, of course, you also can download our pretrained model ``MCI_model.pth`` here: [[Hugging face](https://huggingface.co/lcybuaa/Change-Agent/tree/main)]. After that, put it in `./models_ckpt/`.
 
-This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI. E.g. --data_folder ./data/LEVIR-MCI-dataset/images --list_path ./data/LEVIR_MCI --token_folder ./data/LEVIR_MCI/tokens/ --data_name LEVIR_MCI --num_classes 3
+This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI. E.g. --data_folder ./data/LEVIR-MCI-dataset/images --list_path ./data/LEVIR_MCI/ --token_folder ./data/LEVIR_MCI/tokens/ --data_name LEVIR_MCI --num_classes 3
 
 ## Construction of Change-Agent
 <br>
