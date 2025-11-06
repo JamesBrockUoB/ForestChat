@@ -162,8 +162,8 @@ class Trainer(object):
     def build_mci_model(self):
         args = self.args
 
+        # --- Initialize models ---
         self.encoder = Encoder(args.network)
-
         dims = [32, 64, 160, 256] if "b0" in args.network else [64, 128, 320, 512]
         self.encoder_trans = AttentiveEncoder(
             train_stage=args.train_stage,
@@ -185,15 +185,9 @@ class Trainer(object):
             dropout=args.dropout,
         )
 
-        if args.train_stage == "s1":
-            self.encoder.fine_tune(args.fine_tune_encoder)
-            fine_tune_capdecoder = True
-        elif args.train_stage == "s2":
-            if args.checkpoint is None:
-                raise ValueError("Error: checkpoint is None for stage s2.")
-
-            checkpoint = torch.load(args.checkpoint)
-            print(f"Load Model from {args.checkpoint}")
+        if args.resume_from_checkpoint and args.checkpoint is not None:
+            print_log(f"Resuming from checkpoint: {args.checkpoint}", self.log)
+            checkpoint = torch.load(args.checkpoint, map_location=DEVICE)
 
             self.decoder.load_state_dict(checkpoint["decoder_dict"])
             self.encoder_trans.load_state_dict(
@@ -201,72 +195,115 @@ class Trainer(object):
             )
             self.encoder.load_state_dict(checkpoint["encoder_dict"])
 
-            args.fine_tune_encoder = False
-            self.encoder.fine_tune(args.fine_tune_encoder)
-            self.encoder.eval()
-
-            self.encoder_trans.fine_tune(args.train_goal)
-
-            fine_tune_capdecoder = args.train_goal != 0
-            self.decoder.fine_tune(fine_tune_capdecoder)
-            if fine_tune_capdecoder:
-                self.decoder.train()
-            else:
-                self.decoder.eval()
-        else:
-            raise ValueError("Error: unknown training stage.")
-
-        self.encoder_optimizer = (
-            torch.optim.Adam(self.encoder.parameters(), lr=args.encoder_lr)
-            if args.fine_tune_encoder
-            else None
-        )
-        self.encoder_trans_optimizer = torch.optim.Adam(
-            filter(lambda p: p.requires_grad, self.encoder_trans.parameters()),
-            lr=args.encoder_lr,
-        )
-
-        decoder_params = list(
-            filter(lambda p: p.requires_grad, self.decoder.parameters())
-        )
-        if args.loss_balancing_method == "uncert":
-            decoder_params += [self.log_vars]
-
-        self.decoder_optimizer = (
-            torch.optim.Adam(
-                decoder_params,
-                lr=args.decoder_lr,
+            # Restore optimizer, scheduler, and training state if present
+            self.encoder_optimizer = checkpoint.get(
+                "encoder_optimizer", self.encoder_optimizer
             )
-            if fine_tune_capdecoder
-            else None
-        )
+            self.encoder_trans_optimizer = checkpoint.get(
+                "encoder_trans_optimizer", self.encoder_trans_optimizer
+            )
+            self.decoder_optimizer = checkpoint.get(
+                "decoder_optimizer", self.decoder_optimizer
+            )
 
+            self.encoder_lr_scheduler = checkpoint.get(
+                "encoder_lr_scheduler", self.encoder_lr_scheduler
+            )
+            self.encoder_trans_lr_scheduler = checkpoint.get(
+                "encoder_trans_lr_scheduler", self.encoder_trans_lr_scheduler
+            )
+            self.decoder_lr_scheduler = checkpoint.get(
+                "decoder_lr_scheduler", self.decoder_lr_scheduler
+            )
+
+            self.start_epoch = checkpoint.get("epoch", 0)
+            self.best_epoch = checkpoint.get("best_epoch", 0)
+            self.MIoU = checkpoint.get("best_mIoU", 0)
+            self.best_bleu4 = checkpoint.get("best_bleu4", 0)
+        else:
+            if args.train_stage == "s1":
+                self.encoder.fine_tune(args.fine_tune_encoder)
+                fine_tune_capdecoder = True
+            elif args.train_stage == "s2":
+                if args.checkpoint is None:
+                    raise ValueError("Error: checkpoint is None for stage s2.")
+
+                checkpoint = torch.load(args.checkpoint)
+                print(f"Load Model from {args.checkpoint}")
+
+                self.decoder.load_state_dict(checkpoint["decoder_dict"])
+                self.encoder_trans.load_state_dict(
+                    checkpoint["encoder_trans_dict"], strict=False
+                )
+                self.encoder.load_state_dict(checkpoint["encoder_dict"])
+
+                args.fine_tune_encoder = False
+                self.encoder.fine_tune(args.fine_tune_encoder)
+                self.encoder.eval()
+
+                self.encoder_trans.fine_tune(args.train_goal)
+
+                fine_tune_capdecoder = args.train_goal != 0
+                self.decoder.fine_tune(fine_tune_capdecoder)
+                if fine_tune_capdecoder:
+                    self.decoder.train()
+                else:
+                    self.decoder.eval()
+            else:
+                raise ValueError("Error: unknown training stage.")
+
+            self.encoder_optimizer = (
+                torch.optim.Adam(self.encoder.parameters(), lr=args.encoder_lr)
+                if args.fine_tune_encoder
+                else None
+            )
+            self.encoder_trans_optimizer = torch.optim.Adam(
+                filter(lambda p: p.requires_grad, self.encoder_trans.parameters()),
+                lr=args.encoder_lr,
+            )
+
+            decoder_params = list(
+                filter(lambda p: p.requires_grad, self.decoder.parameters())
+            )
+            if args.loss_balancing_method == "uncert":
+                decoder_params += [self.log_vars]
+
+            self.decoder_optimizer = (
+                torch.optim.Adam(
+                    decoder_params,
+                    lr=args.decoder_lr,
+                )
+                if fine_tune_capdecoder
+                else None
+            )
+
+            self.encoder_lr_scheduler = (
+                torch.optim.lr_scheduler.StepLR(
+                    self.encoder_optimizer, step_size=5, gamma=1.0
+                )
+                if args.fine_tune_encoder
+                else None
+            )
+            self.encoder_trans_lr_scheduler = torch.optim.lr_scheduler.StepLR(
+                self.encoder_trans_optimizer, step_size=5, gamma=1.0
+            )
+            self.decoder_lr_scheduler = (
+                torch.optim.lr_scheduler.StepLR(
+                    self.decoder_optimizer, step_size=5, gamma=1.0
+                )
+                if fine_tune_capdecoder
+                else None
+            )
+
+        # --- Move to device ---
         self.encoder = self.encoder.to(DEVICE)
         self.encoder_trans = self.encoder_trans.to(DEVICE)
         self.decoder = self.decoder.to(DEVICE)
 
-        self.encoder_lr_scheduler = (
-            torch.optim.lr_scheduler.StepLR(
-                self.encoder_optimizer, step_size=5, gamma=1.0
-            )
-            if args.fine_tune_encoder
-            else None
-        )
-        self.encoder_trans_lr_scheduler = torch.optim.lr_scheduler.StepLR(
-            self.encoder_trans_optimizer, step_size=5, gamma=1.0
-        )
-        self.decoder_lr_scheduler = (
-            torch.optim.lr_scheduler.StepLR(
-                self.decoder_optimizer, step_size=5, gamma=1.0
-            )
-            if fine_tune_capdecoder
-            else None
-        )
-
-        self.shared_modules = []
-        for m in [self.decoder, self.encoder_trans, self.encoder]:
-            if m is not None:
-                self.shared_modules.append(m)
+        # --- Shared modules ---
+        self.shared_modules = [
+            m for m in [self.decoder, self.encoder_trans, self.encoder] if m is not None
+        ]
 
         if DISPLAY_PARAMS:
             total_params = 0
@@ -716,6 +753,15 @@ class Trainer(object):
                     "encoder_dict": self.encoder.state_dict(),
                     "encoder_trans_dict": self.encoder_trans.state_dict(),
                     "decoder_dict": self.decoder.state_dict(),
+                    "epoch": epoch,
+                    "best_mIoU": self.MIou,
+                    "best_bleu4": self.best_bleu4,
+                    "encoder_optimizer": self.encoder_optimizer,
+                    "encoder_trans_optimizer": self.encoder_trans_optimizer,
+                    "decoder_optimizer": self.decoder_optimizer,
+                    "encoder_scheduler": self.encoder_lr_scheduler,
+                    "encoder_trans_scheduler": self.encoder_trans_lr_scheduler,
+                    "decoder_scheduler": self.decoder_lr_scheduler,
                 }
                 metric = f"Sum_{round(100000 * self.Sum_Metric)}_MIou_{round(100000 * self.MIou)}_Bleu4_{round(100000 * self.best_bleu4)}"
                 model_name = f"{args.data_name}_bts_{args.train_batchsize}_{args.network}_epo_{epoch}_{metric}.pth"
@@ -751,13 +797,19 @@ class Trainer(object):
                     "encoder_dict": self.encoder.state_dict(),
                     "encoder_trans_dict": self.encoder_trans.state_dict(),
                     "decoder_dict": self.decoder.state_dict(),
+                    "epoch": epoch,
+                    "best_mIoU": self.MIou,
+                    "best_bleu4": self.best_bleu4,
+                    "encoder_optimizer": self.encoder_optimizer,
+                    "encoder_trans_optimizer": self.encoder_trans_optimizer,
+                    "decoder_optimizer": self.decoder_optimizer,
                 }
                 metric = f"Sum_{round(100000*self.Sum_Metric)}_MIou_{round(100000*self.MIou)}_Bleu4_{round(100000*self.best_bleu4)}"
                 # metric = f'MIou_{round(10000 * self.MIou)}_Bleu4_{round(10000 * self.best_bleu4)}'
                 model_name = f"{self.args.data_name}_bts_{self.args.train_batchsize}_{self.args.network}_epo_{epoch}_{metric}.pth"
                 best_model_path = os.path.join(self.args.savepath, model_name)
 
-                if epoch > 10:
+                if epoch > 5:
                     # save_checkpoint
                     print("Save Model")
                     torch.save(state, best_model_path)
@@ -930,11 +982,18 @@ if __name__ == "__main__":
         help="gradient adjustment method for resolving potential conflicts between multiple learning tasks",
         choices=["none", "pcgrad", "graddrop", "cagrad"],
     )
+    parser.add_argument(
+        "--resume_from_checkpoint",
+        type=str2bool,
+        default=False,
+        help="whether to reload training state from checkpoint after crash",
+    )
+
     args = parser.parse_args()
 
     trainer = Trainer(args)
     print_log("\nStarting Epoch: {}".format(trainer.start_epoch), trainer.log)
-    print_log("Total Epoches: {}".format(trainer.args.num_epochs), trainer.log)
+    print_log("Total Epochs: {}".format(trainer.args.num_epochs), trainer.log)
     print_log(
         "Training Dataset Size: {}".format(trainer.train_dataset_size), trainer.log
     )
@@ -952,6 +1011,10 @@ if __name__ == "__main__":
                     trainer.args.train_stage = "s2"
                     trainer.args.checkpoint = trainer.best_model_path
                     trainer.build_mci_model()
+
+                if args.resume_from_checkpoint and goal == args.train_goal:
+                    trainer.best_model_path = args.checkpoint
+                    trainer.args.checkpoint = args.checkpoint
 
                 for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
                     trainer.training(trainer.args, epoch)
