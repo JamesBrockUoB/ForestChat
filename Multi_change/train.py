@@ -162,6 +162,7 @@ class Trainer(object):
     def build_mci_model(self):
         args = self.args
 
+        # --- Initialize models ---
         self.encoder = Encoder(args.network)
         dims = [32, 64, 160, 256] if "b0" in args.network else [64, 128, 320, 512]
         self.encoder_trans = AttentiveEncoder(
@@ -184,6 +185,7 @@ class Trainer(object):
             dropout=args.dropout,
         )
 
+        # --- Load checkpoint if resuming ---
         if args.resume_from_checkpoint and args.checkpoint is not None:
             print_log(f"Resuming from checkpoint: {args.checkpoint}", self.log)
             checkpoint = torch.load(args.checkpoint, map_location=DEVICE)
@@ -199,17 +201,57 @@ class Trainer(object):
             self.MIoU = checkpoint.get("best_mIoU", 0)
             self.best_bleu4 = checkpoint.get("best_bleu4", 0)
 
-            self.encoder_optimizer = checkpoint.get("encoder_optimizer", None)
-            self.encoder_trans_optimizer = checkpoint.get(
-                "encoder_trans_optimizer", None
-            )
-            self.decoder_optimizer = checkpoint.get("decoder_optimizer", None)
-            self.encoder_lr_scheduler = checkpoint.get("encoder_lr_scheduler", None)
-            self.encoder_trans_lr_scheduler = checkpoint.get(
-                "encoder_trans_lr_scheduler", None
-            )
-            self.decoder_lr_scheduler = checkpoint.get("decoder_lr_scheduler", None)
+            # --- Try to restore optimizers and schedulers ---
+            self.encoder_optimizer = checkpoint.get("encoder_optimizer")
+            self.encoder_trans_optimizer = checkpoint.get("encoder_trans_optimizer")
+            self.decoder_optimizer = checkpoint.get("decoder_optimizer")
 
+            if self.encoder_optimizer is None and args.fine_tune_encoder:
+                self.encoder_optimizer = torch.optim.Adam(
+                    self.encoder.parameters(), lr=args.encoder_lr
+                )
+
+            if self.encoder_trans_optimizer is None:
+                self.encoder_trans_optimizer = torch.optim.Adam(
+                    filter(lambda p: p.requires_grad, self.encoder_trans.parameters()),
+                    lr=args.encoder_lr,
+                )
+
+            if self.decoder_optimizer is None:
+                decoder_params = list(
+                    filter(lambda p: p.requires_grad, self.decoder.parameters())
+                )
+                if args.loss_balancing_method == "uncert":
+                    decoder_params += [self.log_vars]
+                self.decoder_optimizer = torch.optim.Adam(
+                    decoder_params, lr=args.decoder_lr
+                )
+
+            self.encoder_lr_scheduler = checkpoint.get("encoder_lr_scheduler")
+            self.encoder_trans_lr_scheduler = checkpoint.get(
+                "encoder_trans_lr_scheduler"
+            )
+            self.decoder_lr_scheduler = checkpoint.get("decoder_lr_scheduler")
+
+            if self.encoder_lr_scheduler is None and self.encoder_optimizer is not None:
+                self.encoder_lr_scheduler = torch.optim.lr_scheduler.StepLR(
+                    self.encoder_optimizer, step_size=5, gamma=1.0
+                )
+
+            if (
+                self.encoder_trans_lr_scheduler is None
+                and self.encoder_trans_optimizer is not None
+            ):
+                self.encoder_trans_lr_scheduler = torch.optim.lr_scheduler.StepLR(
+                    self.encoder_trans_optimizer, step_size=5, gamma=1.0
+                )
+
+            if self.decoder_lr_scheduler is None and self.decoder_optimizer is not None:
+                self.decoder_lr_scheduler = torch.optim.lr_scheduler.StepLR(
+                    self.decoder_optimizer, step_size=5, gamma=1.0
+                )
+
+        # --- Normal build if not resuming ---
         else:
             if args.train_stage == "s1":
                 self.encoder.fine_tune(args.fine_tune_encoder)
@@ -334,6 +376,7 @@ class Trainer(object):
             self.encoder_optimizer.zero_grad()
 
         accum_steps = 64 // args.train_batchsize
+        count = 0
 
         for id, (imgA, imgB, seg_label, _, _, token, token_len, _) in enumerate(
             self.train_loader
@@ -341,6 +384,11 @@ class Trainer(object):
             # if id == 120:
             #    break
             start_time = time.time()
+
+            if count > 10:
+                break
+
+            count += 1
 
             # Move to GPU, if available
             imgA = imgA.to(DEVICE)
@@ -748,7 +796,7 @@ class Trainer(object):
                 model_name = f"{args.data_name}_bts_{args.train_batchsize}_{args.network}_epo_{epoch}_{metric}.pth"
                 best_model_path = os.path.join(self.args.savepath, model_name)
 
-                print("Save Model")
+                print(f"Save Model: {best_model_path}")
                 torch.save(state, os.path.join(args.savepath, model_name))
 
                 self.best_epoch = epoch
@@ -784,6 +832,9 @@ class Trainer(object):
                     "encoder_optimizer": self.encoder_optimizer,
                     "encoder_trans_optimizer": self.encoder_trans_optimizer,
                     "decoder_optimizer": self.decoder_optimizer,
+                    "encoder_scheduler": self.encoder_lr_scheduler,
+                    "encoder_trans_scheduler": self.encoder_trans_lr_scheduler,
+                    "decoder_scheduler": self.decoder_lr_scheduler,
                 }
                 metric = f"Sum_{round(100000*self.Sum_Metric)}_MIou_{round(100000*self.MIou)}_Bleu4_{round(100000*self.best_bleu4)}"
                 # metric = f'MIou_{round(10000 * self.MIou)}_Bleu4_{round(10000 * self.best_bleu4)}'
@@ -792,7 +843,7 @@ class Trainer(object):
 
                 if epoch > 5:
                     # save_checkpoint
-                    print("Save Model")
+                    print(f"Save Model: {best_model_path}")
                     torch.save(state, best_model_path)
                 self.best_epoch = epoch
                 self.best_model_path = best_model_path
