@@ -376,7 +376,6 @@ class Trainer(object):
             self.encoder_optimizer.zero_grad()
 
         accum_steps = 64 // args.train_batchsize
-        count = 0
 
         for id, (imgA, imgB, seg_label, _, _, token, token_len, _) in enumerate(
             self.train_loader
@@ -384,11 +383,6 @@ class Trainer(object):
             # if id == 120:
             #    break
             start_time = time.time()
-
-            if count > 10:
-                break
-
-            count += 1
 
             # Move to GPU, if available
             imgA = imgA.to(DEVICE)
