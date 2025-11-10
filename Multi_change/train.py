@@ -197,7 +197,7 @@ class Trainer(object):
             self.encoder.load_state_dict(checkpoint["encoder_dict"])
 
             self.start_epoch = checkpoint.get("epoch", 0)
-            self.best_epoch = checkpoint.get("best_epoch", 0)
+            self.best_epoch = checkpoint.get("epoch", 0)
             self.MIoU = checkpoint.get("best_mIoU", 0)
             self.best_bleu4 = checkpoint.get("best_bleu4", 0)
 
