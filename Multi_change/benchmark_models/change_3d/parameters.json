@@ -1,0 +1,8 @@
+{
+    "in_height": 256,
+    "in_width": 256,
+    "lr": 2e-4,
+    "lr_mode": "poly",
+    "step_loss": 100,
+    "pretrained": "change_3d/X3D_L.pyth"
+}
