@@ -198,8 +198,9 @@ class Trainer(object):
 
             self.start_epoch = checkpoint.get("epoch", 0)
             self.best_epoch = checkpoint.get("epoch", 0)
-            self.MIoU = checkpoint.get("best_mIoU", 0)
-            self.best_bleu4 = checkpoint.get("best_bleu4", 0)
+            self.MIoU = checkpoint.get("best_mIoU", 0.3)
+            self.best_bleu4 = checkpoint.get("best_bleu4", 0.3)
+            self.Sum_Metric = checkpoint.get("best_sum_metric", 0.3)
 
             # --- Try to restore optimizers and schedulers ---
             self.encoder_optimizer = checkpoint.get("encoder_optimizer")
@@ -779,6 +780,7 @@ class Trainer(object):
                     "epoch": epoch,
                     "best_mIoU": self.MIou,
                     "best_bleu4": self.best_bleu4,
+                    "best_sum_metric": self.Sum_Metric,
                     "encoder_optimizer": self.encoder_optimizer,
                     "encoder_trans_optimizer": self.encoder_trans_optimizer,
                     "decoder_optimizer": self.decoder_optimizer,
@@ -823,6 +825,7 @@ class Trainer(object):
                     "epoch": epoch,
                     "best_mIoU": self.MIou,
                     "best_bleu4": self.best_bleu4,
+                    "best_sum_metric": self.Sum_Metric,
                     "encoder_optimizer": self.encoder_optimizer,
                     "encoder_trans_optimizer": self.encoder_trans_optimizer,
                     "decoder_optimizer": self.decoder_optimizer,
