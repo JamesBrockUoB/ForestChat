@@ -79,6 +79,9 @@ class Trainer(object):
         self.MIou = 0.3
         self.Sum_Metric = 0.3
         self.start_epoch = 0
+        self.best_model_path = None
+        self.best_epoch = 0
+
         with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
             self.word_vocab = json.load(f)
 
@@ -156,9 +159,6 @@ class Trainer(object):
 
         self.evaluator = Evaluator(num_class=args.num_classes)
 
-        self.best_model_path = None
-        self.best_epoch = 0
-
     def build_mci_model(self):
         args = self.args
 
@@ -198,7 +198,7 @@ class Trainer(object):
 
             self.start_epoch = checkpoint.get("epoch", 0)
             self.best_epoch = checkpoint.get("epoch", 0)
-            self.MIoU = checkpoint.get("best_mIoU", 0.3)
+            self.MIou = checkpoint.get("best_mIoU", 0.3)
             self.best_bleu4 = checkpoint.get("best_bleu4", 0.3)
             self.Sum_Metric = checkpoint.get("best_sum_metric", 0.3)
 
