@@ -2,10 +2,11 @@ import math
 from typing import Optional
 
 import torch
-from change3d.utils import weight_init
 from torch import Tensor, nn
 from torch.nn import functional as F
 from torch.nn.init import xavier_uniform_
+
+from .utils import weight_init
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -812,7 +813,3 @@ class CaptionDecoder(nn.Module):
         seq = complete_seqs[i]
 
         return seq
-
-    def fine_tune(self, fine_tune=True):
-        for p in self.parameters():
-            p.requires_grad = fine_tune

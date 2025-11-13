@@ -2,11 +2,12 @@ from typing import Any, List
 
 import torch
 import torch.nn as nn
-from change_3d.caption_decoder import CaptionDecoder
-from change_3d.change_decoder import ChangeDecoder
-from change_3d.utils import weight_init
-from change_3d.x3d import create_x3d
 from einops import repeat
+
+from .caption_decoder import CaptionDecoder
+from .change_decoder import ChangeDecoder
+from .utils import weight_init
+from .x3d import create_x3d
 
 
 class Encoder(nn.Module):
@@ -225,31 +226,6 @@ class Change3d_Trainer(nn.Module):
         prediction = self.decoder(perception_change_feat)
 
         return prediction
-
-    def update_scd(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass through the complete model.
-
-        Args:
-            x: Input frame tensor with shape [B, C, H, W]
-            y: Target frame tensor with shape [B, C, H, W]
-
-        Returns:
-            Predicted frame tensor
-        """
-        # Extract features using encoder
-        features = self.encoder(x, y)
-
-        # Generate prediction using decoder
-        perception_pre_feat = list(map(lambda x: x[0], features))
-        perception_change_feat = list(map(lambda x: x[1], features))
-        perception_post_feat = list(map(lambda x: x[2], features))
-
-        pre_mask = self.decoder_pre(perception_pre_feat)
-        post_mask = self.decoder_post(perception_post_feat)
-        change_mask = self.decoder_change(perception_change_feat)
-
-        return pre_mask, post_mask, change_mask
 
     def update_cc(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """

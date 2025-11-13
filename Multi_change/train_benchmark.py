@@ -10,10 +10,13 @@ from pathlib import Path
 import numpy as np
 import wandb
 from benchmark_models.change_3d.trainer import Change3d_Trainer
-from benchmark_models.change_3d.utils import BCEDiceLoss, adjust_learning_rate
+from benchmark_models.change_3d.utils import BCEDiceLoss, adjust_lr
 from data.ForestChange import ForestChangeDataset
 from data.LEVIR_MCI import LEVIRCCDataset
+from einops import rearrange
+from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence
+from torch.optim.lr_scheduler import StepLR
 from torch.utils import data
 from tqdm import tqdm
 from utils_tool.loss_funcs import *
@@ -35,13 +38,10 @@ class Trainer(object):
             config={
                 "dataset_name": args.data_name,
                 "train_goal": args.train_goal,
-                "fine_tune_encoder": args.fine_tune_encoder,
                 "train_batchsize": args.train_batchsize,
                 "num_epochs": args.num_epochs,
                 "patience": args.patience,
-                "encoder_lr": args.encoder_lr,
-                "decoder_lr": args.decoder_lr,
-                "benchmark_model": args.benchmkark_model,
+                "benchmark_model": args.benchmark,
             },
         )
         random_str = str(random.randint(10, 100))
@@ -58,9 +58,6 @@ class Trainer(object):
         self.log = open(os.path.join(self.args.savepath, "{}.log".format(name)), "w")
         print_log("=>device: {}".format(DEVICE), self.log)
         print_log("=>dataset: {}".format(args.data_name), self.log)
-        print_log("=>network: {}".format(args.network), self.log)
-        print_log("=>encoder_lr: {}".format(args.encoder_lr), self.log)
-        print_log("=>decoder_lr: {}".format(args.decoder_lr), self.log)
         print_log("=>num_epochs: {}".format(args.num_epochs), self.log)
         print_log("=>train_batchsize: {}".format(args.train_batchsize), self.log)
         print_log("=>benchmark: {}".format(args.benchmark), self.log)
@@ -97,7 +94,7 @@ class Trainer(object):
                             if split == "train"
                             else args.increased_val_data_size
                         ),
-                        num_classes=args.num_classes,
+                        num_classes=args.num_class,
                     )
                     if "Forest-Change" in args.data_name
                     else LEVIRCCDataset(
@@ -108,7 +105,7 @@ class Trainer(object):
                         vocab_file=args.vocab_file,
                         max_length=self.max_length,
                         allow_unk=args.allow_unk,
-                        num_classes=args.num_classes,
+                        num_classes=args.num_class,
                     )
                 )
                 datasets.append(dataset)
@@ -120,6 +117,7 @@ class Trainer(object):
                 num_workers=args.workers,
                 pin_memory=True,
             )
+            self.max_batches = len(self.train_loader)
             self.val_loader = data.DataLoader(
                 datasets[1],
                 batch_size=args.val_batchsize,
@@ -128,7 +126,7 @@ class Trainer(object):
                 pin_memory=True,
             )
 
-        self.evaluator = Evaluator(num_class=args.num_classes)
+        self.evaluator = Evaluator(num_class=args.num_class)
 
         self.best_model_path = None
         self.best_epoch = 0
@@ -137,14 +135,44 @@ class Trainer(object):
         args = self.args
 
         if args.benchmark == "change_3d":
-            self.model = Change3d_Trainer(args).to(DEVICE).float()
-            self.optimiser = torch.optim.Adam(
-                self.model.parameters(),
-                args.lr,
-                (0.9, 0.99),
-                eps=1e-08,
-                weight_decay=1e-4,
-            )
+            if args.train_goal == 0:
+                self.model = Change3d_Trainer(args).to(DEVICE).float()
+                self.optimiser = torch.optim.Adam(
+                    self.model.parameters(),
+                    args.lr,
+                    (0.9, 0.99),
+                    eps=1e-08,
+                    weight_decay=1e-4,
+                )
+            elif args.train_goal == 1:
+                self.encoder_optimiser = None
+                self.encoder_lr_scheduler = None
+
+                if args.fine_tune_encoder:
+                    self.encoder_optimiser = torch.optim.Adam(
+                        params=filter(
+                            lambda p: p.requires_grad, self.model.encoder.parameters()
+                        ),
+                        lr=args.encoder_lr,
+                        weight_decay=1e-5,
+                    )
+                    self.encoder_lr_scheduler = StepLR(
+                        self.encoder_optimiser, step_size=900, gamma=1
+                    )
+
+                self.decoder_optimiser = torch.optim.Adam(
+                    params=filter(
+                        lambda p: p.requires_grad, self.model.decoder.parameters()
+                    ),
+                    lr=args.decoder_lr,
+                    weight_decay=1e-5,
+                )
+                self.decoder_lr_scheduler = StepLR(
+                    self.decoder_optimiser, step_size=900, gamma=1
+                )
+                self.criterion = nn.CrossEntropyLoss(ignore_index=0).to(DEVICE)
+            else:
+                raise ValueError("Unknown train goal selected.")
         else:
             raise ValueError("Unknown benchmark model selected.")
 
@@ -160,104 +188,97 @@ class Trainer(object):
             self.MIoU = checkpoint.get("best_mIoU", 0.3)
             self.best_bleu4 = checkpoint.get("best_bleu4", 0.3)
 
-    def training(self, args, epoch):
+    def training(self, args, epoch, lr_factor=1.0):
         # Only need one epoch of hist for printing as is stored in wandb to reduce memory
         self.index_i = 0
-        self.hist = np.zeros((args.num_epochs * len(self.train_loader), 5))
+        self.hist = np.zeros((args.num_epochs * self.max_batches, 5))
 
-        if self.args.train_goal == 1:
-            self.encoder.eval()
-            self.encoder_trans.fine_tune(self.args.train_goal)
-            self.decoder.train()
-        else:
-            self.encoder.eval()
-            self.encoder_trans.fine_tune(self.args.train_goal)
-            self.decoder.eval()
-
-        if self.decoder_optimizer is not None:
-            self.decoder_optimizer.zero_grad()
-        self.encoder_trans_optimizer.zero_grad()
-        if self.encoder_optimizer is not None:
-            self.encoder_optimizer.zero_grad()
-
-        accum_steps = 64 // args.train_batchsize
+        if args.benchmark == "change_3d":
+            if args.train_goal == 1:
+                self.model.encoder.train()
+                self.model.decoder.train()
+            else:
+                self.model.train()
 
         for id, (imgA, imgB, seg_label, _, _, token, token_len, _) in enumerate(
             self.train_loader
         ):
-            # if id == 120:
-            #    break
             start_time = time.time()
 
-            # Move to GPU, if available
             imgA = imgA.to(DEVICE)
             imgB = imgB.to(DEVICE)
             seg_label = seg_label.to(DEVICE)
+
+            if args.data_name == "LEVIR_MCI":
+                seg_label = (seg_label > 0).astype(np.uint8)
+                args.num_class = 2  # enforce
+
             token = token.squeeze(1).to(DEVICE)
             token_len = token_len.to(DEVICE)
-            # Forward prop.
-            feat1, feat2 = self.encoder(imgA, imgB)
-            feat1, feat2, seg_pred = self.encoder_trans(feat1, feat2)
 
-            if self.args.train_goal == 1:
-                scores, caps_sorted, decode_lengths, sort_ind = self.decoder(
-                    feat1, feat2, token, token_len
-                )
-                # Since we decoded starting with <start>, the targets are all words after <start>, up to <end>
-                targets = caps_sorted[:, 1:]
-                scores = pack_padded_sequence(
-                    scores, decode_lengths, batch_first=True
-                ).data
-                targets = pack_padded_sequence(
-                    targets, decode_lengths, batch_first=True
-                ).data
-                # Calculate loss
-                cap_loss = self.criterion_cap(scores, targets.to(torch.int64))
-            else:
-                cap_loss = torch.tensor(0.0, device=DEVICE)
+            if args.benchmark == "change_3d":
+                if args.train_goal == 1:
+                    det_loss = torch.tensor(0.0, device=DEVICE)
+                    if epoch > 0 and epoch % 10 == 0:
+                        adjust_lr(
+                            args=None,
+                            optimizer=self.encoder_optimiser,
+                            shrink_factor=0.5,
+                        )
+                        adjust_lr(
+                            args=None,
+                            optimizer=self.decoder_optimiser,
+                            shrink_factor=0.5,
+                        )
 
-            if self.args.train_goal == 0:
-                det_loss = self.criterion_det(seg_pred, seg_label.to(torch.int64))
-            else:
-                det_loss = torch.tensor(0.0, device=DEVICE)
+                    percep_feat = self.model.encoder(imgA, imgB, output_final=True)
+                    percep_feat = rearrange(percep_feat, "b c h w -> (h w) b c")
 
-            if self.args.train_goal == 0:
-                loss = det_loss
-            else:
-                loss = cap_loss
+                    scores, caps_sorted, decode_lengths, sort_ind = self.model.decoder(
+                        percep_feat, token, token_len
+                    )
+                    targets = caps_sorted[:, 1:]
+                    scores = pack_padded_sequence(
+                        scores, decode_lengths, batch_first=True
+                    ).data
+                    targets = pack_padded_sequence(
+                        targets, decode_lengths, batch_first=True
+                    ).data
 
-            (loss / accum_steps).backward()
+                    cap_loss = self.criterion(scores, targets)
 
-            if args.grad_clip is not None:
-                for params in [
-                    self.decoder.parameters(),
-                    self.encoder_trans.parameters(),
-                    (self.encoder.parameters() if self.encoder_optimizer else []),
-                ]:
-                    torch.nn.utils.clip_grad_value_(params, args.grad_clip)
+                    if args.grad_clip is not None:
+                        clip_gradient(self.decoder_optimiser, args.grad_clip)
+                        if self.encoder_optimiser is not None:
+                            clip_gradient(self.encoder_optimiser, args.grad_clip)
 
-            # Update weights
-            if (id + 1) % accum_steps == 0 or (id + 1) == len(self.train_loader):
-                if self.decoder_optimizer is not None:
-                    self.decoder_optimizer.step()
-                self.encoder_trans_optimizer.step()
-                if self.encoder_optimizer is not None:
-                    self.encoder_optimizer.step()
-
-                # Adjust learning rate
-                if self.decoder_lr_scheduler is not None:
-                    self.decoder_lr_scheduler.step()
-                # print(decoder_optimizer.param_groups[0]['lr'])
-                self.encoder_trans_lr_scheduler.step()
-                if self.encoder_lr_scheduler is not None:
+                    # Update weights
+                    self.encoder_optimiser.step()
                     self.encoder_lr_scheduler.step()
-                    # print(encoder_optimizer.param_groups[0]['lr'])
+                    self.decoder_optimiser.step()
+                    self.decoder_lr_scheduler.step()
+                else:
+                    cap_loss = torch.tensor(0.0, device=DEVICE)
+                    self.lr = adjust_lr(
+                        args,
+                        self.optimiser,
+                        epoch,
+                        id + self.index_i,
+                        self.max_batches,
+                        lr_factor=lr_factor,
+                    )
+                    output = self.model.update_bcd(imgA, imgB)
+                    det_loss = BCEDiceLoss(output, seg_label)
+                    seg_pred = torch.where(
+                        output > 0.5, torch.ones_like(output), torch.zeros_like(output)
+                    ).long()
+                    self.optimiser.zero_grad()
+                    self.optimiser.step()
 
-                if self.decoder_optimizer is not None:
-                    self.decoder_optimizer.zero_grad()
-                self.encoder_trans_optimizer.zero_grad()
-                if self.encoder_optimizer is not None:
-                    self.encoder_optimizer.zero_grad()
+                loss = cap_loss if args.train_goal == 1 else det_loss
+                loss.backward()
+            else:
+                pass
 
             # Keep track of metrics
             self.hist[self.index_i, 0] = time.time() - start_time  # batch_time
@@ -280,7 +301,7 @@ class Trainer(object):
                 print_vals = (
                     epoch,
                     id,
-                    len(self.train_loader),
+                    self.max_batches,
                     np.mean(
                         self.hist[self.index_i - args.print_freq : self.index_i - 1, 0]
                     )
@@ -303,7 +324,7 @@ class Trainer(object):
                 print_vals = (
                     epoch,
                     id,
-                    len(self.train_loader),
+                    self.max_batches,
                     self.hist[self.index_i - 1, 0],
                     self.hist[self.index_i - 1, 1],
                     self.hist[self.index_i - 1, 2],
@@ -347,10 +368,17 @@ class Trainer(object):
     # One epoch's validation
     def validation(self, epoch):
         word_vocab = self.word_vocab
-        self.decoder.eval()  # eval mode (no dropout or batchnorm)
-        self.encoder_trans.eval()
-        if self.encoder is not None:
-            self.encoder.eval()
+
+        if args.data_name == "LEVIR_MCI":
+            seg_label = (seg_label > 0).astype(np.uint8)
+            args.num_class = 2  # enforce
+
+        if args.benchmark == "change_3d":
+            if args.train_goal == 1:
+                self.model.encoder.to(DEVICE).eval()
+                self.model.decoder.to(DEVICE).eval()
+            else:
+                self.model.to(DEVICE).eval()
 
         val_start_time = time.time()
         references = list()  # references (true captions) for calculating BLEU-4 score
@@ -369,72 +397,80 @@ class Trainer(object):
                 _,
                 _,
             ) in enumerate(
-                tqdm(self.val_loader, desc="val_" + "EVALUATING AT BEAM SIZE " + str(1))
+                tqdm(
+                    self.val_loader,
+                    desc="val_" + "EVALUATING AT BEAM SIZE " + str(args.beam_size),
+                )
             ):
                 # Move to GPU, if available
                 imgA = imgA.to(DEVICE)
                 imgB = imgB.to(DEVICE)
                 token_all = token_all.squeeze(0).to(DEVICE)
-                # Forward prop.
-                if self.encoder is not None:
-                    feat1, feat2 = self.encoder(imgA, imgB)
-                feat1, feat2, seg_pre = self.encoder_trans(feat1, feat2)
-                if self.args.train_goal == 1:
-                    seq = self.decoder.sample(feat1, feat2, k=1)
 
-                # for segmentation
-                if self.args.train_goal == 0:
-                    pred_seg = seg_pre.data.cpu().numpy()
-                    seg_label = seg_label.cpu().numpy()
-                    pred_seg = np.argmax(pred_seg, axis=1)
-                    # Add batch sample into evaluator
-                    self.evaluator.add_batch(seg_label, pred_seg)
-                # for captioning
-                if self.args.train_goal == 1:
-                    img_token = token_all.tolist()
-                    img_tokens = list(
-                        map(
-                            lambda c: [
-                                w
-                                for w in c
-                                if w
-                                not in {
-                                    word_vocab["<START>"],
-                                    word_vocab["<END>"],
-                                    word_vocab["<NULL>"],
-                                }
-                            ],
-                            img_token,
+                if args.benchmark == "change_3d":
+                    if args.train_goal == 1:
+                        encoder_out = self.model.encoder(imgA, imgB, output_final=True)
+                        encoder_out = rearrange(encoder_out, "b c h w -> (h w) b c")
+
+                        seq = self.model.decoder.sample_beam(
+                            encoder_out, k=args.beam_size
                         )
-                    )  # remove <start> and pads
-                    references.append(img_tokens)
 
-                    pred_seq = [
-                        w
-                        for w in seq
-                        if w
-                        not in {
-                            word_vocab["<START>"],
-                            word_vocab["<END>"],
-                            word_vocab["<NULL>"],
-                        }
-                    ]
-                    hypotheses.append(pred_seq)
-                    assert len(references) == len(hypotheses)
+                        img_token = token_all.tolist()
+                        img_tokens = list(
+                            map(
+                                lambda c: [
+                                    w
+                                    for w in c
+                                    if w
+                                    not in {
+                                        word_vocab["<START>"],
+                                        word_vocab["<END>"],
+                                        word_vocab["<NULL>"],
+                                    }
+                                ],
+                                img_token,
+                            )
+                        )  # remove <start> and pads
+                        references.append(img_tokens)
 
-                    if ind % self.args.print_freq == 0:
-                        pred_caption = ""
-                        ref_caption = ""
-                        for i in pred_seq:
-                            pred_caption += (list(word_vocab.keys())[i]) + " "
-                        ref_caption = ""
-                        for i in img_tokens:
-                            for j in i:
-                                ref_caption += (list(word_vocab.keys())[j]) + " "
-                            ref_caption += ".    "
+                        pred_seq = [
+                            w
+                            for w in seq
+                            if w
+                            not in {
+                                word_vocab["<START>"],
+                                word_vocab["<END>"],
+                                word_vocab["<NULL>"],
+                            }
+                        ]
+                        hypotheses.append(pred_seq)
+                        assert len(references) == len(hypotheses)
+
+                        if ind % self.args.print_freq == 0:
+                            pred_caption = ""
+                            ref_caption = ""
+                            for i in pred_seq:
+                                pred_caption += (list(word_vocab.keys())[i]) + " "
+                            ref_caption = ""
+                            for i in img_tokens:
+                                for j in i:
+                                    ref_caption += (list(word_vocab.keys())[j]) + " "
+                                ref_caption += ".    "
+                        else:
+                            output = self.model.update_bcd(imgA, imgB)
+                            pred_seg = torch.where(
+                                output > 0.5,
+                                torch.ones_like(output),
+                                torch.zeros_like(output),
+                            ).long()
+                            pred_seg = pred_seg.data().cpu().numpy()
+                            seg_label = seg_label.cpu().numpy()
+                            self.evaluator.add_batch(seg_label, pred_seg)
 
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
+
             val_time = time.time() - val_start_time
             # Fast test during the training
             # for segmentation
@@ -522,25 +558,37 @@ class Trainer(object):
                 )
 
         # Check if there was an improvement
-        if self.args.train_goal == 0:
+        if args.train_goal == 0:
             Bleu_4 = 0
-        if self.args.train_goal == 1:
+        if args.train_goal == 1:
             mIoU_seg = 0
         if Bleu_4 > self.best_bleu4 or mIoU_seg > self.MIou:
             self.best_bleu4 = max(Bleu_4, self.best_bleu4)
             self.MIou = max(mIoU_seg, self.MIou)
+
+            if args.train_goal == 0:
+                state = {
+                    "state_dict": self.model.state_dict(),
+                    "arch": str(self.model),
+                    "epoch": epoch + 1,
+                    "best_mIoU": self.MIou,
+                    "optimiser": self.optimiser.state_dict(),
+                    "lr": self.lr,
+                }
+            else:
+                state = {
+                    "epoch": epoch + 1,
+                    "arch": str(args.benchmark),
+                    "best_bleu4": self.best_bleu4,
+                    "encoder_image": self.model.encoder.state_dict(),
+                    "decoder": self.model.decoder.state_dict(),
+                    "encoder_image_optimizer": self.encoder_optimiser.state_dict(),
+                    "decoder_optimizer": self.decoder_optimiser.state_dict(),
+                }
+
             # save_checkpoint
-            state = {
-                "state_dict": self.model.state_dict(),
-                "arch": str(self.model)
-                "epoch": epoch + 1,
-                "best_mIoU": self.MIou,
-                "best_bleu4": self.best_bleu4,
-                "optimiser": self.optimiser,
-                "lr": self.lr
-            }
             metric = f"MIou_{round(100000 * self.MIou)}_Bleu4_{round(100000 * self.best_bleu4)}"
-            model_name = f"{args.data_name}_bts_{args.train_batchsize}_{args.network}_epo_{epoch}_{metric}.pth"
+            model_name = f"{args.benchmark}_{args.data_name}_bts_{args.train_batchsize}_{args.network}_epo_{epoch}_{metric}.pth"
             best_model_path = os.path.join(self.args.savepath, model_name)
 
             if epoch > 5:
@@ -589,9 +637,10 @@ if __name__ == "__main__":
     parser.add_argument("--gpu_id", type=int, default=0, help="gpu id in the training.")
 
     parser.add_argument(
-        "--benchmark_model",
+        "--benchmark",
         default=None,
         help="name of the benchmark model to be loaded",
+        choices=["change_3d"],
     )
 
     parser.add_argument(
@@ -604,7 +653,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--train_goal",
         type=int,
-        default=2,
+        default=0,
         help="0:det; 1:cap;",
         choices=[0, 1],
     )
@@ -648,7 +697,11 @@ if __name__ == "__main__":
         "--val_batchsize", type=int, default=1, help="batch_size for validation"
     )
     parser.add_argument("--savepath", default="./models_ckpt/")
-
+    parser.add_argument(
+        "--checkpoint",
+        default=None,
+        help="path to checkpoint for resuming training",
+    )
     parser.add_argument("--num_class", type=int, default=2)
 
     args = parser.parse_args()

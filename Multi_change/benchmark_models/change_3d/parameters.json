@@ -4,5 +4,16 @@
     "lr": 2e-4,
     "lr_mode": "poly",
     "step_loss": 100,
-    "pretrained": "change_3d/X3D_L.pyth"
+    "pretrained": "models_ckpt/X3D_L.pyth",
+    "n_head": 8,
+    "n_layer": 3,
+    "decoder_n_layers": 1,
+    "embed_dim": 192,
+    "dropout": 0.1,
+    "encoder_lr": 1e-4,
+    "decoder_lr": 1e-4,
+    "grad_clip": 5.0,
+    "fine_tune_encoder": true,
+    "beam_size": 1,
+    "num_perception_frame": 1
 }
