@@ -147,6 +147,7 @@ class Trainer(object):
             elif args.train_goal == 1:
                 self.encoder_optimiser = None
                 self.encoder_lr_scheduler = None
+                self.model = Change3d_Trainer(args).to(DEVICE).float()
 
                 if args.fine_tune_encoder:
                     self.encoder_optimiser = torch.optim.Adam(
@@ -470,6 +471,7 @@ class Trainer(object):
                                 ref_caption += ".    "
                     else:
                         seg_pred = self.model.update_bcd(imgA, imgB)
+                        seg_pred = seg_pred.squeeze(1)
                         seg_pred = torch.where(
                             seg_pred > 0.5,
                             torch.ones_like(seg_pred),
@@ -477,6 +479,8 @@ class Trainer(object):
                         ).long()
                         pred_seg = seg_pred.data.cpu().numpy()
                         seg_label = seg_label.cpu().numpy()
+
+                        print(seg_label.shape, pred_seg.shape)
                         self.evaluator.add_batch(seg_label, pred_seg)
 
                 if torch.cuda.is_available():
