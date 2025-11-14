@@ -182,22 +182,10 @@ class Change3d_Trainer(nn.Module):
         self.encoder = Encoder(args, self.embed_dims)
 
         # For binary change detection and change caption task
-        if args.train_goal == 0 and args.num_class == 2:
+        if args.train_goal == 0:
             self.decoder = ChangeDecoder(args, in_dim=self.embed_dims, has_sigmoid=True)
             # Initialize decoder weights
             weight_init(self.decoder)
-
-        # For semantic change detection task
-        elif args.train_goal == 0 and args.num_class == 3:
-            self.decoder_pre = ChangeDecoder(args, in_dim=self.embed_dims)
-            self.decoder_post = ChangeDecoder(args, in_dim=self.embed_dims)
-            self.decoder_change = ChangeDecoder(
-                args, in_dim=self.embed_dims, has_sigmoid=True
-            )
-            # Initialize decoder weights
-            weight_init(self.decoder_pre)
-            weight_init(self.decoder_post)
-            weight_init(self.decoder_change)
 
         # For change caption task
         elif args.train_goal == 1:

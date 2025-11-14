@@ -247,6 +247,11 @@ class Trainer(object):
 
                     cap_loss = self.criterion(scores, targets)
 
+                    self.decoder_optimiser.zero_grad()
+                    if self.encoder_optimiser is not None:
+                        self.encoder_optimiser.zero_grad()
+                    cap_loss.backward()
+
                     if args.grad_clip is not None:
                         clip_gradient(self.decoder_optimiser, args.grad_clip)
                         if self.encoder_optimiser is not None:
@@ -259,7 +264,11 @@ class Trainer(object):
                     self.decoder_lr_scheduler.step()
                 else:
                     cap_loss = torch.tensor(0.0, device=DEVICE)
-                    self.lr = adjust_lr(
+                    if seg_label.ndim == 3:
+                        seg_label = seg_label.unsqueeze(1)
+                    seg_label = seg_label.float()
+
+                    adjust_lr(
                         args,
                         self.optimiser,
                         epoch,
@@ -267,16 +276,17 @@ class Trainer(object):
                         self.max_batches,
                         lr_factor=lr_factor,
                     )
-                    output = self.model.update_bcd(imgA, imgB)
-                    det_loss = BCEDiceLoss(output, seg_label)
+                    seg_pred = self.model.update_bcd(imgA, imgB)
+                    det_loss = BCEDiceLoss(seg_pred, seg_label)
+
                     seg_pred = torch.where(
-                        output > 0.5, torch.ones_like(output), torch.zeros_like(output)
+                        seg_pred > 0.5,
+                        torch.ones_like(seg_pred),
+                        torch.zeros_like(seg_pred),
                     ).long()
                     self.optimiser.zero_grad()
+                    det_loss.backward()
                     self.optimiser.step()
-
-                loss = cap_loss if args.train_goal == 1 else det_loss
-                loss.backward()
             else:
                 pass
 
@@ -369,10 +379,6 @@ class Trainer(object):
     def validation(self, epoch):
         word_vocab = self.word_vocab
 
-        if args.data_name == "LEVIR_MCI":
-            seg_label = (seg_label > 0).astype(np.uint8)
-            args.num_class = 2  # enforce
-
         if args.benchmark == "change_3d":
             if args.train_goal == 1:
                 self.model.encoder.to(DEVICE).eval()
@@ -385,6 +391,7 @@ class Trainer(object):
         hypotheses = list()  # hypotheses (predictions)
 
         self.evaluator.reset()
+
         with torch.no_grad():
             # Batches
             for ind, (
@@ -406,6 +413,10 @@ class Trainer(object):
                 imgA = imgA.to(DEVICE)
                 imgB = imgB.to(DEVICE)
                 token_all = token_all.squeeze(0).to(DEVICE)
+
+                if args.data_name == "LEVIR_MCI":
+                    seg_label = (seg_label > 0).astype(np.uint8)
+                    args.num_class = 2  # enforce
 
                 if args.benchmark == "change_3d":
                     if args.train_goal == 1:
@@ -457,16 +468,16 @@ class Trainer(object):
                                 for j in i:
                                     ref_caption += (list(word_vocab.keys())[j]) + " "
                                 ref_caption += ".    "
-                        else:
-                            output = self.model.update_bcd(imgA, imgB)
-                            pred_seg = torch.where(
-                                output > 0.5,
-                                torch.ones_like(output),
-                                torch.zeros_like(output),
-                            ).long()
-                            pred_seg = pred_seg.data().cpu().numpy()
-                            seg_label = seg_label.cpu().numpy()
-                            self.evaluator.add_batch(seg_label, pred_seg)
+                    else:
+                        seg_pred = self.model.update_bcd(imgA, imgB)
+                        seg_pred = torch.where(
+                            seg_pred > 0.5,
+                            torch.ones_like(seg_pred),
+                            torch.zeros_like(seg_pred),
+                        ).long()
+                        pred_seg = seg_pred.data.cpu().numpy()
+                        seg_label = seg_label.cpu().numpy()
+                        self.evaluator.add_batch(seg_label, pred_seg)
 
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
@@ -474,7 +485,7 @@ class Trainer(object):
             val_time = time.time() - val_start_time
             # Fast test during the training
             # for segmentation
-            if self.args.train_goal == 1:
+            if self.args.train_goal == 0:
                 Acc_seg = self.evaluator.Pixel_Accuracy()
                 Acc_class_seg = self.evaluator.Pixel_Accuracy_Class()
                 mIoU_seg, IoU = self.evaluator.Mean_Intersection_over_Union()
@@ -573,7 +584,6 @@ class Trainer(object):
                     "epoch": epoch + 1,
                     "best_mIoU": self.MIou,
                     "optimiser": self.optimiser.state_dict(),
-                    "lr": self.lr,
                 }
             else:
                 state = {
