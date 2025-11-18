@@ -1,17 +1,21 @@
 import argparse
 import json
 import time
+from pathlib import Path
 
 import cv2
 import numpy as np
 from data.ForestChange import ForestChangeDataset
 from data.LEVIR_MCI import LEVIRCCDataset
+from einops import rearrange
 from mci_model.model_decoder import DecoderTransformer
 from mci_model.model_encoder_att import AttentiveEncoder, Encoder
 from torch.utils import data
 from tqdm import tqdm
 from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
+
+from Multi_change.benchmark_models.change_3d.trainer import Change3d_Trainer
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -128,39 +132,24 @@ def main(args):
             for name in dirs:
                 os.rmdir(os.path.join(root, name))
 
-    encoder = Encoder(args.network)
-
-    dims = [32, 64, 160, 256] if "b0" in args.network else [64, 128, 320, 512]
-    encoder_trans = AttentiveEncoder(
-        train_stage=None,
-        n_layers=args.n_layers,
-        feature_size=[args.feat_size, args.feat_size, args.encoder_dim],
-        heads=args.n_heads,
-        num_classes=args.num_classes,
-        dims=dims,
-        dropout=args.dropout,
-    )
-    decoder = DecoderTransformer(
-        encoder_dim=args.encoder_dim,
-        feature_dim=args.feature_dim,
-        vocab_size=len(word_vocab),
-        max_lengths=max_length,
-        word_vocab=word_vocab,
-        n_head=args.n_heads,
-        n_layers=args.decoder_n_layers,
-        dropout=args.dropout,
-    )
-
-    encoder.load_state_dict(checkpoint["encoder_dict"])
-    encoder_trans.load_state_dict(checkpoint["encoder_trans_dict"], strict=False)
-    decoder.load_state_dict(checkpoint["decoder_dict"])
-    # Move to GPU, if available
-    encoder.eval()
-    encoder = encoder.to(DEVICE)
-    encoder_trans.eval()
-    encoder_trans = encoder_trans.to(DEVICE)
-    decoder.eval()
-    decoder = decoder.to(DEVICE)
+    # UPDATE THIS LOGIC
+    if args.benchmark == "change_3d":
+        model = Change3d_Trainer(args).to(DEVICE).float()
+        if args.train_goal == 1:
+            model.encoder.load_state_dict(checkpoint["encoder_state_dict"])
+            model.decoder.load_state_dict(checkpoint["decoder_state_dict"])
+            model.encoder.eval()
+            model.encoder = model.encoder.to(DEVICE)
+            model.decoder.eval()
+            model.decoder = model.encoder.to(DEVICE)
+        elif args.train_goal == 0:
+            model.load_state_dict(checkpoint["state_dict"])
+            model.eval()
+            model = model.to(DEVICE)
+        else:
+            raise ValueError("Unknown train goal selected.")
+    else:
+        raise ValueError("Unknown benchmark model selected.")
 
     # Custom dataloaders
     if args.data_name in ["LEVIR_MCI", "Forest-Change"]:
@@ -232,85 +221,100 @@ def main(args):
             token_all = token_all.squeeze(0).to(DEVICE)
             # decode_lengths = max(token_all_len.squeeze(0)).item()
             # Forward prop.
-            if encoder is not None:
-                feat1, feat2 = encoder(imgA, imgB)
-            feat1, feat2, seg_pre = encoder_trans(feat1, feat2)
-            seq = decoder.sample(feat1, feat2, k=1)
 
-            # for segmentation
-            pred_seg = seg_pre.data.cpu().numpy()
-            seg_label = seg_label.cpu().numpy()
-            pred_seg = np.argmax(pred_seg, axis=1)
+            # UPDATE HERE
+            if args.benchmark == "change_3d":
 
-            # for change detection: save mask?
-            if args.save_mask:
-                save_mask(pred_seg, seg_label, name, args.result_path, args)
-            # Add batch sample into evaluator
-            evaluator.add_batch(seg_label, pred_seg)
+                if args.train_goal == 1:
+                    encoder_out = model.update_cc(imgA, imgB)
+                    encoder_out = rearrange(encoder_out, "b c h w -> (h w) b c")
 
-            # for captioning
-            img_token = token_all.tolist()
-            img_tokens = list(
-                map(
-                    lambda c: [
+                    seq = model.decoder.sample_beam(encoder_out, k=args.beam_size)
+
+                    img_token = token_all.tolist()
+                    img_tokens = list(
+                        map(
+                            lambda c: [
+                                w
+                                for w in c
+                                if w
+                                not in {
+                                    word_vocab["<START>"],
+                                    word_vocab["<END>"],
+                                    word_vocab["<NULL>"],
+                                }
+                            ],
+                            img_token,
+                        )
+                    )  # remove <start> and pads
+                    references.append(img_tokens)
+
+                    pred_seq = [
                         w
-                        for w in c
+                        for w in seq
                         if w
                         not in {
                             word_vocab["<START>"],
                             word_vocab["<END>"],
                             word_vocab["<NULL>"],
                         }
-                    ],
-                    img_token,
-                )
-            )  # remove <start> and pads
-            references.append(img_tokens)
+                    ]
+                    hypotheses.append(pred_seq)
+                    assert len(references) == len(hypotheses)
 
-            pred_seq = [
-                w
-                for w in seq
-                if w
-                not in {
-                    word_vocab["<START>"],
-                    word_vocab["<END>"],
-                    word_vocab["<NULL>"],
-                }
-            ]
-            hypotheses.append(pred_seq)
-            assert len(references) == len(hypotheses)
-            pred_caption = ""
-            ref_caption = ""
-            for i in pred_seq:
-                pred_caption += (list(word_vocab.keys())[i]) + " "
-            ref_caption = ""
-            for i in img_tokens[0]:
-                ref_caption += (list(word_vocab.keys())[i]) + " "
-            ref_captions = ""
-            for i in img_tokens:
-                for j in i:
-                    ref_captions += (list(word_vocab.keys())[j]) + " "
-                ref_captions += ".    "
-            # for captioning: save captions?
-            if args.save_caption:
-                save_captions(
-                    pred_caption,
-                    ref_captions,
-                    hypotheses[-1],
-                    references[-1],
-                    name,
-                    args.result_path,
-                )
-            if ref_caption in nochange_list:
-                nochange_references.append(img_tokens)
-                nochange_hypotheses.append(pred_seq)
-                if pred_caption in nochange_list:
-                    nochange_acc = nochange_acc + 1
+                    pred_caption = ""
+                    ref_caption = ""
+                    for i in pred_seq:
+                        pred_caption += (list(word_vocab.keys())[i]) + " "
+                    ref_caption = ""
+                    for i in img_tokens[0]:
+                        ref_caption += (list(word_vocab.keys())[i]) + " "
+                    ref_captions = ""
+                    for i in img_tokens:
+                        for j in i:
+                            ref_captions += (list(word_vocab.keys())[j]) + " "
+                        ref_captions += ".    "
+
+                    if args.save_caption:
+                        save_captions(
+                            pred_caption,
+                            ref_captions,
+                            hypotheses[-1],
+                            references[-1],
+                            name,
+                            args.result_path,
+                        )
+                    if ref_caption in nochange_list:
+                        nochange_references.append(img_tokens)
+                        nochange_hypotheses.append(pred_seq)
+                        if pred_caption in nochange_list:
+                            nochange_acc = nochange_acc + 1
+                    else:
+                        change_references.append(img_tokens)
+                        change_hypotheses.append(pred_seq)
+                        if pred_caption not in nochange_list:
+                            change_acc = change_acc + 1
+                else:
+                    if args.data_name == "LEVIR_MCI":
+                        seg_label = (seg_label > 0).astype(np.uint8)
+                        args.num_class = 2  # enforce
+
+                    seg_pred = model.update_bcd(imgA, imgB)
+                    seg_pred = seg_pred.squeeze(1)
+                    seg_pred = torch.where(
+                        seg_pred > 0.5,
+                        torch.ones_like(seg_pred),
+                        torch.zeros_like(seg_pred),
+                    ).long()
+                    pred_seg = seg_pred.data.cpu().numpy()
+                    seg_label = seg_label.cpu().numpy()
+
+                    if args.save_mask:
+                        save_mask(pred_seg, seg_label, name, args.result_path, args)
+
+                    evaluator.add_batch(seg_label, pred_seg)
             else:
-                change_references.append(img_tokens)
-                change_hypotheses.append(pred_seq)
-                if pred_caption not in nochange_list:
-                    change_acc = change_acc + 1
+                pass
 
         test_time = time.time() - test_start_time
 
@@ -449,6 +453,13 @@ if __name__ == "__main__":
         "--data_name", default="Forest-Change", help="base name shared by data files."
     )
 
+    parser.add_argument(
+        "--benchmark",
+        default=None,
+        help="name of the benchmark model to be loaded",
+        choices=["change_3d"],
+    )
+
     # Test
     parser.add_argument("--gpu_id", type=int, default=0, help="gpu id in the training.")
     parser.add_argument(
@@ -480,38 +491,20 @@ if __name__ == "__main__":
         default="./predict_results",
         help="path to save the result of masks and captions",
     )
-    # backbone parameters
-    parser.add_argument(
-        "--network",
-        default="segformer-mit_b1",
-        help="define the backbone encoder to extract features",
-    )
-    parser.add_argument(
-        "--encoder_dim",
-        type=int,
-        default=512,
-        help="the dimension of extracted features using backbone ",
-    )
-    parser.add_argument(
-        "--feat_size",
-        type=int,
-        default=16,
-        help="define the output size of encoder to extract features",
-    )
-    # Model parameters
-    parser.add_argument(
-        "--n_heads", type=int, default=8, help="Multi-head attention in Transformer."
-    )
-    parser.add_argument(
-        "--n_layers", type=int, default=3, help="Number of layers in AttentionEncoder."
-    )
-    parser.add_argument("--decoder_n_layers", type=int, default=1)
-    parser.add_argument(
-        "--feature_dim", type=int, default=512, help="embedding dimension"
-    )
+
     parser.add_argument("--num_classes", type=int, default=2)
     parser.add_argument("--split", default="test")
 
     args = parser.parse_args()
 
+    json_params = Path(
+        f"./benchmark_models/{args.benchmark}/parameters.json"
+    ).read_text()
+    json_args = json.loads(json_params)
+
+    for k, v in json_args.items():
+        if not hasattr(args, k) or getattr(args, k) is None:
+            setattr(args, k, v)
+
+    main(args)
     main(args)

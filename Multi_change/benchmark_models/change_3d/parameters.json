@@ -11,7 +11,7 @@
     "embed_dim": 192,
     "dropout": 0.1,
     "encoder_lr": 1e-4,
-    "decoder_lr": 1e-4,
+    "decoder_lr": 1e-5,
     "grad_clip": 5.0,
     "fine_tune_encoder": true,
     "beam_size": 1,

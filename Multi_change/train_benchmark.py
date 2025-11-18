@@ -66,12 +66,14 @@ class Trainer(object):
         self.MIou = 0.3
         self.start_epoch = 0
         with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
-            self.word_vocab = json.load(f)
+            args.word_vocab = json.load(f)
 
         with open(
             os.path.join(args.list_path) + args.metadata_file + ".json", "r"
         ) as f:
-            self.max_length = json.load(f)["max_length"]
+            args.max_length = json.load(f)["max_length"]
+
+        args.vocab_size = len(args.word_vocab)
         # Initialize / load checkpoint
         self.build_benchmark_model()
 
@@ -86,7 +88,7 @@ class Trainer(object):
                         split=split,
                         token_folder=args.token_folder,
                         vocab_file=args.vocab_file,
-                        max_length=self.max_length,
+                        max_length=args.max_length,
                         allow_unk=args.allow_unk,
                         transform=get_image_transforms() if args.augment else None,
                         max_iters=(
@@ -103,7 +105,7 @@ class Trainer(object):
                         split=split,
                         token_folder=args.token_folder,
                         vocab_file=args.vocab_file,
-                        max_length=self.max_length,
+                        max_length=args.max_length,
                         allow_unk=args.allow_unk,
                         num_classes=args.num_class,
                     )
@@ -135,8 +137,8 @@ class Trainer(object):
         args = self.args
 
         if args.benchmark == "change_3d":
+            self.model = Change3d_Trainer(args).to(DEVICE).float()
             if args.train_goal == 0:
-                self.model = Change3d_Trainer(args).to(DEVICE).float()
                 self.optimiser = torch.optim.Adam(
                     self.model.parameters(),
                     args.lr,
@@ -147,7 +149,6 @@ class Trainer(object):
             elif args.train_goal == 1:
                 self.encoder_optimiser = None
                 self.encoder_lr_scheduler = None
-                self.model = Change3d_Trainer(args).to(DEVICE).float()
 
                 if args.fine_tune_encoder:
                     self.encoder_optimiser = torch.optim.Adam(
@@ -198,6 +199,17 @@ class Trainer(object):
             if args.train_goal == 1:
                 self.model.encoder.train()
                 self.model.decoder.train()
+                if epoch > 0 and epoch % 10 == 0:
+                    adjust_lr(
+                        args=None,
+                        optimizer=self.encoder_optimiser,
+                        shrink_factor=0.5,
+                    )
+                    adjust_lr(
+                        args=None,
+                        optimizer=self.decoder_optimiser,
+                        shrink_factor=0.5,
+                    )
             else:
                 self.model.train()
 
@@ -206,13 +218,13 @@ class Trainer(object):
         ):
             start_time = time.time()
 
+            if args.data_name == "LEVIR_MCI":
+                seg_label = (seg_label > 0).long()
+                args.num_class = 2  # enforce
+
             imgA = imgA.to(DEVICE)
             imgB = imgB.to(DEVICE)
             seg_label = seg_label.to(DEVICE)
-
-            if args.data_name == "LEVIR_MCI":
-                seg_label = (seg_label > 0).astype(np.uint8)
-                args.num_class = 2  # enforce
 
             token = token.squeeze(1).to(DEVICE)
             token_len = token_len.to(DEVICE)
@@ -220,25 +232,15 @@ class Trainer(object):
             if args.benchmark == "change_3d":
                 if args.train_goal == 1:
                     det_loss = torch.tensor(0.0, device=DEVICE)
-                    if epoch > 0 and epoch % 10 == 0:
-                        adjust_lr(
-                            args=None,
-                            optimizer=self.encoder_optimiser,
-                            shrink_factor=0.5,
-                        )
-                        adjust_lr(
-                            args=None,
-                            optimizer=self.decoder_optimiser,
-                            shrink_factor=0.5,
-                        )
 
-                    percep_feat = self.model.encoder(imgA, imgB, output_final=True)
+                    percep_feat = self.model.update_cc(imgA, imgB)
                     percep_feat = rearrange(percep_feat, "b c h w -> (h w) b c")
 
                     scores, caps_sorted, decode_lengths, sort_ind = self.model.decoder(
                         percep_feat, token, token_len
                     )
                     targets = caps_sorted[:, 1:]
+
                     scores = pack_padded_sequence(
                         scores, decode_lengths, batch_first=True
                     ).data
@@ -257,6 +259,50 @@ class Trainer(object):
                         clip_gradient(self.decoder_optimiser, args.grad_clip)
                         if self.encoder_optimiser is not None:
                             clip_gradient(self.encoder_optimiser, args.grad_clip)
+
+                    # Before backward
+                    print(
+                        f"LR - Encoder: {self.encoder_optimiser.param_groups[0]['lr']:.2e}"
+                    )
+                    print(
+                        f"LR - Decoder: {self.decoder_optimiser.param_groups[0]['lr']:.2e}"
+                    )
+
+                    # After backward, before step
+                    encoder_grad_norm = torch.norm(
+                        torch.stack(
+                            [
+                                p.grad.norm()
+                                for p in self.model.encoder.parameters()
+                                if p.grad is not None
+                            ]
+                        )
+                    )
+                    decoder_grad_norm = torch.norm(
+                        torch.stack(
+                            [
+                                p.grad.norm()
+                                for p in self.model.decoder.parameters()
+                                if p.grad is not None
+                            ]
+                        )
+                    )
+                    print(
+                        f"Gradient norms - Encoder: {encoder_grad_norm:.4f}, Decoder: {decoder_grad_norm:.4f}"
+                    )
+
+                    # Check for dead neurons
+                    dead_encoder = sum(
+                        (p == 0).float().mean() > 0.9
+                        for p in self.model.encoder.parameters()
+                    )
+                    dead_decoder = sum(
+                        (p == 0).float().mean() > 0.9
+                        for p in self.model.decoder.parameters()
+                    )
+                    print(
+                        f"Dead param check - Encoder: {dead_encoder}, Decoder: {dead_decoder}"
+                    )
 
                     # Update weights
                     self.encoder_optimiser.step()
@@ -378,7 +424,7 @@ class Trainer(object):
 
     # One epoch's validation
     def validation(self, epoch):
-        word_vocab = self.word_vocab
+        word_vocab = self.args.word_vocab
 
         if args.benchmark == "change_3d":
             if args.train_goal == 1:
@@ -410,18 +456,19 @@ class Trainer(object):
                     desc="val_" + "EVALUATING AT BEAM SIZE " + str(args.beam_size),
                 )
             ):
+                if args.data_name == "LEVIR_MCI":
+                    seg_label = (seg_label > 0).long()
+                    args.num_class = 2  # enforce
+
                 # Move to GPU, if available
                 imgA = imgA.to(DEVICE)
                 imgB = imgB.to(DEVICE)
+                seg_label = seg_label.to(DEVICE)
                 token_all = token_all.squeeze(0).to(DEVICE)
-
-                if args.data_name == "LEVIR_MCI":
-                    seg_label = (seg_label > 0).astype(np.uint8)
-                    args.num_class = 2  # enforce
 
                 if args.benchmark == "change_3d":
                     if args.train_goal == 1:
-                        encoder_out = self.model.encoder(imgA, imgB, output_final=True)
+                        encoder_out = self.model.update_cc(imgA, imgB)
                         encoder_out = rearrange(encoder_out, "b c h w -> (h w) b c")
 
                         seq = self.model.decoder.sample_beam(
@@ -480,7 +527,6 @@ class Trainer(object):
                         pred_seg = seg_pred.data.cpu().numpy()
                         seg_label = seg_label.cpu().numpy()
 
-                        print(seg_label.shape, pred_seg.shape)
                         self.evaluator.add_batch(seg_label, pred_seg)
 
                 if torch.cuda.is_available():
@@ -594,15 +640,15 @@ class Trainer(object):
                     "epoch": epoch + 1,
                     "arch": str(args.benchmark),
                     "best_bleu4": self.best_bleu4,
-                    "encoder_image": self.model.encoder.state_dict(),
-                    "decoder": self.model.decoder.state_dict(),
+                    "encoder_state_dict": self.model.encoder.state_dict(),
+                    "decoder_state_dict": self.model.decoder.state_dict(),
                     "encoder_image_optimizer": self.encoder_optimiser.state_dict(),
                     "decoder_optimizer": self.decoder_optimiser.state_dict(),
                 }
 
             # save_checkpoint
             metric = f"MIou_{round(100000 * self.MIou)}_Bleu4_{round(100000 * self.best_bleu4)}"
-            model_name = f"{args.benchmark}_{args.data_name}_bts_{args.train_batchsize}_{args.network}_epo_{epoch}_{metric}.pth"
+            model_name = f"{args.benchmark}_{args.data_name}_bts_{args.train_batchsize}_epo_{epoch}_{metric}.pth"
             best_model_path = os.path.join(self.args.savepath, model_name)
 
             if epoch > 5:

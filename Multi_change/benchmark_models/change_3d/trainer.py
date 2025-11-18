@@ -186,8 +186,6 @@ class Change3d_Trainer(nn.Module):
             self.decoder = ChangeDecoder(args, in_dim=self.embed_dims, has_sigmoid=True)
             # Initialize decoder weights
             weight_init(self.decoder)
-
-        # For change caption task
         elif args.train_goal == 1:
             self.decoder = CaptionDecoder(args)
         else:
