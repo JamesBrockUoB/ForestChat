@@ -10,7 +10,9 @@ from pathlib import Path
 import numpy as np
 import wandb
 from benchmark_models.change_3d.trainer import Change3d_Trainer
-from benchmark_models.change_3d.utils import BCEDiceLoss, adjust_lr
+from benchmark_models.change_3d.utils import BCEDiceLoss
+from benchmark_models.chg2cap.model_decoder import DecoderTransformer
+from benchmark_models.chg2cap.model_encoder import AttentiveEncoder, Encoder
 from data.ForestChange import ForestChangeDataset
 from data.LEVIR_MCI import LEVIRCCDataset
 from einops import rearrange
@@ -31,7 +33,6 @@ class Trainer(object):
         """
         Training and validation.
         """
-        self.start_train_goal = args.train_goal
         self.args = args
         self.run = wandb.init(
             project="forest-chat",
@@ -62,7 +63,7 @@ class Trainer(object):
         print_log("=>train_batchsize: {}".format(args.train_batchsize), self.log)
         print_log("=>benchmark: {}".format(args.benchmark), self.log)
 
-        self.best_bleu4 = 0.3  # BLEU-4 score right now
+        self.best_bleu4 = 0.05  # BLEU-4 score right now
         self.MIou = 0.3
         self.start_epoch = 0
         with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
@@ -138,57 +139,179 @@ class Trainer(object):
 
         if args.benchmark == "change_3d":
             self.model = Change3d_Trainer(args).to(DEVICE).float()
-            if args.train_goal == 0:
-                self.optimiser = torch.optim.Adam(
-                    self.model.parameters(),
-                    args.lr,
-                    (0.9, 0.99),
-                    eps=1e-08,
-                    weight_decay=1e-4,
-                )
-            elif args.train_goal == 1:
-                self.encoder_optimiser = None
-                self.encoder_lr_scheduler = None
+            if args.checkpoint is None:
+                if args.train_goal == 0:
+                    self.optimizer = torch.optim.Adam(
+                        self.model.parameters(),
+                        args.lr,
+                        (0.9, 0.99),
+                        eps=1e-08,
+                        weight_decay=1e-4,
+                    )
+                elif args.train_goal == 1:
+                    self.encoder_optimizer = None
+                    self.encoder_lr_scheduler = None
 
-                if args.fine_tune_encoder:
-                    self.encoder_optimiser = torch.optim.Adam(
+                    if args.fine_tune_encoder:
+                        self.encoder_optimizer = torch.optim.Adam(
+                            params=filter(
+                                lambda p: p.requires_grad,
+                                self.model.encoder.parameters(),
+                            ),
+                            lr=args.encoder_lr,
+                            weight_decay=1e-5,
+                        )
+                        self.encoder_lr_scheduler = StepLR(
+                            self.encoder_optimizer, step_size=900, gamma=1
+                        )
+
+                    self.decoder_optimizer = torch.optim.Adam(
                         params=filter(
-                            lambda p: p.requires_grad, self.model.encoder.parameters()
+                            lambda p: p.requires_grad, self.model.decoder.parameters()
+                        ),
+                        lr=args.decoder_lr,
+                        weight_decay=1e-5,
+                    )
+
+                    self.decoder_lr_scheduler = StepLR(
+                        self.decoder_optimizer, step_size=900, gamma=1
+                    )
+                    self.criterion = nn.CrossEntropyLoss(ignore_index=0).to(DEVICE)
+                else:
+                    raise ValueError("Unknown train goal selected.")
+            else:
+                print_log(f"Resuming from checkpoint: {args.checkpoint}", self.log)
+                checkpoint = torch.load(args.checkpoint, map_location=DEVICE)
+
+                self.model.load_state_dict(checkpoint.get("state_dict", 0))
+
+                self.start_epoch = checkpoint.get("epoch", 0)
+                self.best_epoch = checkpoint.get("epoch", 0)
+                self.MIoU = checkpoint.get("best_mIoU", 0.3)
+                self.best_bleu4 = checkpoint.get("best_bleu4", 0.05)
+
+                if "state_dict" in checkpoint:
+                    self.model.load_state_dict(checkpoint["state_dict"])
+
+                if "encoder_state_dict" in checkpoint:
+                    self.model.encoder.load_state_dict(checkpoint["encoder_state_dict"])
+
+                if "decoder_state_dict" in checkpoint:
+                    self.model.decoder.load_state_dict(checkpoint["decoder_state_dict"])
+
+                if "optimizer" in checkpoint:
+                    self.optimizer.load_state_dict(checkpoint["optimizer"])
+
+                if "encoder_image_optimizer" in checkpoint:
+                    self.encoder_optimizer.load_state_dict(
+                        checkpoint["encoder_image_optimizer"]
+                    )
+
+                if "decoder_optimizer" in checkpoint:
+                    self.decoder_optimizer.load_state_dict(
+                        checkpoint["decoder_optimizer"]
+                    )
+
+                if args.fine_tune_encoder is True and self.encoder_optimizer is None:
+                    self.encoder_optimizer = torch.optim.Adam(
+                        params=filter(
+                            lambda p: p.requires_grad,
+                            self.model.encoder.parameters(),
                         ),
                         lr=args.encoder_lr,
                         weight_decay=1e-5,
                     )
-                    self.encoder_lr_scheduler = StepLR(
-                        self.encoder_optimiser, step_size=900, gamma=1
-                    )
 
-                self.decoder_optimiser = torch.optim.Adam(
-                    params=filter(
-                        lambda p: p.requires_grad, self.model.decoder.parameters()
-                    ),
-                    lr=args.decoder_lr,
-                    weight_decay=1e-5,
-                )
                 self.decoder_lr_scheduler = StepLR(
-                    self.decoder_optimiser, step_size=900, gamma=1
+                    self.decoder_optimizer, step_size=900, gamma=1
                 )
+
                 self.criterion = nn.CrossEntropyLoss(ignore_index=0).to(DEVICE)
+        elif args.benchmark == "bifa":
+            pass
+        elif args.benchmark == "chg2cap":
+            if args.checkpoint is None:
+                self.encoder = Encoder(args.network)
+                self.encoder.fine_tune(args.fine_tune_encoder)
+                self.encoder_optimizer = (
+                    torch.optim.Adam(
+                        params=self.encoder.parameters(), lr=args.encoder_lr
+                    )
+                    if args.fine_tune_encoder
+                    else None
+                )
+                self.encoder_trans = AttentiveEncoder(
+                    n_layers=args.n_layers,
+                    feature_size=[args.feat_size, args.feat_size, args.encoder_dim],
+                    heads=args.n_heads,
+                    hidden_dim=args.hidden_dim,
+                    attention_dim=args.attention_dim,
+                    dropout=args.dropout,
+                )
+                self.encoder_trans_optimizer = torch.optim.Adam(
+                    params=filter(
+                        lambda p: p.requires_grad, self.encoder_trans.parameters()
+                    ),
+                    lr=args.encoder_lr,
+                )
+                self.decoder = DecoderTransformer(
+                    encoder_dim=args.encoder_dim,
+                    feature_dim=args.feature_dim,
+                    vocab_size=len(args.word_vocab),
+                    max_lengths=args.max_length,
+                    word_vocab=args.word_vocab,
+                    n_head=args.n_heads,
+                    n_layers=args.decoder_n_layers,
+                    dropout=args.dropout,
+                )
+                self.decoder_optimizer = torch.optim.Adam(
+                    params=filter(lambda p: p.requires_grad, self.decoder.parameters()),
+                    lr=args.decoder_lr,
+                )
             else:
-                raise ValueError("Unknown train goal selected.")
+                print_log(f"Resuming from checkpoint: {args.checkpoint}", self.log)
+                checkpoint = torch.load(args.checkpoint)
+
+                self.start_epoch = checkpoint.get("epoch", 0)
+                self.best_epoch = checkpoint.get("epoch", 0)
+                self.best_bleu4 = checkpoint.get("best_bleu4", 0.05)
+
+                self.decoder = checkpoint["decoder"]
+                self.decoder_optimizer = checkpoint["decoder_optimizer"]
+                self.encoder_trans = checkpoint["encoder_trans"]
+                self.encoder_trans_optimizer = checkpoint["encoder_trans_optimizer"]
+                self.encoder = checkpoint["encoder"]
+                self.encoder_optimizer = checkpoint["encoder_optimizer"]
+                if args.fine_tune_encoder and self.encoder_optimizer is None:
+                    self.encoder.fine_tune(args.fine_tune_encoder)
+                    self.encoder_optimizer = torch.optim.Adam(
+                        params=filter(
+                            lambda p: p.requires_grad, self.encoder.parameters()
+                        ),
+                        lr=args.encoder_lr,
+                    )
+            # Move to GPU, if available
+            self.encoder = self.encoder.to(DEVICE)
+            self.encoder_trans = self.encoder_trans.to(DEVICE)
+            self.decoder = self.decoder.to(DEVICE)
+            # Loss function
+            self.criterion = torch.nn.CrossEntropyLoss().to(DEVICE)
+
+            self.encoder_lr_scheduler = (
+                torch.optim.lr_scheduler.StepLR(
+                    self.encoder_optimizer, step_size=5, gamma=0.5
+                )
+                if args.fine_tune_encoder
+                else None
+            )
+            self.encoder_trans_lr_scheduler = torch.optim.lr_scheduler.StepLR(
+                self.encoder_trans_optimizer, step_size=5, gamma=0.5
+            )
+            self.decoder_lr_scheduler = torch.optim.lr_scheduler.StepLR(
+                self.decoder_optimizer, step_size=5, gamma=0.5
+            )
         else:
             raise ValueError("Unknown benchmark model selected.")
-
-        # --- Load checkpoint if resuming ---
-        if args.checkpoint is not None:
-            print_log(f"Resuming from checkpoint: {args.checkpoint}", self.log)
-            checkpoint = torch.load(args.checkpoint, map_location=DEVICE)
-
-            self.model.load_state_dict(checkpoint["state_dict"])
-
-            self.start_epoch = checkpoint.get("epoch", 0)
-            self.best_epoch = checkpoint.get("epoch", 0)
-            self.MIoU = checkpoint.get("best_mIoU", 0.3)
-            self.best_bleu4 = checkpoint.get("best_bleu4", 0.3)
 
     def training(self, args, epoch, lr_factor=1.0):
         # Only need one epoch of hist for printing as is stored in wandb to reduce memory
@@ -202,16 +325,26 @@ class Trainer(object):
                 if epoch > 0 and epoch % 10 == 0:
                     adjust_lr(
                         args=None,
-                        optimizer=self.encoder_optimiser,
+                        optimizer=self.encoder_optimizer,
                         shrink_factor=0.5,
                     )
                     adjust_lr(
                         args=None,
-                        optimizer=self.decoder_optimiser,
+                        optimizer=self.decoder_optimizer,
                         shrink_factor=0.5,
                     )
             else:
                 self.model.train()
+        elif args.benchmark == "bifa":
+            pass
+        elif args.benchmark == "chg2cap":
+            self.decoder.train()
+            self.encoder.train()
+            self.encoder_trans.train()
+            self.decoder_optimizer.zero_grad()
+            self.encoder_trans_optimizer.zero_grad()
+            if self.encoder_optimizer is not None:
+                self.encoder_optimizer.zero_grad()
 
         for id, (imgA, imgB, seg_label, _, _, token, token_len, _) in enumerate(
             self.train_loader
@@ -250,64 +383,20 @@ class Trainer(object):
 
                     cap_loss = self.criterion(scores, targets)
 
-                    self.decoder_optimiser.zero_grad()
-                    if self.encoder_optimiser is not None:
-                        self.encoder_optimiser.zero_grad()
+                    self.decoder_optimizer.zero_grad()
+                    if self.encoder_optimizer is not None:
+                        self.encoder_optimizer.zero_grad()
                     cap_loss.backward()
 
                     if args.grad_clip is not None:
-                        clip_gradient(self.decoder_optimiser, args.grad_clip)
-                        if self.encoder_optimiser is not None:
-                            clip_gradient(self.encoder_optimiser, args.grad_clip)
-
-                    # Before backward
-                    print(
-                        f"LR - Encoder: {self.encoder_optimiser.param_groups[0]['lr']:.2e}"
-                    )
-                    print(
-                        f"LR - Decoder: {self.decoder_optimiser.param_groups[0]['lr']:.2e}"
-                    )
-
-                    # After backward, before step
-                    encoder_grad_norm = torch.norm(
-                        torch.stack(
-                            [
-                                p.grad.norm()
-                                for p in self.model.encoder.parameters()
-                                if p.grad is not None
-                            ]
-                        )
-                    )
-                    decoder_grad_norm = torch.norm(
-                        torch.stack(
-                            [
-                                p.grad.norm()
-                                for p in self.model.decoder.parameters()
-                                if p.grad is not None
-                            ]
-                        )
-                    )
-                    print(
-                        f"Gradient norms - Encoder: {encoder_grad_norm:.4f}, Decoder: {decoder_grad_norm:.4f}"
-                    )
-
-                    # Check for dead neurons
-                    dead_encoder = sum(
-                        (p == 0).float().mean() > 0.9
-                        for p in self.model.encoder.parameters()
-                    )
-                    dead_decoder = sum(
-                        (p == 0).float().mean() > 0.9
-                        for p in self.model.decoder.parameters()
-                    )
-                    print(
-                        f"Dead param check - Encoder: {dead_encoder}, Decoder: {dead_decoder}"
-                    )
+                        clip_gradient(self.decoder_optimizer, args.grad_clip)
+                        if self.encoder_optimizer is not None:
+                            clip_gradient(self.encoder_optimizer, args.grad_clip)
 
                     # Update weights
-                    self.encoder_optimiser.step()
+                    self.encoder_optimizer.step()
                     self.encoder_lr_scheduler.step()
-                    self.decoder_optimiser.step()
+                    self.decoder_optimizer.step()
                     self.decoder_lr_scheduler.step()
                 else:
                     cap_loss = torch.tensor(0.0, device=DEVICE)
@@ -317,7 +406,7 @@ class Trainer(object):
 
                     adjust_lr(
                         args,
-                        self.optimiser,
+                        self.optimizer,
                         epoch,
                         id + self.index_i,
                         self.max_batches,
@@ -331,11 +420,50 @@ class Trainer(object):
                         torch.ones_like(seg_pred),
                         torch.zeros_like(seg_pred),
                     ).long()
-                    self.optimiser.zero_grad()
+                    self.optimizer.zero_grad()
                     det_loss.backward()
-                    self.optimiser.step()
-            else:
+                    self.optimizer.step()
+            elif args.benchmark == "bifa":
                 pass
+            elif args.benchmark == "chg2cap":
+                feat1, feat2 = self.encoder(imgA, imgB)
+                feat1, feat2 = self.encoder_trans(feat1, feat2)
+                scores, caps_sorted, decode_lengths, sort_ind = self.decoder(
+                    feat1, feat2, token, token_len
+                )
+
+                # Since we decoded starting with <start>, the targets are all words after <start>, up to <end>
+                targets = caps_sorted[:, 1:]
+                scores = pack_padded_sequence(
+                    scores, decode_lengths, batch_first=True
+                ).data
+                targets = pack_padded_sequence(
+                    targets, decode_lengths, batch_first=True
+                ).data
+
+                # Calculate loss
+                cap_loss = self.criterion(scores, targets)
+                # Back prop.
+                cap_loss.backward()
+
+                # Clip gradients
+                if args.grad_clip is not None:
+                    torch.nn.utils.clip_grad_value_(
+                        self.decoder.parameters(), args.grad_clip
+                    )
+                    torch.nn.utils.clip_grad_value_(
+                        self.encoder_trans.parameters(), args.grad_clip
+                    )
+                    if self.encoder_optimizer is not None:
+                        torch.nn.utils.clip_grad_value_(
+                            self.encoder.parameters(), args.grad_clip
+                        )
+
+                # Update weights
+                self.decoder_optimizer.step()
+                self.encoder_trans_optimizer.step()
+                if self.encoder_optimizer is not None:
+                    self.encoder_optimizer.step()
 
             # Keep track of metrics
             self.hist[self.index_i, 0] = time.time() - start_time  # batch_time
@@ -432,6 +560,13 @@ class Trainer(object):
                 self.model.decoder.to(DEVICE).eval()
             else:
                 self.model.to(DEVICE).eval()
+        elif args.benchmark == "bifa":
+            pass
+        elif args.benchmark == "chg2cap":
+            self.decoder.eval()  # eval mode (no dropout or batchnorm)
+            self.encoder_trans.eval()
+            if self.encoder is not None:
+                self.encoder.eval()
 
         val_start_time = time.time()
         references = list()  # references (true captions) for calculating BLEU-4 score
@@ -516,6 +651,8 @@ class Trainer(object):
                                 for j in i:
                                     ref_caption += (list(word_vocab.keys())[j]) + " "
                                 ref_caption += ".    "
+                            # print(f"Pred caption: {pred_caption}")
+                            # print(f"Ref caption: {ref_caption}")
                     else:
                         seg_pred = self.model.update_bcd(imgA, imgB)
                         seg_pred = seg_pred.squeeze(1)
@@ -528,6 +665,57 @@ class Trainer(object):
                         seg_label = seg_label.cpu().numpy()
 
                         self.evaluator.add_batch(seg_label, pred_seg)
+                elif args.benchmark == "bifa":
+                    pass
+                elif args.benchmkark == "chg2cap":
+                    if self.encoder is not None:
+                        feat1, feat2 = self.encoder(imgA, imgB)
+                    feat1, feat2 = self.encoder_trans(feat1, feat2)
+                    seq = self.decoder.sample(feat1, feat2, k=1)
+
+                    img_token = token_all.tolist()
+                    img_tokens = list(
+                        map(
+                            lambda c: [
+                                w
+                                for w in c
+                                if w
+                                not in {
+                                    word_vocab["<START>"],
+                                    word_vocab["<END>"],
+                                    word_vocab["<NULL>"],
+                                }
+                            ],
+                            img_token,
+                        )
+                    )  # remove <start> and pads
+                    references.append(img_tokens)
+
+                    pred_seq = [
+                        w
+                        for w in seq
+                        if w
+                        not in {
+                            word_vocab["<START>"],
+                            word_vocab["<END>"],
+                            word_vocab["<NULL>"],
+                        }
+                    ]
+                    hypotheses.append(pred_seq)
+                    assert len(references) == len(hypotheses)
+
+                    if ind % args.print_freq == 0:
+                        pred_caption = ""
+                        ref_caption = ""
+                        for i in pred_seq:
+                            pred_caption += (list(word_vocab.keys())[i]) + " "
+                        ref_caption = ""
+                        for i in img_tokens:
+                            for j in i:
+                                ref_caption += (list(word_vocab.keys())[j]) + " "
+                            ref_caption += ".    "
+                            # print(f"Pred caption: {pred_caption}")
+                            # print(f"Ref caption: {ref_caption}")
 
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
@@ -627,23 +815,37 @@ class Trainer(object):
             self.best_bleu4 = max(Bleu_4, self.best_bleu4)
             self.MIou = max(mIoU_seg, self.MIou)
 
-            if args.train_goal == 0:
+            if args.benchmark == "change_3d":
+                if args.train_goal == 0:
+                    state = {
+                        "state_dict": self.model.state_dict(),
+                        "arch": str(self.model),
+                        "epoch": epoch + 1,
+                        "best_mIoU": self.MIou,
+                        "optimizer": self.optimizer.state_dict(),
+                    }
+                else:
+                    state = {
+                        "epoch": epoch + 1,
+                        "arch": str(args.benchmark),
+                        "best_bleu4": self.best_bleu4,
+                        "encoder_state_dict": self.model.encoder.state_dict(),
+                        "decoder_state_dict": self.model.decoder.state_dict(),
+                        "encoder_image_optimizer": self.encoder_optimizer.state_dict(),
+                        "decoder_optimizer": self.decoder_optimizer.state_dict(),
+                    }
+            elif args.benchmark == "bifa":
+                pass
+            elif args.benchmark == "chg2cap":
                 state = {
-                    "state_dict": self.model.state_dict(),
-                    "arch": str(self.model),
                     "epoch": epoch + 1,
-                    "best_mIoU": self.MIou,
-                    "optimiser": self.optimiser.state_dict(),
-                }
-            else:
-                state = {
-                    "epoch": epoch + 1,
-                    "arch": str(args.benchmark),
-                    "best_bleu4": self.best_bleu4,
-                    "encoder_state_dict": self.model.encoder.state_dict(),
-                    "decoder_state_dict": self.model.decoder.state_dict(),
-                    "encoder_image_optimizer": self.encoder_optimiser.state_dict(),
-                    "decoder_optimizer": self.decoder_optimiser.state_dict(),
+                    "best_bleu-4": self.best_bleu4,
+                    "encoder": self.encoder,
+                    "encoder_trans": self.encoder_trans,
+                    "decoder": self.decoder,
+                    "encoder_optimizer": self.encoder_optimizer,
+                    "encoder_trans_optimizer": self.encoder_trans_optimizer,
+                    "decoder_optimizer": self.decoder_optimizer,
                 }
 
             # save_checkpoint
@@ -700,7 +902,7 @@ if __name__ == "__main__":
         "--benchmark",
         default=None,
         help="name of the benchmark model to be loaded",
-        choices=["change_3d"],
+        choices=["change_3d", "bifa", "chg2cap"],
     )
 
     parser.add_argument(
@@ -774,6 +976,11 @@ if __name__ == "__main__":
     for k, v in json_args.items():
         if not hasattr(args, k) or getattr(args, k) is None:
             setattr(args, k, v)
+
+    if args.benchmark == "bifa":
+        args.train_goal = 0
+    elif args.benchmark == "chg2cap":
+        args.train_goal = 1
 
     trainer = Trainer(args)
     print_log("\nStarting Epoch: {}".format(trainer.start_epoch), trainer.log)

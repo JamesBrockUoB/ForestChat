@@ -1,0 +1,17 @@
+{
+    "fine_tune_encoder": true,
+    "train_batchsize": 32,
+    "network": "resnet101",
+    "encoder_dim": 2048,
+    "feat_size": 16,
+    "encoder_lr": 1e-4,
+    "decoder_lr": 1e-4,
+    "grad_clip": null,
+    "dropout": 0.1,
+    "n_heads": 8,
+    "n_layers": 3,
+    "decoder_n_layers": 1,
+    "hidden_dim": 512,
+    "attention_dim": 2048,
+    "feature_dim": 2048
+}

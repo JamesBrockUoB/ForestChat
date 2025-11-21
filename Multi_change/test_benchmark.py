@@ -5,17 +5,16 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+from benchmark_models.change_3d.trainer import Change3d_Trainer
+from benchmark_models.chg2cap.model_decoder import DecoderTransformer
+from benchmark_models.chg2cap.model_encoder import AttentiveEncoder, Encoder
 from data.ForestChange import ForestChangeDataset
 from data.LEVIR_MCI import LEVIRCCDataset
 from einops import rearrange
-from mci_model.model_decoder import DecoderTransformer
-from mci_model.model_encoder_att import AttentiveEncoder, Encoder
 from torch.utils import data
 from tqdm import tqdm
 from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
-
-from Multi_change.benchmark_models.change_3d.trainer import Change3d_Trainer
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -89,14 +88,20 @@ def save_captions(pred_caption, ref_caption, hypotheses, references, name, save_
     Bleu_3_str = round(Bleu_3, 4)
 
     # read JSON
-    with open(os.path.join(save_path, "score.json"), "r") as file:
-        data = json.load(file)
-        key = name.split(".")[0]
-        data[key]["Bleu_3"] = Bleu_3_str
-        data[key]["Bleu_4"] = Bleu_4_str
-    with open(os.path.join(save_path, "score.json"), "w") as file:
-        json.dump(data, file)
-    file.close()
+    json_name = os.path.join(save_path, "score.json")
+    if not os.path.exists(json_name):
+        with open(json_name, "a+") as f:
+            key = name.split(".")[0]
+            json.dump({f"{key}": {"Bleu_3": Bleu_3_str, "Bleu_4": Bleu_4_str}}, f)
+        f.close()
+    else:
+        with open(os.path.join(save_path, "score.json"), "r") as file:
+            data = json.load(file)
+            key = name.split(".")[0]
+            data[key] = {"Bleu_3": Bleu_3_str, "Bleu_4": Bleu_4_str}
+        with open(os.path.join(save_path, "score.json"), "w") as file:
+            json.dump(data, file)
+        file.close()
 
     with open(os.path.join(save_path, name.split(".")[0] + f"_cap.txt"), "w") as f:
         f.write("pred_caption: " + pred_caption + "\n")
@@ -109,10 +114,12 @@ def main(args):
     """
 
     with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
-        word_vocab = json.load(f)
+        args.word_vocab = json.load(f)
 
     with open(os.path.join(args.list_path) + args.metadata_file + ".json", "r") as f:
-        max_length = json.load(f)["max_length"]
+        args.max_length = json.load(f)["max_length"]
+
+    args.vocab_size = len(args.word_vocab)
 
     # Load checkpoint
     snapshot_full_path = args.checkpoint
@@ -141,13 +148,44 @@ def main(args):
             model.encoder.eval()
             model.encoder = model.encoder.to(DEVICE)
             model.decoder.eval()
-            model.decoder = model.encoder.to(DEVICE)
+            model.decoder = model.decoder.to(DEVICE)
         elif args.train_goal == 0:
             model.load_state_dict(checkpoint["state_dict"])
             model.eval()
             model = model.to(DEVICE)
         else:
             raise ValueError("Unknown train goal selected.")
+    elif args.benchmark == "bifa":
+        pass
+    elif args.benchmark == "chg2cap":
+        encoder = Encoder(args.network)
+        encoder_trans = AttentiveEncoder(
+            n_layers=args.n_layers,
+            feature_size=[args.feat_size, args.feat_size, args.encoder_dim],
+            heads=args.n_heads,
+            hidden_dim=args.hidden_dim,
+            attention_dim=args.attention_dim,
+            dropout=args.dropout,
+        )
+        decoder = DecoderTransformer(
+            encoder_dim=args.encoder_dim,
+            feature_dim=args.feature_dim,
+            vocab_size=args.vocab_size,
+            max_lengths=args.max_length,
+            word_vocab=args.word_vocab,
+            n_head=args.n_heads,
+            n_layers=args.decoder_n_layers,
+            dropout=args.dropout,
+        )
+        encoder.load_state_dict(checkpoint["encoder_dict"])
+        encoder_trans.load_state_dict(checkpoint["encoder_trans_dict"])
+        decoder.load_state_dict(checkpoint["decoder_dict"])
+        encoder.eval()
+        encoder = encoder.to(DEVICE)
+        encoder_trans.eval()
+        encoder_trans = encoder_trans.to(DEVICE)
+        decoder.eval()
+        decoder = decoder.to(DEVICE)
     else:
         raise ValueError("Unknown benchmark model selected.")
 
@@ -167,7 +205,7 @@ def main(args):
                 split=args.split,
                 token_folder=args.token_folder,
                 vocab_file=args.vocab_file,
-                max_length=max_length,
+                max_length=args.max_length,
                 allow_unk=args.allow_unk,
                 num_classes=args.num_classes,
             )
@@ -178,7 +216,7 @@ def main(args):
                 split=args.split,
                 token_folder=args.token_folder,
                 vocab_file=args.vocab_file,
-                max_length=max_length,
+                max_length=args.max_length,
                 allow_unk=args.allow_unk,
                 num_classes=args.num_classes,
             )
@@ -219,12 +257,8 @@ def main(args):
             imgA = imgA.to(DEVICE)
             imgB = imgB.to(DEVICE)
             token_all = token_all.squeeze(0).to(DEVICE)
-            # decode_lengths = max(token_all_len.squeeze(0)).item()
-            # Forward prop.
 
-            # UPDATE HERE
             if args.benchmark == "change_3d":
-
                 if args.train_goal == 1:
                     encoder_out = model.update_cc(imgA, imgB)
                     encoder_out = rearrange(encoder_out, "b c h w -> (h w) b c")
@@ -239,9 +273,9 @@ def main(args):
                                 for w in c
                                 if w
                                 not in {
-                                    word_vocab["<START>"],
-                                    word_vocab["<END>"],
-                                    word_vocab["<NULL>"],
+                                    args.word_vocab["<START>"],
+                                    args.word_vocab["<END>"],
+                                    args.word_vocab["<NULL>"],
                                 }
                             ],
                             img_token,
@@ -254,9 +288,9 @@ def main(args):
                         for w in seq
                         if w
                         not in {
-                            word_vocab["<START>"],
-                            word_vocab["<END>"],
-                            word_vocab["<NULL>"],
+                            args.word_vocab["<START>"],
+                            args.word_vocab["<END>"],
+                            args.word_vocab["<NULL>"],
                         }
                     ]
                     hypotheses.append(pred_seq)
@@ -265,14 +299,14 @@ def main(args):
                     pred_caption = ""
                     ref_caption = ""
                     for i in pred_seq:
-                        pred_caption += (list(word_vocab.keys())[i]) + " "
+                        pred_caption += (list(args.word_vocab.keys())[i]) + " "
                     ref_caption = ""
                     for i in img_tokens[0]:
-                        ref_caption += (list(word_vocab.keys())[i]) + " "
+                        ref_caption += (list(args.word_vocab.keys())[i]) + " "
                     ref_captions = ""
                     for i in img_tokens:
                         for j in i:
-                            ref_captions += (list(word_vocab.keys())[j]) + " "
+                            ref_captions += (list(args.word_vocab.keys())[j]) + " "
                         ref_captions += ".    "
 
                     if args.save_caption:
@@ -313,8 +347,69 @@ def main(args):
                         save_mask(pred_seg, seg_label, name, args.result_path, args)
 
                     evaluator.add_batch(seg_label, pred_seg)
-            else:
+            elif args.benchmark == "bifa":
                 pass
+            elif args.benchmark == "chg2cap":
+                if encoder is not None:
+                    feat1, feat2 = encoder(imgA, imgB)
+                feat1, feat2 = encoder_trans(feat1, feat2)
+                seq = decoder.sample(feat1, feat2)
+
+                img_token = token_all.tolist()
+                img_tokens = list(
+                    map(
+                        lambda c: [
+                            w
+                            for w in c
+                            if w
+                            not in {
+                                args.word_vocab["<START>"],
+                                args.word_vocab["<END>"],
+                                args.word_vocab["<NULL>"],
+                            }
+                        ],
+                        img_token,
+                    )
+                )  # remove <start> and pads
+                references.append(img_tokens)
+
+                pred_seq = [
+                    w
+                    for w in seq
+                    if w
+                    not in {
+                        args.word_vocab["<START>"],
+                        args.word_vocab["<END>"],
+                        args.word_vocab["<NULL>"],
+                    }
+                ]
+                hypotheses.append(pred_seq)
+                assert len(references) == len(hypotheses)
+                # # 判断有没有变化
+
+                pred_caption = ""
+                ref_caption = ""
+                for i in pred_seq:
+                    pred_caption += (list(args.word_vocab.keys())[i]) + " "
+                ref_caption = ""
+                for i in img_tokens[0]:
+                    ref_caption += (list(args.word_vocab.keys())[i]) + " "
+                ref_captions = ""
+                for i in img_tokens:
+                    for j in i:
+                        ref_captions += (list(args.word_vocab.keys())[j]) + " "
+                    ref_captions += ".    "
+
+                if ref_caption in nochange_list:
+                    nochange_references.append(img_tokens)
+                    nochange_hypotheses.append(pred_seq)
+                    if pred_caption in nochange_list:
+                        nochange_acc = nochange_acc + 1
+                else:
+                    change_references.append(img_tokens)
+                    change_hypotheses.append(pred_seq)
+                    if pred_caption not in nochange_list:
+                        change_acc = change_acc + 1
 
         test_time = time.time() - test_start_time
 
@@ -457,7 +552,7 @@ if __name__ == "__main__":
         "--benchmark",
         default=None,
         help="name of the benchmark model to be loaded",
-        choices=["change_3d"],
+        choices=["change_3d", "bifa", "chg2cap"],
     )
 
     # Test
@@ -475,7 +570,6 @@ if __name__ == "__main__":
     )
     parser.add_argument("--test_batchsize", default=1, help="batch_size for test")
     parser.add_argument("--workers", type=int, default=0, help="for data-loading")
-    parser.add_argument("--dropout", type=float, default=0.1, help="dropout")
     # save masks and captions?
     parser.add_argument(
         "--save_mask", type=str2bool, default=True, help="save the result of masks"
@@ -485,6 +579,13 @@ if __name__ == "__main__":
         type=str2bool,
         default=True,
         help="save the result of captions",
+    )
+    parser.add_argument(
+        "--train_goal",
+        type=int,
+        default=0,
+        help="0:det; 1:cap;",
+        choices=[0, 1],
     )
     parser.add_argument(
         "--result_path",
@@ -506,5 +607,4 @@ if __name__ == "__main__":
         if not hasattr(args, k) or getattr(args, k) is None:
             setattr(args, k, v)
 
-    main(args)
     main(args)
