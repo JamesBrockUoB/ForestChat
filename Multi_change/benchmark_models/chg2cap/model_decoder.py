@@ -8,6 +8,8 @@ from torch import Tensor, nn
 from torch.nn import functional as F
 from torch.nn.init import xavier_uniform_
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class resblock(nn.Module):
     """
@@ -314,7 +316,7 @@ class DecoderTransformer(nn.Module):
         mask = torch.triu(
             torch.ones(word_length, word_length) * float("-inf"), diagonal=1
         )
-        mask = mask.cuda()
+        mask = mask.to(DEVICE)
         tgt_pad_mask = (encoded_captions == self.word_vocab["<NULL>"]) | (
             encoded_captions == self.word_vocab["<END>"]
         )
@@ -351,16 +353,16 @@ class DecoderTransformer(nn.Module):
         batch, channel = x.size(0), x.size(1)
         x = x.view(batch, channel, -1).permute(2, 0, 1)  # (hw, batch_size, feature_dim)
 
-        tgt = torch.zeros(batch, self.max_lengths).to(torch.int64).cuda()
+        tgt = torch.zeros(batch, self.max_lengths).to(torch.int64).to(DEVICE)
 
         mask = torch.triu(
             torch.ones(self.max_lengths, self.max_lengths) * float("-inf"), diagonal=1
         )
-        mask = mask.cuda()
-        tgt[:, 0] = torch.LongTensor(
-            [self.word_vocab["<START>"]] * batch
-        ).cuda()  # (batch_size*k, 1)
-        seqs = torch.LongTensor([[self.word_vocab["<START>"]]] * batch).cuda()
+        mask = mask.to(DEVICE)
+        tgt[:, 0] = torch.LongTensor([self.word_vocab["<START>"]] * batch).to(
+            DEVICE
+        )  # (batch_size*k, 1)
+        seqs = torch.LongTensor([[self.word_vocab["<START>"]]] * batch).to(DEVICE)
         # Weight = torch.zeros(1, self.max_lengths, x.size(0)).cuda()
         for step in range(self.max_lengths):
             tgt_pad_mask = tgt == self.word_vocab["<NULL>"]
@@ -409,7 +411,7 @@ class DecoderTransformer(nn.Module):
             .permute(2, 0, 1)
         )  # (h*w, batch, feature_dim)
 
-        tgt = torch.zeros(k * batch, self.max_lengths).to(torch.int64).cuda()
+        tgt = torch.zeros(k * batch, self.max_lengths).to(torch.int64).to(DEVICE)
 
         mask = (
             torch.triu(torch.ones(self.max_lengths, self.max_lengths)) == 1
@@ -419,12 +421,12 @@ class DecoderTransformer(nn.Module):
             .masked_fill(mask == 0, float("-inf"))
             .masked_fill(mask == 1, float(0.0))
         )
-        mask = mask.cuda()
-        tgt[:, 0] = torch.LongTensor(
-            [self.word_vocab["<START>"]] * batch * k
-        ).cuda()  # (batch_size*k, 1)
-        seqs = torch.LongTensor([[self.word_vocab["<START>"]]] * batch * k).cuda()
-        top_k_scores = torch.zeros(k * batch, 1).cuda()
+        mask = mask.to(DEVICE)
+        tgt[:, 0] = torch.LongTensor([self.word_vocab["<START>"]] * batch * k).to(
+            DEVICE
+        )  # (batch_size*k, 1)
+        seqs = torch.LongTensor([[self.word_vocab["<START>"]]] * batch * k).to(DEVICE)
+        top_k_scores = torch.zeros(k * batch, 1).to(DEVICE)
         complete_seqs = []
         complete_seqs_scores = []
         for step in range(self.max_lengths):

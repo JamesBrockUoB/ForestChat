@@ -8,6 +8,7 @@ from distutils.util import strtobool
 from pathlib import Path
 
 import numpy as np
+import torch
 import wandb
 from benchmark_models.change_3d.trainer import Change3d_Trainer
 from benchmark_models.change_3d.utils import BCEDiceLoss
@@ -24,6 +25,9 @@ from tqdm import tqdm
 from utils_tool.loss_funcs import *
 from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
+
+from Multi_change.benchmark_models.bifa.bifa import BiFA
+from Multi_change.benchmark_models.bifa.utils import ce_dice, get_scheduler
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -183,8 +187,6 @@ class Trainer(object):
                 print_log(f"Resuming from checkpoint: {args.checkpoint}", self.log)
                 checkpoint = torch.load(args.checkpoint, map_location=DEVICE)
 
-                self.model.load_state_dict(checkpoint.get("state_dict", 0))
-
                 self.start_epoch = checkpoint.get("epoch", 0)
                 self.best_epoch = checkpoint.get("epoch", 0)
                 self.MIoU = checkpoint.get("best_mIoU", 0.3)
@@ -228,47 +230,66 @@ class Trainer(object):
 
                 self.criterion = nn.CrossEntropyLoss(ignore_index=0).to(DEVICE)
         elif args.benchmark == "bifa":
-            pass
+            self.model = BiFA(backbone="mit_b0")
+            self.criterion = ce_dice
+            self.optimizer = torch.optim.Adam(
+                self.model.parameters(), lr=args.optimizer_lr
+            )
+
+            if args.checkpoint:
+                print_log(f"Resuming from checkpoint: {args.checkpoint}", self.log)
+                checkpoint = torch.load(args.checkpoint)
+
+                self.model.load_state_dict(checkpoint["state_dict"])
+                self.optimizer.load_state_dict(checkpoint["optimizer"])
+
+                self.start_epoch = checkpoint.get("epoch", 0)
+                self.best_epoch = checkpoint.get("epoch", 0)
+                self.MIoU = checkpoint.get("best_mIoU", 0.3)
+                self.best_bleu4 = checkpoint.get("best_bleu4", 0.05)
+
+            self.model.to(DEVICE)
+            if len(args.gpu_id) > 0:
+                self.model = nn.DataParallel(self.model)
+
         elif args.benchmark == "chg2cap":
-            if args.checkpoint is None:
-                self.encoder = Encoder(args.network)
-                self.encoder.fine_tune(args.fine_tune_encoder)
-                self.encoder_optimizer = (
-                    torch.optim.Adam(
-                        params=self.encoder.parameters(), lr=args.encoder_lr
-                    )
-                    if args.fine_tune_encoder
-                    else None
-                )
-                self.encoder_trans = AttentiveEncoder(
-                    n_layers=args.n_layers,
-                    feature_size=[args.feat_size, args.feat_size, args.encoder_dim],
-                    heads=args.n_heads,
-                    hidden_dim=args.hidden_dim,
-                    attention_dim=args.attention_dim,
-                    dropout=args.dropout,
-                )
-                self.encoder_trans_optimizer = torch.optim.Adam(
-                    params=filter(
-                        lambda p: p.requires_grad, self.encoder_trans.parameters()
-                    ),
-                    lr=args.encoder_lr,
-                )
-                self.decoder = DecoderTransformer(
-                    encoder_dim=args.encoder_dim,
-                    feature_dim=args.feature_dim,
-                    vocab_size=len(args.word_vocab),
-                    max_lengths=args.max_length,
-                    word_vocab=args.word_vocab,
-                    n_head=args.n_heads,
-                    n_layers=args.decoder_n_layers,
-                    dropout=args.dropout,
-                )
-                self.decoder_optimizer = torch.optim.Adam(
-                    params=filter(lambda p: p.requires_grad, self.decoder.parameters()),
-                    lr=args.decoder_lr,
-                )
-            else:
+            self.encoder = Encoder(args.network)
+            self.encoder.fine_tune(args.fine_tune_encoder)
+            self.encoder_optimizer = (
+                torch.optim.Adam(params=self.encoder.parameters(), lr=args.encoder_lr)
+                if args.fine_tune_encoder
+                else None
+            )
+            self.encoder_trans = AttentiveEncoder(
+                n_layers=args.n_layers,
+                feature_size=[args.feat_size, args.feat_size, args.encoder_dim],
+                heads=args.n_heads,
+                hidden_dim=args.hidden_dim,
+                attention_dim=args.attention_dim,
+                dropout=args.dropout,
+            )
+            self.encoder_trans_optimizer = torch.optim.Adam(
+                params=filter(
+                    lambda p: p.requires_grad, self.encoder_trans.parameters()
+                ),
+                lr=args.encoder_lr,
+            )
+            self.decoder = DecoderTransformer(
+                encoder_dim=args.encoder_dim,
+                feature_dim=args.feature_dim,
+                vocab_size=len(args.word_vocab),
+                max_lengths=args.max_length,
+                word_vocab=args.word_vocab,
+                n_head=args.n_heads,
+                n_layers=args.decoder_n_layers,
+                dropout=args.dropout,
+            )
+            self.decoder_optimizer = torch.optim.Adam(
+                params=filter(lambda p: p.requires_grad, self.decoder.parameters()),
+                lr=args.decoder_lr,
+            )
+
+            if args.checkpoint:
                 print_log(f"Resuming from checkpoint: {args.checkpoint}", self.log)
                 checkpoint = torch.load(args.checkpoint)
 
@@ -276,12 +297,14 @@ class Trainer(object):
                 self.best_epoch = checkpoint.get("epoch", 0)
                 self.best_bleu4 = checkpoint.get("best_bleu4", 0.05)
 
-                self.decoder = checkpoint["decoder"]
-                self.decoder_optimizer = checkpoint["decoder_optimizer"]
-                self.encoder_trans = checkpoint["encoder_trans"]
-                self.encoder_trans_optimizer = checkpoint["encoder_trans_optimizer"]
-                self.encoder = checkpoint["encoder"]
-                self.encoder_optimizer = checkpoint["encoder_optimizer"]
+                self.decoder.load_state_dict(checkpoint["decoder"])
+                self.decoder_optimizer.load_state_dict(checkpoint["decoder_optimizer"])
+                self.encoder_trans.load_state_dict(checkpoint["encoder_trans"])
+                self.encoder_trans_optimizer.load_state_dict(
+                    checkpoint["encoder_trans_optimizer"]
+                )
+                self.encoder.load_state_dict(checkpoint["encoder"])
+                self.encoder_optimizer.load_state_dict(checkpoint["encoder_optimizer"])
                 if args.fine_tune_encoder and self.encoder_optimizer is None:
                     self.encoder.fine_tune(args.fine_tune_encoder)
                     self.encoder_optimizer = torch.optim.Adam(
@@ -336,7 +359,7 @@ class Trainer(object):
             else:
                 self.model.train()
         elif args.benchmark == "bifa":
-            pass
+            self.model.train()
         elif args.benchmark == "chg2cap":
             self.decoder.train()
             self.encoder.train()
@@ -424,7 +447,12 @@ class Trainer(object):
                     det_loss.backward()
                     self.optimizer.step()
             elif args.benchmark == "bifa":
-                pass
+                seg_pred = self.model(imgA, imgB)
+                det_loss = self.criterion(seg_pred, seg_label)
+
+                self.optimizer.zero_grad()
+                det_loss.backward()
+                self.optimizer.step()
             elif args.benchmark == "chg2cap":
                 feat1, feat2 = self.encoder(imgA, imgB)
                 feat1, feat2 = self.encoder_trans(feat1, feat2)
@@ -561,7 +589,7 @@ class Trainer(object):
             else:
                 self.model.to(DEVICE).eval()
         elif args.benchmark == "bifa":
-            pass
+            self.model.to(DEVICE).eval()
         elif args.benchmark == "chg2cap":
             self.decoder.eval()  # eval mode (no dropout or batchnorm)
             self.encoder_trans.eval()
@@ -666,8 +694,19 @@ class Trainer(object):
 
                         self.evaluator.add_batch(seg_label, pred_seg)
                 elif args.benchmark == "bifa":
-                    pass
-                elif args.benchmkark == "chg2cap":
+                    seg_pred = self.model(imgA, imgB)
+                    seg_pred = seg_pred.squeeze(1)
+                    seg_pred = torch.where(
+                        seg_pred > 0.5,
+                        torch.ones_like(seg_pred),
+                        torch.zeros_like(seg_pred),
+                    ).long()
+                    pred_seg = seg_pred.data.cpu().numpy()
+                    seg_label = seg_label.cpu().numpy()
+
+                    self.evaluator.add_batch(seg_label, pred_seg)
+
+                elif args.benchmark == "chg2cap":
                     if self.encoder is not None:
                         feat1, feat2 = self.encoder(imgA, imgB)
                     feat1, feat2 = self.encoder_trans(feat1, feat2)
@@ -835,7 +874,13 @@ class Trainer(object):
                         "decoder_optimizer": self.decoder_optimizer.state_dict(),
                     }
             elif args.benchmark == "bifa":
-                pass
+                state = {
+                    "state_dict": self.model.state_dict(),
+                    "arch": str(self.model),
+                    "epoch": epoch + 1,
+                    "best_mIoU": self.MIou,
+                    "optimizer": self.optimizer.state_dict(),
+                }
             elif args.benchmark == "chg2cap":
                 state = {
                     "epoch": epoch + 1,
@@ -994,6 +1039,10 @@ if __name__ == "__main__":
             trainer.training(trainer.args, epoch)
             # if not trainer.args.no_val and epoch % args.eval_interval == (args.eval_interval - 1):
             trainer.validation(epoch)
+
+            if args.benchmark == "bifa":
+                get_scheduler(trainer.optimizer, args).step()
+
             if epoch - trainer.best_epoch > trainer.args.patience:
                 print_log(
                     f"Model did not improve after {trainer.args.patience} epochs. Stopping training early.",
@@ -1001,4 +1050,5 @@ if __name__ == "__main__":
                 )
                 break
     except Exception as e:
+        print_log("Hit an exception: {}".format(e), trainer.log)
         print_log("Hit an exception: {}".format(e), trainer.log)

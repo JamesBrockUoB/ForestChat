@@ -3,6 +3,8 @@ import torchvision.models as models
 from einops import rearrange
 from torch import nn
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class Encoder(nn.Module):
     """
@@ -228,8 +230,8 @@ class AttentiveEncoder(nn.Module):
 
     def forward(self, img1, img2):
         batch, c, h, w = img1.shape
-        pos_h = torch.arange(h).cuda()
-        pos_w = torch.arange(w).cuda()
+        pos_h = torch.arange(h).to(DEVICE)
+        pos_w = torch.arange(w).to(DEVICE)
         embed_h = self.w_embedding(pos_h)
         embed_w = self.h_embedding(pos_w)
         pos_embedding = torch.cat(
