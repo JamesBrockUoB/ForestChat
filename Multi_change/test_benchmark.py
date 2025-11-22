@@ -5,6 +5,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+from benchmark_models.bifa.bifa import BiFA
 from benchmark_models.change_3d.trainer import Change3d_Trainer
 from benchmark_models.chg2cap.model_decoder import DecoderTransformer
 from benchmark_models.chg2cap.model_encoder import AttentiveEncoder, Encoder
@@ -156,7 +157,10 @@ def main(args):
         else:
             raise ValueError("Unknown train goal selected.")
     elif args.benchmark == "bifa":
-        pass
+        model = BiFA(backbone="mit_b0")
+        model.load_state_dict(checkpoint["state_dict"])
+        model.eval()
+        model = model.to(DEVICE)
     elif args.benchmark == "chg2cap":
         encoder = Encoder(args.network)
         encoder_trans = AttentiveEncoder(
@@ -348,7 +352,19 @@ def main(args):
 
                     evaluator.add_batch(seg_label, pred_seg)
             elif args.benchmark == "bifa":
-                pass
+                if args.data_name == "LEVIR_MCI":
+                        seg_label = (seg_label > 0).astype(np.uint8)
+                        args.num_class = 2  # enforce
+
+                    seg_pred = model(imgA, imgB)
+                    seg_pred = np.argmax(seg_pred, axis=1)
+                    pred_seg = seg_pred.data.cpu().numpy()
+                    seg_label = seg_label.cpu().numpy()
+
+                    if args.save_mask:
+                        save_mask(pred_seg, seg_label, name, args.result_path, args)
+
+                    evaluator.add_batch(seg_label, pred_seg)
             elif args.benchmark == "chg2cap":
                 if encoder is not None:
                     feat1, feat2 = encoder(imgA, imgB)

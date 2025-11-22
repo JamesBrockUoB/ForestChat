@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class PositionEmbeddingLearned(nn.Module):
     """
@@ -92,7 +94,7 @@ def make_coord(shape, ranges=None, flatten=True):
         r = (v1 - v0) / (2 * n)
         seq = v0 + r + (2 * r) * torch.arange(n).float()
         coord_seqs.append(seq)
-    ret = torch.stack(torch.meshgrid(*coord_seqs), dim=-1)
+    ret = torch.stack(torch.meshgrid(*coord_seqs, indexing="ij"), dim=-1)
     if flatten:
         ret = ret.view(-1, ret.shape[-1])
     return ret
@@ -101,14 +103,14 @@ def make_coord(shape, ranges=None, flatten=True):
 def ifa_feat(res, size, stride=1, local=False):
     bs, hh, ww = res.shape[0], res.shape[-2], res.shape[-1]
     h, w = size
-    coords = (make_coord((h, w)).cuda().flip(-1) + 1) / 2
+    coords = (make_coord((h, w)).to(DEVICE).flip(-1) + 1) / 2
     # coords = (make_coord((h,w)).flip(-1) + 1) / 2
     coords = coords.unsqueeze(0).expand(bs, *coords.shape)
     coords = (coords * 2 - 1).flip(-1)
 
     feat_coords = (
         make_coord((hh, ww), flatten=False)
-        .cuda()
+        .to(DEVICE)
         .permute(2, 0, 1)
         .unsqueeze(0)
         .expand(res.shape[0], 2, *(hh, ww))

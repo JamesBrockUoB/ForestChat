@@ -12,6 +12,8 @@ from mmcv.runner import auto_fp16
 from mmseg.core import build_pixel_sampler
 from mmseg.ops import resize
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class BaseDecodeHead(nn.Module, metaclass=ABCMeta):
     """Base class for BaseDecodeHead.
@@ -410,7 +412,9 @@ class Fusion(nn.Module):
 
     def forward(self, x_u, x_d):
 
-        ca_score = CA_Block(channel=x_d.shape[1], h=x_d.shape[2], w=x_d.shape[3]).cuda()
+        ca_score = CA_Block(channel=x_d.shape[1], h=x_d.shape[2], w=x_d.shape[3]).to(
+            DEVICE
+        )
         # score = self.sigmoid(x_u + x_d)
         score = ca_score(x_d + x_u)
         x_u_ = x_u * score

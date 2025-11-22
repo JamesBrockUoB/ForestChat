@@ -14,6 +14,5 @@
     "decoder_lr": 1e-4,
     "grad_clip": 5.0,
     "fine_tune_encoder": true,
-    "beam_size": 1,
     "num_perception_frame": 1
 }

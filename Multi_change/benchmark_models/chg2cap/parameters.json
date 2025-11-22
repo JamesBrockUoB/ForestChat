@@ -13,6 +13,5 @@
     "decoder_n_layers": 1,
     "hidden_dim": 512,
     "attention_dim": 2048,
-    "feature_dim": 2048,
-    "beam_size": 1
+    "feature_dim": 2048
 }

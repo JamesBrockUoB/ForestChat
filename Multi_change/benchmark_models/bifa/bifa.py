@@ -5,6 +5,7 @@
 # ---------------------------------------------------------------
 
 import math
+import os
 from functools import partial
 
 import torch
@@ -14,7 +15,7 @@ from benchmark_models.bifa.my_transformer import *
 from benchmark_models.bifa.segformer_head import SegFormerHead
 from mmcv.runner import load_checkpoint
 from mmseg.utils import get_root_logger
-from timm.models.layers import DropPath, to_2tuple, trunc_normal_
+from timm.layers import DropPath, to_2tuple, trunc_normal_
 from torch.nn import functional as F
 
 
@@ -77,7 +78,7 @@ class DiffFlowN(nn.Module):
         grid = grid.repeat(n, 1, 1, 1).type_as(input).to(input.device)
         grid = grid + flow.permute(0, 2, 3, 1) / norm
 
-        output = F.grid_sample(input, grid)
+        output = F.grid_sample(input, grid, align_corners=False)
         return output
 
 
@@ -677,7 +678,14 @@ class BiFA(nn.Module):
         super().__init__()
         if backbone == "mit_b0":
             self.segformer = mit_b0()
-            self.ckpt = torch.load(r"../../mci_model/pretrained/mit_b0.pth")
+            file_dir = os.path.dirname(os.path.abspath(__file__))
+
+            ckpt_path = os.path.normpath(
+                os.path.join(
+                    file_dir, "..", "..", "mci_model", "pretrained", "mit_b0.pth"
+                )
+            )
+            self.ckpt = torch.load(ckpt_path)
             self.segformer.load_state_dict(self.ckpt, False)
             self.head = SegFormerHead(
                 in_channels=[32, 64, 160, 256],
@@ -743,4 +751,5 @@ if __name__ == "__main__":
     seg = BiFA(backbone="mit_b0").to("cuda:0")
 
     res1 = seg(img, img)
+    print("res shape is", res1.shape)
     print("res shape is", res1.shape)

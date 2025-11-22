@@ -10,6 +10,8 @@ from pathlib import Path
 import numpy as np
 import torch
 import wandb
+from benchmark_models.bifa.bifa import BiFA
+from benchmark_models.bifa.utils import ce_dice, get_scheduler
 from benchmark_models.change_3d.trainer import Change3d_Trainer
 from benchmark_models.change_3d.utils import BCEDiceLoss
 from benchmark_models.chg2cap.model_decoder import DecoderTransformer
@@ -25,9 +27,6 @@ from tqdm import tqdm
 from utils_tool.loss_funcs import *
 from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
-
-from Multi_change.benchmark_models.bifa.bifa import BiFA
-from Multi_change.benchmark_models.bifa.utils import ce_dice, get_scheduler
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -249,7 +248,7 @@ class Trainer(object):
                 self.best_bleu4 = checkpoint.get("best_bleu4", 0.05)
 
             self.model.to(DEVICE)
-            if len(args.gpu_id) > 0:
+            if args.gpu_id is not None:
                 self.model = nn.DataParallel(self.model)
 
         elif args.benchmark == "chg2cap":
@@ -616,7 +615,7 @@ class Trainer(object):
             ) in enumerate(
                 tqdm(
                     self.val_loader,
-                    desc="val_" + "EVALUATING AT BEAM SIZE " + str(args.beam_size),
+                    desc="val_" + "EVALUATING AT BEAM SIZE " + str(1),
                 )
             ):
                 if args.data_name == "LEVIR_MCI":
@@ -634,9 +633,7 @@ class Trainer(object):
                         encoder_out = self.model.update_cc(imgA, imgB)
                         encoder_out = rearrange(encoder_out, "b c h w -> (h w) b c")
 
-                        seq = self.model.decoder.sample_beam(
-                            encoder_out, k=args.beam_size
-                        )
+                        seq = self.model.decoder.sample_beam(encoder_out, k=1)
 
                         img_token = token_all.tolist()
                         img_tokens = list(
@@ -695,17 +692,11 @@ class Trainer(object):
                         self.evaluator.add_batch(seg_label, pred_seg)
                 elif args.benchmark == "bifa":
                     seg_pred = self.model(imgA, imgB)
-                    seg_pred = seg_pred.squeeze(1)
-                    seg_pred = torch.where(
-                        seg_pred > 0.5,
-                        torch.ones_like(seg_pred),
-                        torch.zeros_like(seg_pred),
-                    ).long()
+                    seg_pred = np.argmax(seg_pred, axis=1)
                     pred_seg = seg_pred.data.cpu().numpy()
                     seg_label = seg_label.cpu().numpy()
 
                     self.evaluator.add_batch(seg_label, pred_seg)
-
                 elif args.benchmark == "chg2cap":
                     if self.encoder is not None:
                         feat1, feat2 = self.encoder(imgA, imgB)
@@ -1050,5 +1041,4 @@ if __name__ == "__main__":
                 )
                 break
     except Exception as e:
-        print_log("Hit an exception: {}".format(e), trainer.log)
         print_log("Hit an exception: {}".format(e), trainer.log)
