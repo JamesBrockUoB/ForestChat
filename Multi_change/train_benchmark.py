@@ -236,6 +236,7 @@ class Trainer(object):
             self.optimizer = torch.optim.Adam(
                 self.model.parameters(), lr=args.optimizer_lr
             )
+            self.scheduler = get_scheduler(self.optimizer, args)
 
             if args.checkpoint:
                 print_log(f"Resuming from checkpoint: {args.checkpoint}", self.log)
@@ -243,6 +244,7 @@ class Trainer(object):
 
                 self.model.load_state_dict(checkpoint["state_dict"])
                 self.optimizer.load_state_dict(checkpoint["optimizer"])
+                self.scheduler.load_state_dict(checkpoint["scheduler"])
 
                 self.start_epoch = checkpoint.get("epoch", 0)
                 self.best_epoch = checkpoint.get("epoch", 0)
@@ -454,6 +456,7 @@ class Trainer(object):
                 self.optimizer.zero_grad()
                 det_loss.backward()
                 self.optimizer.step()
+                self.scheduler.step()
             elif args.benchmark == "chg2cap":
                 feat1, feat2 = self.encoder(imgA, imgB)
                 feat1, feat2 = self.encoder_trans(feat1, feat2)
@@ -873,6 +876,7 @@ class Trainer(object):
                     "epoch": epoch + 1,
                     "best_mIoU": self.MIou,
                     "optimizer": self.optimizer.state_dict(),
+                    "scheduler": self.scheduler.state_dict(),
                 }
             elif args.benchmark == "chg2cap":
                 state = {
@@ -1032,9 +1036,6 @@ if __name__ == "__main__":
             trainer.training(trainer.args, epoch)
             # if not trainer.args.no_val and epoch % args.eval_interval == (args.eval_interval - 1):
             trainer.validation(epoch)
-
-            if args.benchmark == "bifa":
-                get_scheduler(trainer.optimizer, args).step()
 
             if epoch - trainer.best_epoch > trainer.args.patience:
                 print_log(
