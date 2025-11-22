@@ -147,6 +147,8 @@ class Trainer(object):
                 num_workers=args.workers,
                 pin_memory=True,
             )
+        else:
+            raise ValueError("Unknown dataset selected")
 
         # Loss function
         self.criterion_cap = torch.nn.CrossEntropyLoss().to(DEVICE)

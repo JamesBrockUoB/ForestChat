@@ -201,6 +201,8 @@ def main(args):
             num_workers=args.workers,
             pin_memory=True,
         )
+    else:
+        raise ValueError("Unknown dataset selected")
 
     # Epochs
     test_start_time = time.time()

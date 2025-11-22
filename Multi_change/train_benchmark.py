@@ -131,6 +131,8 @@ class Trainer(object):
                 num_workers=args.workers,
                 pin_memory=True,
             )
+        else:
+            raise ValueError("Unknown dataset selected")
 
         self.evaluator = Evaluator(num_class=args.num_class)
 

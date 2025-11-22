@@ -20,6 +20,76 @@ from utils_tool.utils import *
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
+def process_caption(
+    seq,
+    token_all,
+    word_vocab,
+    name,
+    args,
+    references,
+    hypotheses,
+    change_references,
+    change_hypotheses,
+    nochange_references,
+    nochange_hypotheses,
+    change_acc,
+    nochange_acc,
+    nochange_list,
+):
+    # Convert tokens
+    img_token = token_all.tolist()
+    img_tokens = [
+        [
+            w
+            for w in c
+            if w
+            not in {word_vocab["<START>"], word_vocab["<END>"], word_vocab["<NULL>"]}
+        ]
+        for c in img_token
+    ]
+    references.append(img_tokens)
+
+    pred_seq = [
+        w
+        for w in seq
+        if w not in {word_vocab["<START>"], word_vocab["<END>"], word_vocab["<NULL>"]}
+    ]
+    hypotheses.append(pred_seq)
+    assert len(references) == len(hypotheses)
+
+    # Build captions
+    pred_caption = " ".join(list(word_vocab.keys())[i] for i in pred_seq)
+    ref_caption = " ".join(list(word_vocab.keys())[i] for i in img_tokens[0])
+    ref_captions = ""
+    for tokens in img_tokens:
+        ref_captions += " ".join(list(word_vocab.keys())[i] for i in tokens) + ".    "
+
+    # Save captions if requested
+    if args.save_caption:
+        save_captions(
+            pred_caption,
+            ref_captions,
+            hypotheses[-1],
+            references[-1],
+            name,
+            args.result_path,
+        )
+
+    # Update change/nochange lists and accuracy counters
+    if ref_caption in nochange_list:
+        nochange_references.append(img_tokens)
+        nochange_hypotheses.append(pred_seq)
+        if pred_caption in nochange_list:
+            nochange_acc += 1
+    else:
+        change_references.append(img_tokens)
+        change_hypotheses.append(pred_seq)
+        if pred_caption not in nochange_list:
+            change_acc += 1
+
+    return change_acc, nochange_acc
+
+
 def save_mask(pred, gt, name, save_path, args):
     # pred value: 0,1,2; map to black, yellow, red
     # gt value: 0,1,2; map to black, yellow, red
@@ -232,6 +302,8 @@ def main(args):
             num_workers=args.workers,
             pin_memory=True,
         )
+    else:
+        raise ValueError("Unknown dataset selected")
 
     # Epochs
     test_start_time = time.time()
@@ -269,69 +341,22 @@ def main(args):
 
                     seq = model.decoder.sample_beam(encoder_out, k=args.beam_size)
 
-                    img_token = token_all.tolist()
-                    img_tokens = list(
-                        map(
-                            lambda c: [
-                                w
-                                for w in c
-                                if w
-                                not in {
-                                    args.word_vocab["<START>"],
-                                    args.word_vocab["<END>"],
-                                    args.word_vocab["<NULL>"],
-                                }
-                            ],
-                            img_token,
-                        )
-                    )  # remove <start> and pads
-                    references.append(img_tokens)
-
-                    pred_seq = [
-                        w
-                        for w in seq
-                        if w
-                        not in {
-                            args.word_vocab["<START>"],
-                            args.word_vocab["<END>"],
-                            args.word_vocab["<NULL>"],
-                        }
-                    ]
-                    hypotheses.append(pred_seq)
-                    assert len(references) == len(hypotheses)
-
-                    pred_caption = ""
-                    ref_caption = ""
-                    for i in pred_seq:
-                        pred_caption += (list(args.word_vocab.keys())[i]) + " "
-                    ref_caption = ""
-                    for i in img_tokens[0]:
-                        ref_caption += (list(args.word_vocab.keys())[i]) + " "
-                    ref_captions = ""
-                    for i in img_tokens:
-                        for j in i:
-                            ref_captions += (list(args.word_vocab.keys())[j]) + " "
-                        ref_captions += ".    "
-
-                    if args.save_caption:
-                        save_captions(
-                            pred_caption,
-                            ref_captions,
-                            hypotheses[-1],
-                            references[-1],
-                            name,
-                            args.result_path,
-                        )
-                    if ref_caption in nochange_list:
-                        nochange_references.append(img_tokens)
-                        nochange_hypotheses.append(pred_seq)
-                        if pred_caption in nochange_list:
-                            nochange_acc = nochange_acc + 1
-                    else:
-                        change_references.append(img_tokens)
-                        change_hypotheses.append(pred_seq)
-                        if pred_caption not in nochange_list:
-                            change_acc = change_acc + 1
+                    change_acc, nochange_acc = process_caption(
+                        seq,
+                        token_all,
+                        args.word_vocab,
+                        name,
+                        args,
+                        references,
+                        hypotheses,
+                        change_references,
+                        change_hypotheses,
+                        nochange_references,
+                        nochange_hypotheses,
+                        change_acc,
+                        nochange_acc,
+                        nochange_list,
+                    )
                 else:
                     if args.data_name == "LEVIR_MCI":
                         seg_label = (seg_label > 0).astype(np.uint8)
@@ -353,79 +378,40 @@ def main(args):
                     evaluator.add_batch(seg_label, pred_seg)
             elif args.benchmark == "bifa":
                 if args.data_name == "LEVIR_MCI":
-                        seg_label = (seg_label > 0).astype(np.uint8)
-                        args.num_class = 2  # enforce
+                    seg_label = (seg_label > 0).astype(np.uint8)
+                    args.num_class = 2  # enforce
 
-                    seg_pred = model(imgA, imgB)
-                    seg_pred = np.argmax(seg_pred, axis=1)
-                    pred_seg = seg_pred.data.cpu().numpy()
-                    seg_label = seg_label.cpu().numpy()
+                seg_pred = model(imgA, imgB)
+                seg_pred = np.argmax(seg_pred, axis=1)
+                pred_seg = seg_pred.data.cpu().numpy()
+                seg_label = seg_label.cpu().numpy()
 
-                    if args.save_mask:
-                        save_mask(pred_seg, seg_label, name, args.result_path, args)
+                if args.save_mask:
+                    save_mask(pred_seg, seg_label, name, args.result_path, args)
 
-                    evaluator.add_batch(seg_label, pred_seg)
+                evaluator.add_batch(seg_label, pred_seg)
             elif args.benchmark == "chg2cap":
                 if encoder is not None:
                     feat1, feat2 = encoder(imgA, imgB)
                 feat1, feat2 = encoder_trans(feat1, feat2)
                 seq = decoder.sample(feat1, feat2)
 
-                img_token = token_all.tolist()
-                img_tokens = list(
-                    map(
-                        lambda c: [
-                            w
-                            for w in c
-                            if w
-                            not in {
-                                args.word_vocab["<START>"],
-                                args.word_vocab["<END>"],
-                                args.word_vocab["<NULL>"],
-                            }
-                        ],
-                        img_token,
-                    )
-                )  # remove <start> and pads
-                references.append(img_tokens)
-
-                pred_seq = [
-                    w
-                    for w in seq
-                    if w
-                    not in {
-                        args.word_vocab["<START>"],
-                        args.word_vocab["<END>"],
-                        args.word_vocab["<NULL>"],
-                    }
-                ]
-                hypotheses.append(pred_seq)
-                assert len(references) == len(hypotheses)
-                # # 判断有没有变化
-
-                pred_caption = ""
-                ref_caption = ""
-                for i in pred_seq:
-                    pred_caption += (list(args.word_vocab.keys())[i]) + " "
-                ref_caption = ""
-                for i in img_tokens[0]:
-                    ref_caption += (list(args.word_vocab.keys())[i]) + " "
-                ref_captions = ""
-                for i in img_tokens:
-                    for j in i:
-                        ref_captions += (list(args.word_vocab.keys())[j]) + " "
-                    ref_captions += ".    "
-
-                if ref_caption in nochange_list:
-                    nochange_references.append(img_tokens)
-                    nochange_hypotheses.append(pred_seq)
-                    if pred_caption in nochange_list:
-                        nochange_acc = nochange_acc + 1
-                else:
-                    change_references.append(img_tokens)
-                    change_hypotheses.append(pred_seq)
-                    if pred_caption not in nochange_list:
-                        change_acc = change_acc + 1
+                change_acc, nochange_acc = process_caption(
+                    seq,
+                    token_all,
+                    args.word_vocab,
+                    name,
+                    args,
+                    references,
+                    hypotheses,
+                    change_references,
+                    change_hypotheses,
+                    nochange_references,
+                    nochange_hypotheses,
+                    change_acc,
+                    nochange_acc,
+                    nochange_list,
+                )
 
         test_time = time.time() - test_start_time
 
