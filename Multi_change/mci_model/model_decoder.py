@@ -352,7 +352,7 @@ class DecoderTransformer(nn.Module):
         # decode_lengths = (caption_lengths).tolist()
         return pred, encoded_captions, decode_lengths, sort_ind
 
-    def sample(self, x1, x2, k=1):
+    def sample(self, x1, x2):
         """
         :param x1, x2: encoded images, a tensor of dimension (batch_size, channel, enc_image_size, enc_image_size)
         """
@@ -447,10 +447,12 @@ class DecoderTransformer(nn.Module):
         top_k_scores = torch.zeros(k * batch, 1).to(DEVICE)
         complete_seqs = []
         complete_seqs_scores = []
+
         for step in range(self.max_lengths):
             word_emb = self.vocab_embedding(tgt)
             word_emb = word_emb.transpose(1, 0)
             word_emb = self.position_encoding(word_emb)
+
             pred = self.transformer(word_emb, x, tgt_mask=mask)
             pred = self.wdc(self.dropout(pred))  # (length, batch, vocab_size)
             scores = pred.permute(1, 0, 2)  # (batch, length, vocab_size)

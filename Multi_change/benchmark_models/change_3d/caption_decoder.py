@@ -739,22 +739,27 @@ class CaptionDecoder(nn.Module):
         assert batch == 1, "Beam search only supports batch size 1."
         x = x.expand(S, k, encoder_dim).permute(1, 0, 2)
 
-        tgt = torch.zeros(k, self.max_length, dtype=torch.int64, device=DEVICE)
-        tgt[:, 0] = self.word_vocab["<START>"]
+        tgt = torch.zeros(k * batch, self.max_length, dtype=torch.int64, device=DEVICE)
+        tgt[:, 0] = torch.LongTensor([self.word_vocab["<START>"]] * batch * k).to(
+            DEVICE
+        )  # (batch_size*k, 1)
         seqs = torch.full(
             (k, 1), self.word_vocab["<START>"], dtype=torch.int64, device=DEVICE
         )
-        top_k_scores = torch.zeros(k, 1, device=DEVICE)
+        top_k_scores = torch.zeros(k * batch, 1, device=DEVICE)
 
         complete_seqs = []
         complete_scores = []
 
         # causal mask
-        mask = torch.triu(
-            torch.ones(self.max_length, self.max_length, device=DEVICE),
-            diagonal=1,
-        )
-        mask = mask.masked_fill(mask == 1, float("-inf")).masked_fill(mask == 0, 0.0)
+        mask = (
+            torch.triu(torch.ones(self.max_length, self.max_length)) == 1
+        ).transpose(0, 1)
+        mask = (
+            mask.float()
+            .masked_fill(mask == 0, float("-inf"))
+            .masked_fill(mask == 1, float(0.0))
+        ).to(DEVICE)
 
         for step in range(1, self.max_length):
             # embedding + positional encoding
