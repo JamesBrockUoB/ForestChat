@@ -250,9 +250,9 @@ def main(args):
             n_layers=args.decoder_n_layers,
             dropout=args.dropout,
         )
-        encoder.load_state_dict(checkpoint["encoder_dict"])
-        encoder_trans.load_state_dict(checkpoint["encoder_trans_dict"])
-        decoder.load_state_dict(checkpoint["decoder_dict"])
+        encoder.load_state_dict(checkpoint["encoder"])
+        encoder_trans.load_state_dict(checkpoint["encoder_trans"])
+        decoder.load_state_dict(checkpoint["decoder"])
         encoder.eval()
         encoder = encoder.to(DEVICE)
         encoder_trans.eval()

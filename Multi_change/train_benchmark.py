@@ -884,12 +884,12 @@ class Trainer(object):
                 state = {
                     "epoch": epoch + 1,
                     "best_bleu-4": self.best_bleu4,
-                    "encoder": self.encoder,
-                    "encoder_trans": self.encoder_trans,
-                    "decoder": self.decoder,
-                    "encoder_optimizer": self.encoder_optimizer,
-                    "encoder_trans_optimizer": self.encoder_trans_optimizer,
-                    "decoder_optimizer": self.decoder_optimizer,
+                    "encoder": self.encoder.state_dict(),
+                    "encoder_trans": self.encoder_trans.state_dict(),
+                    "decoder": self.decoder.state_dict(),
+                    "encoder_optimizer": self.encoder_optimizer.state_dict(),
+                    "encoder_trans_optimizer": self.encoder_trans_optimizer.state_dict(),
+                    "decoder_optimizer": self.decoder_optimizer.state_dict(),
                 }
 
             # save_checkpoint

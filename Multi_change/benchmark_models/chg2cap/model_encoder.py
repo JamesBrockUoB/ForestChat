@@ -2,6 +2,26 @@ import torch
 import torchvision.models as models
 from einops import rearrange
 from torch import nn
+from torchvision.models import (
+    AlexNet_Weights,
+    DenseNet121_Weights,
+    DenseNet169_Weights,
+    DenseNet201_Weights,
+    Inception_V3_Weights,
+    RegNet_X_8GF_Weights,
+    RegNet_X_16GF_Weights,
+    RegNet_X_400MF_Weights,
+    ResNet18_Weights,
+    ResNet34_Weights,
+    ResNet50_Weights,
+    ResNet101_Weights,
+    ResNet152_Weights,
+    ResNeXt50_32X4D_Weights,
+    ResNeXt101_32X8D_Weights,
+    VGG11_Weights,
+    VGG16_Weights,
+    VGG19_Weights,
+)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -15,59 +35,61 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.network = network
         if self.network == "alexnet":  # 256,7,7
-            cnn = models.alexnet(pretrained=True)
+            cnn = models.alexnet(weights=AlexNet_Weights.DEFAULT)
             modules = list(cnn.children())[:-2]
         elif self.network == "vgg11":  # 512,1/32H,1/32W
-            cnn = models.vgg11(pretrained=True)
+            cnn = models.vgg11(weights=VGG11_Weights.DEFAULT)
             modules = list(cnn.children())[:-2]
         elif self.network == "vgg16":  # 512,1/32H,1/32W
-            cnn = models.vgg16(pretrained=True)
+            cnn = models.vgg16(weights=VGG16_Weights.DEFAULT)
             modules = list(cnn.children())[:-2]
         elif self.network == "vgg19":  # 512,1/32H,1/32W
-            cnn = models.vgg19(pretrained=True)
+            cnn = models.vgg19(weights=VGG19_Weights.DEFAULT)
             modules = list(cnn.children())[:-2]
         elif self.network == "inception":  # 2048,6,6
-            cnn = models.inception_v3(pretrained=True, aux_logits=False)
+            cnn = models.inception_v3(
+                weights=Inception_V3_Weights.DEFAULT, aux_logits=False
+            )
             modules = list(cnn.children())[:-3]
         elif self.network == "resnet18":  # 512,1/32H,1/32W
-            cnn = models.resnet18(pretrained=True)
+            cnn = models.resnet18(weights=ResNet18_Weights.DEFAULT)
             modules = list(cnn.children())[:-2]
         elif self.network == "resnet34":  # 512,1/32H,1/32W
-            cnn = models.resnet34(pretrained=True)
+            cnn = models.resnet34(weights=ResNet34_Weights.DEFAULT)
             modules = list(cnn.children())[:-2]
         elif self.network == "resnet50":  # 2048,1/32H,1/32W
-            cnn = models.resnet50(pretrained=True)
+            cnn = models.resnet50(weights=ResNet50_Weights.DEFAULT)
             modules = list(cnn.children())[:-2]
         elif self.network == "resnet101":  # 2048,1/32H,1/32W
-            cnn = models.resnet101(pretrained=True)
+            cnn = models.resnet101(weights=ResNet101_Weights.DEFAULT)
             # Remove linear and pool layers (since we're not doing classification)
             modules = list(cnn.children())[:-2]
         elif self.network == "resnet152":  # 512,1/32H,1/32W
-            cnn = models.resnet152(pretrained=True)
+            cnn = models.resnet152(weights=ResNet152_Weights.DEFAULT)
             modules = list(cnn.children())[:-2]
         elif self.network == "resnext50_32x4d":  # 2048,1/32H,1/32W
-            cnn = models.resnext50_32x4d(pretrained=True)
+            cnn = models.resnext50_32x4d(weights=ResNeXt50_32X4D_Weights.DEFAULT)
             modules = list(cnn.children())[:-2]
         elif self.network == "resnext101_32x8d":  # 2048,1/256H,1/256W
-            cnn = models.resnext101_32x8d(pretrained=True)
+            cnn = models.resnext101_32x8d(weights=ResNeXt101_32X8D_Weights.DEFAULT)
             modules = list(cnn.children())[:-1]
         elif self.network == "densenet121":  # no AdaptiveAvgPool2d #1024,1/32H,1/32W
-            cnn = models.densenet121(pretrained=True)
+            cnn = models.densenet121(weights=DenseNet121_Weights.DEFAULT)
             modules = list(cnn.children())[:-1]
         elif self.network == "densenet169":  # 1664,1/32H,1/32W
-            cnn = models.densenet169(pretrained=True)
+            cnn = models.densenet169(weights=DenseNet169_Weights.DEFAULT)
             modules = list(cnn.children())[:-1]
         elif self.network == "densenet201":  # 1920,1/32H,1/32W
-            cnn = models.densenet201(pretrained=True)
+            cnn = models.densenet201(weights=DenseNet201_Weights.DEFAULT)
             modules = list(cnn.children())[:-1]
         elif self.network == "regnet_x_400mf":  # 400,1/32H,1/32W
-            cnn = models.regnet_x_400mf(pretrained=True)
+            cnn = models.regnet_x_400mf(weights=RegNet_X_400MF_Weights.DEFAULT)
             modules = list(cnn.children())[:-2]
         elif self.network == "regnet_x_8gf":  # 1920,1/32H,1/32W
-            cnn = models.regnet_x_8gf(pretrained=True)
+            cnn = models.regnet_x_8gf(weights=RegNet_X_8GF_Weights.DEFAULT)
             modules = list(cnn.children())[:-2]
         elif self.network == "regnet_x_16gf":  # 2048,1/32H,1/32W
-            cnn = models.regnet_x_16gf(pretrained=True)
+            cnn = models.regnet_x_16gf(weights=RegNet_X_16GF_Weights.DEFAULT)
             modules = list(cnn.children())[:-2]
 
         self.cnn = nn.Sequential(*modules)
