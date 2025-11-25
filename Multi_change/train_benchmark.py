@@ -252,8 +252,6 @@ class Trainer(object):
                 self.best_bleu4 = checkpoint.get("best_bleu4", 0.05)
 
             self.model.to(DEVICE)
-            if args.gpu_id is not None:
-                self.model = nn.DataParallel(self.model)
 
         elif args.benchmark == "chg2cap":
             self.encoder = Encoder(args.network)
@@ -451,12 +449,12 @@ class Trainer(object):
                     self.optimizer.step()
             elif args.benchmark == "bifa":
                 seg_pred = self.model(imgA, imgB)
+
                 det_loss = self.criterion(seg_pred, seg_label)
 
                 self.optimizer.zero_grad()
                 det_loss.backward()
                 self.optimizer.step()
-                self.scheduler.step()
             elif args.benchmark == "chg2cap":
                 feat1, feat2 = self.encoder(imgA, imgB)
                 feat1, feat2 = self.encoder_trans(feat1, feat2)
@@ -578,9 +576,13 @@ class Trainer(object):
                         "text_top_5_train_accuracy": print_vals[7],
                     }
                 )
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+
+        if args.benchmark == "bifa":
+            self.scheduler.step()
+
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     # One epoch's validation
     def validation(self, epoch):

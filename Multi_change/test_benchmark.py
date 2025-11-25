@@ -227,10 +227,9 @@ def main(args):
         else:
             raise ValueError("Unknown train goal selected.")
     elif args.benchmark == "bifa":
-        model = BiFA(backbone="mit_b0")
+        model = BiFA(backbone="mit_b0").to(DEVICE)
         model.load_state_dict(checkpoint["state_dict"])
         model.eval()
-        model = model.to(DEVICE)
     elif args.benchmark == "chg2cap":
         encoder = Encoder(args.network)
         encoder_trans = AttentiveEncoder(
@@ -416,102 +415,106 @@ def main(args):
         test_time = time.time() - test_start_time
 
         # Fast test during the training
+        if args.train_goal == 0:
 
-        Acc_seg = evaluator.Pixel_Accuracy()
-        Acc_class_seg = evaluator.Pixel_Accuracy_Class()
-        mIoU_seg, IoU = evaluator.Mean_Intersection_over_Union()
-        FWIoU_seg = evaluator.Frequency_Weighted_Intersection_over_Union()
-        Acc_seg = evaluator.Pixel_Accuracy()
-        F1_score, F1_class_score = evaluator.F1_Score()
-        print(
-            "Validation:\n"
-            "Acc_seg: {0:.5f}\t"
-            "Acc_class_seg: {1:.5f}\t"
-            "mIoU_seg: {2:.5f}\t"
-            "FWIoU_seg: {3:.5f}\t"
-            "IoU: {4}\t"
-            "F1: {5:.5f}\t"
-            "F1_class: {6}\t".format(
-                Acc_seg,
-                Acc_class_seg,
-                mIoU_seg,
-                FWIoU_seg,
-                IoU,
-                F1_score,
-                F1_class_score,
-            )
-        )
-
-        # Calculate evaluation scores
-        print("len(nochange_references):", len(nochange_references))
-        print("len(change_references):", len(change_references))
-
-        if len(nochange_references) > 0:
-            print("nochange_metric:")
-            nochange_metric = get_eval_score(nochange_references, nochange_hypotheses)
-            Bleu_1 = nochange_metric["Bleu_1"]
-            Bleu_2 = nochange_metric["Bleu_2"]
-            Bleu_3 = nochange_metric["Bleu_3"]
-            Bleu_4 = nochange_metric["Bleu_4"]
-            Meteor = nochange_metric["METEOR"]
-            Rouge = nochange_metric["ROUGE_L"]
-            Cider = nochange_metric["CIDEr"]
+            Acc_seg = evaluator.Pixel_Accuracy()
+            Acc_class_seg = evaluator.Pixel_Accuracy_Class()
+            mIoU_seg, IoU = evaluator.Mean_Intersection_over_Union()
+            FWIoU_seg = evaluator.Frequency_Weighted_Intersection_over_Union()
+            Acc_seg = evaluator.Pixel_Accuracy()
+            F1_score, F1_class_score = evaluator.F1_Score()
             print(
-                "BLEU-1: {0:.5f}\t"
-                "BLEU-2: {1:.5f}\t"
-                "BLEU-3: {2:.5f}\t"
-                "BLEU-4: {3:.5f}\t"
-                "Meteor: {4:.5f}\t"
-                "Rouge: {5:.5f}\t"
-                "Cider: {6:.5f}\t".format(
-                    Bleu_1, Bleu_2, Bleu_3, Bleu_4, Meteor, Rouge, Cider
+                "Validation:\n"
+                "Acc_seg: {0:.5f}\t"
+                "Acc_class_seg: {1:.5f}\t"
+                "mIoU_seg: {2:.5f}\t"
+                "FWIoU_seg: {3:.5f}\t"
+                "IoU: {4}\t"
+                "F1: {5:.5f}\t"
+                "F1_class: {6}\t".format(
+                    Acc_seg,
+                    Acc_class_seg,
+                    mIoU_seg,
+                    FWIoU_seg,
+                    IoU,
+                    F1_score,
+                    F1_class_score,
                 )
             )
-            print("nochange_acc:", nochange_acc / len(nochange_references))
-        if len(change_references) > 0:
-            print("change_metric:")
-            change_metric = get_eval_score(change_references, change_hypotheses)
-            Bleu_1 = change_metric["Bleu_1"]
-            Bleu_2 = change_metric["Bleu_2"]
-            Bleu_3 = change_metric["Bleu_3"]
-            Bleu_4 = change_metric["Bleu_4"]
-            Meteor = change_metric["METEOR"]
-            Rouge = change_metric["ROUGE_L"]
-            Cider = change_metric["CIDEr"]
+
+        if args.train_goal == 1:
+            # Calculate evaluation scores
+            print("len(nochange_references):", len(nochange_references))
+            print("len(change_references):", len(change_references))
+
+            if len(nochange_references) > 0:
+                print("nochange_metric:")
+                nochange_metric = get_eval_score(
+                    nochange_references, nochange_hypotheses
+                )
+                Bleu_1 = nochange_metric["Bleu_1"]
+                Bleu_2 = nochange_metric["Bleu_2"]
+                Bleu_3 = nochange_metric["Bleu_3"]
+                Bleu_4 = nochange_metric["Bleu_4"]
+                Meteor = nochange_metric["METEOR"]
+                Rouge = nochange_metric["ROUGE_L"]
+                Cider = nochange_metric["CIDEr"]
+                print(
+                    "BLEU-1: {0:.5f}\t"
+                    "BLEU-2: {1:.5f}\t"
+                    "BLEU-3: {2:.5f}\t"
+                    "BLEU-4: {3:.5f}\t"
+                    "Meteor: {4:.5f}\t"
+                    "Rouge: {5:.5f}\t"
+                    "Cider: {6:.5f}\t".format(
+                        Bleu_1, Bleu_2, Bleu_3, Bleu_4, Meteor, Rouge, Cider
+                    )
+                )
+                print("nochange_acc:", nochange_acc / len(nochange_references))
+            if len(change_references) > 0:
+                print("change_metric:")
+                change_metric = get_eval_score(change_references, change_hypotheses)
+                Bleu_1 = change_metric["Bleu_1"]
+                Bleu_2 = change_metric["Bleu_2"]
+                Bleu_3 = change_metric["Bleu_3"]
+                Bleu_4 = change_metric["Bleu_4"]
+                Meteor = change_metric["METEOR"]
+                Rouge = change_metric["ROUGE_L"]
+                Cider = change_metric["CIDEr"]
+                print(
+                    "BLEU-1: {0:.5f}\t"
+                    "BLEU-2: {1:.5f}\t"
+                    "BLEU-3: {2:.5f}\t"
+                    "BLEU-4: {3:.5f}\t"
+                    "Meteor: {4:.5f}\t"
+                    "Rouge: {5:.5f}\t"
+                    "Cider: {6:.5f}\t".format(
+                        Bleu_1, Bleu_2, Bleu_3, Bleu_4, Meteor, Rouge, Cider
+                    )
+                )
+                print("change_acc:", change_acc / len(change_references))
+
+            score_dict = get_eval_score(references, hypotheses)
+            Bleu_1 = score_dict["Bleu_1"]
+            Bleu_2 = score_dict["Bleu_2"]
+            Bleu_3 = score_dict["Bleu_3"]
+            Bleu_4 = score_dict["Bleu_4"]
+            Meteor = score_dict["METEOR"]
+            Rouge = score_dict["ROUGE_L"]
+            Cider = score_dict["CIDEr"]
             print(
-                "BLEU-1: {0:.5f}\t"
-                "BLEU-2: {1:.5f}\t"
-                "BLEU-3: {2:.5f}\t"
-                "BLEU-4: {3:.5f}\t"
-                "Meteor: {4:.5f}\t"
-                "Rouge: {5:.5f}\t"
-                "Cider: {6:.5f}\t".format(
-                    Bleu_1, Bleu_2, Bleu_3, Bleu_4, Meteor, Rouge, Cider
+                "Test of Captioning:\n"
+                "Time: {0:.3f}\t"
+                "BLEU-1: {1:.5f}\t"
+                "BLEU-2: {2:.5f}\t"
+                "BLEU-3: {3:.5f}\t"
+                "BLEU-4: {4:.5f}\t"
+                "Meteor: {5:.5f}\t"
+                "Rouge: {6:.5f}\t"
+                "Cider: {7:.5f}\t".format(
+                    test_time, Bleu_1, Bleu_2, Bleu_3, Bleu_4, Meteor, Rouge, Cider
                 )
             )
-            print("change_acc:", change_acc / len(change_references))
-
-        score_dict = get_eval_score(references, hypotheses)
-        Bleu_1 = score_dict["Bleu_1"]
-        Bleu_2 = score_dict["Bleu_2"]
-        Bleu_3 = score_dict["Bleu_3"]
-        Bleu_4 = score_dict["Bleu_4"]
-        Meteor = score_dict["METEOR"]
-        Rouge = score_dict["ROUGE_L"]
-        Cider = score_dict["CIDEr"]
-        print(
-            "Test of Captioning:\n"
-            "Time: {0:.3f}\t"
-            "BLEU-1: {1:.5f}\t"
-            "BLEU-2: {2:.5f}\t"
-            "BLEU-3: {3:.5f}\t"
-            "BLEU-4: {4:.5f}\t"
-            "Meteor: {5:.5f}\t"
-            "Rouge: {6:.5f}\t"
-            "Cider: {7:.5f}\t".format(
-                test_time, Bleu_1, Bleu_2, Bleu_3, Bleu_4, Meteor, Rouge, Cider
-            )
-        )
 
 
 if __name__ == "__main__":
