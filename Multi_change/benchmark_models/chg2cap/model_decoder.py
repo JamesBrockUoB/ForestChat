@@ -141,6 +141,7 @@ class Mesh_TransformerDecoderLayer(nn.Module):
         tgt_key_padding_mask: Optional[Tensor] = None,
         memory_key_padding_mask: Optional[Tensor] = None,
     ) -> Tensor:
+
         self_att_tgt = self.norm1(
             tgt + self._sa_block(tgt, tgt_mask, tgt_key_padding_mask)
         )
@@ -278,12 +279,10 @@ class DecoderTransformer(nn.Module):
         self.dropout = dropout
         self.Conv1 = nn.Conv2d(encoder_dim * 2, feature_dim, kernel_size=1)
         self.LN = resblock(feature_dim, feature_dim)
-
         # embedding layer
         self.vocab_embedding = nn.Embedding(
             vocab_size, self.embed_dim
         )  # vocaburaly embedding
-
         # Transformer layer
         decoder_layer = Mesh_TransformerDecoderLayer(
             feature_dim, n_head, dim_feedforward=feature_dim * 4, dropout=self.dropout
@@ -313,9 +312,9 @@ class DecoderTransformer(nn.Module):
         :param caption_lengths: a tensor of dimension (batch_size)
         """
         x_sam = self.cos(x1, x2)
-        x = torch.cat(
-            [x1, x2], dim=1
-        )  # + x_sam.unsqueeze(1) #(batch_size, 2channel, enc_image_size, enc_image_size)
+        x = torch.cat([x1, x2], dim=1) + x_sam.unsqueeze(
+            1
+        )  # (batch_size, 2channel, enc_image_size, enc_image_size)
         x = self.LN(self.Conv1(x))
 
         batch, channel = x.size(0), x.size(1)
@@ -329,7 +328,6 @@ class DecoderTransformer(nn.Module):
         tgt_pad_mask = (encoded_captions == self.word_vocab["<NULL>"]) | (
             encoded_captions == self.word_vocab["<END>"]
         )
-
         word_emb = self.vocab_embedding(
             encoded_captions
         )  # (batch, length, feature_dim)
@@ -342,7 +340,6 @@ class DecoderTransformer(nn.Module):
         )  # (length, batch, feature_dim)
         pred = self.wdc(self.dropout(pred))  # (length, batch, vocab_size)
         pred = pred.permute(1, 0, 2)
-
         # Sort input data by decreasing lengths
         caption_lengths, sort_ind = caption_lengths.sort(dim=0, descending=True)
         encoded_captions = encoded_captions[sort_ind]
@@ -352,21 +349,19 @@ class DecoderTransformer(nn.Module):
         # decode_lengths = (caption_lengths).tolist()
         return pred, encoded_captions, decode_lengths, sort_ind
 
-    def sample(self, x1, x2):
+    def sample(self, x1, x2, k=1):
         """
         :param x1, x2: encoded images, a tensor of dimension (batch_size, channel, enc_image_size, enc_image_size)
         """
         x_sam = self.cos(x1, x2)
-        x = torch.cat(
-            [x1, x2], dim=1
-        )  # + x_sam.unsqueeze(1) #(batch_size, 2channel, enc_image_size, enc_image_size)
+        x = torch.cat([x1, x2], dim=1) + x_sam.unsqueeze(
+            1
+        )  # (batch_size, 2channel, enc_image_size, enc_image_size)
         x = self.LN(self.Conv1(x))
         batch, channel = x.size(0), x.size(1)
         x = x.view(batch, channel, -1).permute(2, 0, 1)  # (hw, batch_size, feature_dim)
 
-        tgt = (
-            torch.zeros(batch, self.max_lengths).to(torch.int64).to(DEVICE)
-        )  # (batch_size, self.max_lengths)
+        tgt = torch.zeros(batch, self.max_lengths).to(torch.int64).to(DEVICE)
 
         mask = torch.triu(
             torch.ones(self.max_lengths, self.max_lengths) * float("-inf"), diagonal=1
@@ -374,10 +369,8 @@ class DecoderTransformer(nn.Module):
         mask = mask.to(DEVICE)
         tgt[:, 0] = torch.LongTensor([self.word_vocab["<START>"]] * batch).to(
             DEVICE
-        )  # (batch_size, 1)
-        seqs = torch.LongTensor([[self.word_vocab["<START>"]]] * batch).to(
-            DEVICE
-        )  # (batch_size, 1)
+        )  # (batch_size*k, 1)
+        seqs = torch.LongTensor([[self.word_vocab["<START>"]]] * batch).to(DEVICE)
         # Weight = torch.zeros(1, self.max_lengths, x.size(0)).cuda()
         for step in range(self.max_lengths):
             tgt_pad_mask = tgt == self.word_vocab["<NULL>"]
@@ -408,7 +401,7 @@ class DecoderTransformer(nn.Module):
         # Weight1=Weight.clone()
         return seqs
 
-    def sample_beam(self, x1, x2, k=1):
+    def sample1(self, x1, x2, k=1):
         """
         :param x1, x2: encoded images, a tensor of dimension (batch_size, channel, enc_image_size, enc_image_size)
         :param max_lengths: maximum length of the generated captions
@@ -418,7 +411,6 @@ class DecoderTransformer(nn.Module):
         x = torch.cat([x1, x2], dim=1)
         x = self.LN(self.Conv1(x))
         batch, channel, h, w = x.shape
-        assert batch == 1, "batch size must be 1"
         x = (
             x.view(batch, channel, -1)
             .unsqueeze(0)
@@ -427,9 +419,7 @@ class DecoderTransformer(nn.Module):
             .permute(2, 0, 1)
         )  # (h*w, batch, feature_dim)
 
-        tgt = (
-            torch.zeros(k * batch, self.max_lengths).to(torch.int64).to(DEVICE)
-        )  # (batch_size*k, self.max_lengths)
+        tgt = torch.zeros(k * batch, self.max_lengths).to(torch.int64).to(DEVICE)
 
         mask = (
             torch.triu(torch.ones(self.max_lengths, self.max_lengths)) == 1
@@ -447,12 +437,10 @@ class DecoderTransformer(nn.Module):
         top_k_scores = torch.zeros(k * batch, 1).to(DEVICE)
         complete_seqs = []
         complete_seqs_scores = []
-
         for step in range(self.max_lengths):
             word_emb = self.vocab_embedding(tgt)
             word_emb = word_emb.transpose(1, 0)
             word_emb = self.position_encoding(word_emb)
-
             pred = self.transformer(word_emb, x, tgt_mask=mask)
             pred = self.wdc(self.dropout(pred))  # (length, batch, vocab_size)
             scores = pred.permute(1, 0, 2)  # (batch, length, vocab_size)
@@ -461,22 +449,12 @@ class DecoderTransformer(nn.Module):
             )  # [batch, 1, vocab_size] -> [batch, vocab_size]
             scores = F.log_softmax(scores, dim=1)
             scores = top_k_scores.expand_as(scores) + scores
-            if step == 0:
-                top_k_scores, top_k_words = scores[0].topk(k, 0, True, True)
-            else:
-                top_k_scores, top_k_words = scores.view(-1).topk(
-                    k, 0, True, True
-                )  # (s)
-
-            # Convert unrolled indices to actual indices of scores
-            # prev_word_inds = top_k_words // vocab_size  # (s)
+            top_k_scores, top_k_words = scores.view(-1).topk(k, 0, True, True)  # (s)
             prev_word_inds = torch.div(
                 top_k_words, self.vocab_size, rounding_mode="floor"
             )
             next_word_inds = top_k_words % self.vocab_size  # (s)
-            # Add new words to sequences
             seqs = torch.cat([seqs[prev_word_inds], next_word_inds.unsqueeze(1)], dim=1)
-            # Which sequences are incomplete (didn't reach <end>)?
             incomplete_inds = [
                 ind
                 for ind, next_word in enumerate(next_word_inds)
@@ -502,7 +480,3 @@ class DecoderTransformer(nn.Module):
         i = complete_seqs_scores.index(max(complete_seqs_scores))
         seq = complete_seqs[i]
         return seq
-
-    def fine_tune(self, fine_tune=True):
-        for p in self.parameters():
-            p.requires_grad = fine_tune

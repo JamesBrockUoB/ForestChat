@@ -1,12 +1,9 @@
 import argparse
 import json
 import time
-import token
-from itertools import islice
 
 import cv2
 import numpy as np
-import torch.optim
 from data.ForestChange import ForestChangeDataset
 from data.LEVIR_MCI import LEVIRCCDataset
 from mci_model.model_decoder import DecoderTransformer
@@ -204,6 +201,8 @@ def main(args):
             num_workers=args.workers,
             pin_memory=True,
         )
+    else:
+        raise ValueError("Unknown dataset selected")
 
     # Epochs
     test_start_time = time.time()

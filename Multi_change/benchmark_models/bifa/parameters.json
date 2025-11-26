@@ -1,0 +1,6 @@
+{
+    "optimizer_lr": 1e-4,
+    "scheduler_lr_policy": "linear",
+    "scheduler_n_step": 3,
+    "scheduler_gamma": 0.1
+}

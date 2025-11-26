@@ -150,6 +150,8 @@ class Trainer(object):
                 num_workers=args.workers,
                 pin_memory=True,
             )
+        else:
+            raise ValueError("Unknown dataset selected")
 
         # Loss function
         self.criterion_cap = torch.nn.CrossEntropyLoss().to(DEVICE)
@@ -163,6 +165,7 @@ class Trainer(object):
         args = self.args
 
         # --- Initialize models ---
+        fine_tune_capdecoder = False
         self.encoder = Encoder(args.network)
         dims = [32, 64, 160, 256] if "b0" in args.network else [64, 128, 320, 512]
         self.encoder_trans = AttentiveEncoder(
@@ -185,6 +188,44 @@ class Trainer(object):
             dropout=args.dropout,
         )
 
+        self.encoder_optimizer = (
+            torch.optim.Adam(self.encoder.parameters(), lr=args.encoder_lr)
+            if args.fine_tune_encoder
+            else None
+        )
+        self.encoder_trans_optimizer = torch.optim.Adam(
+            filter(lambda p: p.requires_grad, self.encoder_trans.parameters()),
+            lr=args.encoder_lr,
+        )
+        decoder_params = list(
+            filter(lambda p: p.requires_grad, self.decoder.parameters())
+        )
+        if args.loss_balancing_method == "uncert":
+            decoder_params += [self.log_vars]
+        self.decoder_optimizer = (
+            torch.optim.Adam(decoder_params, lr=args.decoder_lr)
+            if fine_tune_capdecoder
+            else None
+        )
+
+        self.encoder_lr_scheduler = (
+            torch.optim.lr_scheduler.StepLR(
+                self.encoder_optimizer, step_size=5, gamma=1.0
+            )
+            if args.fine_tune_encoder
+            else None
+        )
+        self.encoder_trans_lr_scheduler = torch.optim.lr_scheduler.StepLR(
+            self.encoder_trans_optimizer, step_size=5, gamma=1.0
+        )
+        self.decoder_lr_scheduler = (
+            torch.optim.lr_scheduler.StepLR(
+                self.decoder_optimizer, step_size=5, gamma=1.0
+            )
+            if fine_tune_capdecoder
+            else None
+        )
+
         # --- Load checkpoint if resuming ---
         if args.resume_from_checkpoint and args.checkpoint is not None:
             print_log(f"Resuming from checkpoint: {args.checkpoint}", self.log)
@@ -202,10 +243,11 @@ class Trainer(object):
             self.best_bleu4 = checkpoint.get("best_bleu4", 0.3)
             self.Sum_Metric = checkpoint.get("best_sum_metric", 0.3)
 
-            # --- Try to restore optimizers and schedulers ---
-            self.encoder_optimizer = checkpoint.get("encoder_optimizer")
-            self.encoder_trans_optimizer = checkpoint.get("encoder_trans_optimizer")
-            self.decoder_optimizer = checkpoint.get("decoder_optimizer")
+            self.encoder_optimizer.load_state_dict(checkpoint["encoder_optimizer"])
+            self.encoder_trans_optimizer.load_state_dict(
+                checkpoint["encoder_trans_optimizer"]
+            )
+            self.decoder_optimizer.load_state_dict(checkpoint["decoder_optimizer"])
 
             if self.encoder_optimizer is None and args.fine_tune_encoder:
                 self.encoder_optimizer = torch.optim.Adam(
@@ -270,7 +312,6 @@ class Trainer(object):
                 )
                 self.encoder.load_state_dict(checkpoint["encoder_dict"])
 
-                args.fine_tune_encoder = False
                 self.encoder.fine_tune(False)
                 self.encoder.eval()
                 self.encoder_trans.fine_tune(args.train_goal)
@@ -280,44 +321,6 @@ class Trainer(object):
                 self.decoder.train() if fine_tune_capdecoder else self.decoder.eval()
             else:
                 raise ValueError("Error: unknown training stage.")
-
-            self.encoder_optimizer = (
-                torch.optim.Adam(self.encoder.parameters(), lr=args.encoder_lr)
-                if args.fine_tune_encoder
-                else None
-            )
-            self.encoder_trans_optimizer = torch.optim.Adam(
-                filter(lambda p: p.requires_grad, self.encoder_trans.parameters()),
-                lr=args.encoder_lr,
-            )
-            decoder_params = list(
-                filter(lambda p: p.requires_grad, self.decoder.parameters())
-            )
-            if args.loss_balancing_method == "uncert":
-                decoder_params += [self.log_vars]
-            self.decoder_optimizer = (
-                torch.optim.Adam(decoder_params, lr=args.decoder_lr)
-                if fine_tune_capdecoder
-                else None
-            )
-
-            self.encoder_lr_scheduler = (
-                torch.optim.lr_scheduler.StepLR(
-                    self.encoder_optimizer, step_size=5, gamma=1.0
-                )
-                if args.fine_tune_encoder
-                else None
-            )
-            self.encoder_trans_lr_scheduler = torch.optim.lr_scheduler.StepLR(
-                self.encoder_trans_optimizer, step_size=5, gamma=1.0
-            )
-            self.decoder_lr_scheduler = (
-                torch.optim.lr_scheduler.StepLR(
-                    self.decoder_optimizer, step_size=5, gamma=1.0
-                )
-                if fine_tune_capdecoder
-                else None
-            )
 
         # --- Move to device ---
         self.encoder = self.encoder.to(DEVICE)
@@ -777,7 +780,7 @@ class Trainer(object):
                     "encoder_dict": self.encoder.state_dict(),
                     "encoder_trans_dict": self.encoder_trans.state_dict(),
                     "decoder_dict": self.decoder.state_dict(),
-                    "epoch": epoch,
+                    "epoch": epoch + 1,
                     "best_mIoU": self.MIou,
                     "best_bleu4": self.best_bleu4,
                     "best_sum_metric": self.Sum_Metric,
@@ -822,7 +825,7 @@ class Trainer(object):
                     "encoder_dict": self.encoder.state_dict(),
                     "encoder_trans_dict": self.encoder_trans.state_dict(),
                     "decoder_dict": self.decoder.state_dict(),
-                    "epoch": epoch,
+                    "epoch": epoch + 1,
                     "best_mIoU": self.MIou,
                     "best_bleu4": self.best_bleu4,
                     "best_sum_metric": self.Sum_Metric,

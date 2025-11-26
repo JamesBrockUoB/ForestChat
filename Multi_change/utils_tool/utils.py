@@ -222,18 +222,86 @@ def clip_gradient(optimizer, grad_clip):
                 param.grad.data.clamp_(-grad_clip, grad_clip)
 
 
-def adjust_learning_rate(optimizer, shrink_factor):
+def adjust_lr(
+    args,
+    optimizer,
+    epoch=None,
+    iter=None,
+    max_batches=None,
+    lr_factor=1.0,
+    shrink_factor=None,
+    verbose=True,
+):
     """
-    Shrinks learning rate by a specified factor.
+    Adjust learning rate based on scheduler type, epoch, iteration, or explicit shrinking.
 
-    :param optimizer: optimizer whose learning rate must be shrunk.
-    :param shrink_factor: factor in interval (0, 1) to multiply learning rate with.
+    This function supports multiple learning rate adjustment strategies:
+    1. Step decay: Reduces LR at fixed intervals
+    2. Polynomial decay: Smoothly reduces LR according to a polynomial function
+    3. Manual shrinking: Explicitly shrinks LR by a specified factor
+    4. Warm-up phase: Gradually increases LR at the beginning of training
+
+    Args:
+        args: Command line arguments containing lr_mode, lr, step_loss, max_epochs
+        optimizer: Optimizer instance whose learning rate will be adjusted
+        epoch: Current epoch (required for step and poly modes)
+        iter: Current iteration (required for poly mode and warm-up)
+        max_batches: Total batches per epoch (required for poly mode)
+        lr_factor: Additional scaling factor for the learning rate (default: 1.0)
+        shrink_factor: If provided, explicitly shrink LR by this factor (0-1)
+        verbose: Whether to print the learning rate change (default: True)
+
+    Returns:
+        float: Current learning rate after adjustment
     """
+    if shrink_factor is not None:
+        # Manual shrinking mode (from the second implementation)
+        if not 0 < shrink_factor < 1:
+            raise ValueError(
+                f"Shrink factor must be between 0 and 1, got {shrink_factor}"
+            )
 
-    print("\nDECAYING learning rate.")
+        if verbose:
+            print("\nDECAYING learning rate.")
+
+        for param_group in optimizer.param_groups:
+            param_group["lr"] = param_group["lr"] * shrink_factor
+
+        if verbose:
+            print(f"The new learning rate is {optimizer.param_groups[0]['lr']:.6f}\n")
+
+        return optimizer.param_groups[0]["lr"]
+
+    # Scheduler-based learning rate adjustment
+    if args.lr_mode == "step":
+        if epoch is None:
+            raise ValueError("Epoch must be provided for step lr_mode")
+        lr = args.lr * (0.1 ** (epoch // args.step_loss))
+
+    elif args.lr_mode == "poly":
+        if any(param is None for param in [epoch, iter, max_batches]):
+            raise ValueError(
+                "Epoch, iter, and max_batches must be provided for poly lr_mode"
+            )
+
+        cur_iter = iter
+        max_iter = max_batches * args.num_epochs
+        lr = args.lr * (1 - cur_iter * 1.0 / max_iter) ** 0.9
+    else:
+        raise ValueError(f"Unknown lr mode {args.lr_mode}")
+
+    # Apply warm-up phase if we're in the first epoch
+    if epoch == 0 and iter is not None and iter < 200:
+        lr = args.lr * 0.9 * (iter + 1) / 200 + 0.1 * args.lr
+
+    # Apply additional lr factor
+    lr *= lr_factor
+
+    # Update learning rate for all parameter groups
     for param_group in optimizer.param_groups:
-        param_group["lr"] = param_group["lr"] * shrink_factor
-    print("The new learning rate is %f\n" % (optimizer.param_groups[0]["lr"],))
+        param_group["lr"] = lr
+
+    return lr
 
 
 class AverageMeter(object):
