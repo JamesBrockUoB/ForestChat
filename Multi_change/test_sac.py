@@ -157,14 +157,16 @@ def main(args):
         Acc_seg = evaluator.Pixel_Accuracy()
         F1_score, F1_class_score = evaluator.F1_Score()
         print(
-            "Validation:\n"
-            "Acc_seg: {0:.5f}\t"
-            "Acc_class_seg: {1:.5f}\t"
-            "mIoU_seg: {2:.5f}\t"
-            "FWIoU_seg: {3:.5f}\t"
-            "IoU: {4}\t"
-            "F1: {5:.5f}\t"
-            "F1_class: {6}\t".format(
+            "Test of Segmentation:\n"
+            "Time: {0:.3f}\t"
+            "Acc_seg: {1:.5f}\t"
+            "Acc_class_seg: {2:.5f}\t"
+            "mIoU_seg: {3:.5f}\t"
+            "FWIoU_seg: {4:.5f}\t"
+            "IoU: {5}\t"
+            "F1: {6:.5f}\t"
+            "F1_class: {7}\t".format(
+                test_time,
                 Acc_seg,
                 Acc_class_seg,
                 mIoU_seg,
