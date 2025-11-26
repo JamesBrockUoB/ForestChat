@@ -338,7 +338,7 @@ def main(args):
                     encoder_out = model.update_cc(imgA, imgB)
                     encoder_out = rearrange(encoder_out, "b c h w -> (h w) b c")
 
-                    seq = model.decoder.sample_beam(encoder_out, k=args.beam_size)
+                    seq = model.decoder.sample_beam(encoder_out, k=1)
 
                     change_acc, nochange_acc = process_caption(
                         seq,
