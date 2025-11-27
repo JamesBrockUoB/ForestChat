@@ -154,9 +154,6 @@ class Trainer(object):
                         weight_decay=1e-4,
                     )
                 elif args.train_goal == 1:
-                    self.encoder_optimizer = None
-                    self.encoder_lr_scheduler = None
-
                     if args.fine_tune_encoder:
                         self.encoder_optimizer = torch.optim.Adam(
                             params=filter(
@@ -203,16 +200,45 @@ class Trainer(object):
                     self.model.decoder.load_state_dict(checkpoint["decoder_state_dict"])
 
                 if "optimizer" in checkpoint:
+                    self.optimizer = torch.optim.Adam(
+                        self.model.parameters(),
+                        args.lr,
+                        (0.9, 0.99),
+                        eps=1e-08,
+                        weight_decay=1e-4,
+                    )
                     self.optimizer.load_state_dict(checkpoint["optimizer"])
 
+                self.encoder_optimizer = None
                 if "encoder_image_optimizer" in checkpoint:
+                    self.encoder_optimizer = torch.optim.Adam(
+                        params=filter(
+                            lambda p: p.requires_grad,
+                            self.model.encoder.parameters(),
+                        ),
+                        lr=args.encoder_lr,
+                        weight_decay=1e-5,
+                    )
                     self.encoder_optimizer.load_state_dict(
                         checkpoint["encoder_image_optimizer"]
                     )
+                    self.encoder_lr_scheduler = StepLR(
+                        self.encoder_optimizer, step_size=900, gamma=1
+                    )
 
                 if "decoder_optimizer" in checkpoint:
+                    self.decoder_optimizer = torch.optim.Adam(
+                        params=filter(
+                            lambda p: p.requires_grad, self.model.decoder.parameters()
+                        ),
+                        lr=args.decoder_lr,
+                        weight_decay=1e-5,
+                    )
                     self.decoder_optimizer.load_state_dict(
                         checkpoint["decoder_optimizer"]
+                    )
+                    self.decoder_lr_scheduler = StepLR(
+                        self.decoder_optimizer, step_size=900, gamma=1
                     )
 
                 if args.fine_tune_encoder is True and self.encoder_optimizer is None:
@@ -224,10 +250,6 @@ class Trainer(object):
                         lr=args.encoder_lr,
                         weight_decay=1e-5,
                     )
-
-                self.decoder_lr_scheduler = StepLR(
-                    self.decoder_optimizer, step_size=900, gamma=1
-                )
 
                 self.criterion = nn.CrossEntropyLoss(ignore_index=0).to(DEVICE)
         elif args.benchmark == "bifa":
