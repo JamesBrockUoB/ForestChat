@@ -66,7 +66,7 @@ class Trainer(object):
         print_log("=>train_batchsize: {}".format(args.train_batchsize), self.log)
         print_log("=>benchmark: {}".format(args.benchmark), self.log)
 
-        self.best_bleu4 = 0.05  # BLEU-4 score right now
+        self.best_bleu4 = 0.0  # BLEU-4 score right now
         self.MIou = 0.3
         self.start_epoch = 0
         with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
@@ -188,7 +188,7 @@ class Trainer(object):
                 self.start_epoch = checkpoint.get("epoch", 0)
                 self.best_epoch = checkpoint.get("epoch", 0)
                 self.MIoU = checkpoint.get("best_mIoU", 0.3)
-                self.best_bleu4 = checkpoint.get("best_bleu4", 0.05)
+                self.best_bleu4 = checkpoint.get("best_bleu4", 0.0)
 
                 if "state_dict" in checkpoint:
                     self.model.load_state_dict(checkpoint["state_dict"])
@@ -271,7 +271,7 @@ class Trainer(object):
                 self.start_epoch = checkpoint.get("epoch", 0)
                 self.best_epoch = checkpoint.get("epoch", 0)
                 self.MIoU = checkpoint.get("best_mIoU", 0.3)
-                self.best_bleu4 = checkpoint.get("best_bleu4", 0.05)
+                self.best_bleu4 = checkpoint.get("best_bleu4", 0.0)
 
             self.model.to(DEVICE)
 
@@ -318,7 +318,7 @@ class Trainer(object):
 
                 self.start_epoch = checkpoint.get("epoch", 0)
                 self.best_epoch = checkpoint.get("epoch", 0)
-                self.best_bleu4 = checkpoint.get("best_bleu4", 0.05)
+                self.best_bleu4 = checkpoint.get("best_bleu4", 0.0)
 
                 self.decoder.load_state_dict(checkpoint["decoder"])
                 self.decoder_optimizer.load_state_dict(checkpoint["decoder_optimizer"])
