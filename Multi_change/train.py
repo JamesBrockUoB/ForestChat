@@ -620,7 +620,7 @@ class Trainer(object):
                     feat1, feat2 = self.encoder(imgA, imgB)
                 feat1, feat2, seg_pre = self.encoder_trans(feat1, feat2)
                 if self.args.train_goal != 0 or self.start_train_goal == 2:
-                    seq = self.decoder.sample(feat1, feat2, k=1)
+                    seq = self.decoder.sample(feat1, feat2)
 
                 # for segmentation
                 if self.args.train_goal != 1 or self.start_train_goal == 2:

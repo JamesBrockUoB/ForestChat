@@ -237,7 +237,7 @@ def main(args):
             if encoder is not None:
                 feat1, feat2 = encoder(imgA, imgB)
             feat1, feat2, seg_pre = encoder_trans(feat1, feat2)
-            seq = decoder.sample(feat1, feat2, k=1)
+            seq = decoder.sample(feat1, feat2)
 
             # for segmentation
             pred_seg = seg_pre.data.cpu().numpy()
