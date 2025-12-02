@@ -907,7 +907,7 @@ class Trainer(object):
             elif args.benchmark == "chg2cap":
                 state = {
                     "epoch": epoch + 1,
-                    "best_bleu-4": self.best_bleu4,
+                    "best_bleu4": self.best_bleu4,
                     "encoder": self.encoder.state_dict(),
                     "encoder_trans": self.encoder_trans.state_dict(),
                     "decoder": self.decoder.state_dict(),
