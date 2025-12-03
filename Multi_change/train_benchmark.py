@@ -137,7 +137,8 @@ class Trainer(object):
         self.evaluator = Evaluator(num_class=args.num_class)
 
         self.best_model_path = None
-        self.best_epoch = 0
+
+        self.best_epoch = getattr(self, "best_epoch", 0)
 
     def build_benchmark_model(self):
         args = self.args
