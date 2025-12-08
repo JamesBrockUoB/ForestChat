@@ -7,6 +7,7 @@ import time
 from distutils.util import strtobool
 
 import numpy as np
+import torch
 import wandb
 from data.ForestChange import ForestChangeDataset
 from data.LEVIR_MCI import LEVIRCCDataset
@@ -249,11 +250,9 @@ class Trainer(object):
             self.best_bleu4 = checkpoint.get("best_bleu4", 0.3)
             self.Sum_Metric = checkpoint.get("best_sum_metric", 0.3)
 
-            self.encoder_optimizer.load_state_dict(checkpoint["encoder_optimizer"])
-            self.encoder_trans_optimizer.load_state_dict(
-                checkpoint["encoder_trans_optimizer"]
-            )
-            self.decoder_optimizer.load_state_dict(checkpoint["decoder_optimizer"])
+            self.encoder_optimizer = checkpoint.get("encoder_optimizer")
+            self.encoder_trans_optimizer = checkpoint.get("encoder_trans_optimizer")
+            self.decoder_optimizer = checkpoint.get("decoder_optimizer")
 
             if self.encoder_optimizer is None and args.fine_tune_encoder:
                 self.encoder_optimizer = torch.optim.Adam(
