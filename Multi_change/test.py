@@ -1,9 +1,11 @@
 import argparse
 import json
+import os
 import time
 
 import cv2
 import numpy as np
+import torch
 from data.ForestChange import ForestChangeDataset
 from data.LEVIR_MCI import LEVIRCCDataset
 from mci_model.model_decoder import DecoderTransformer
@@ -164,13 +166,6 @@ def main(args):
 
     # Custom dataloaders
     if args.data_name in ["LEVIR_MCI", "Forest-Change"]:
-        nochange_list = [
-            "the scene is the same as before ",
-            "there is no difference ",
-            "the two scenes seem identical ",
-            "no change has occurred ",
-            "almost nothing has changed ",
-        ]
         dataset = (
             ForestChangeDataset(
                 data_folder=args.data_folder,
@@ -205,16 +200,13 @@ def main(args):
         raise ValueError("Unknown dataset selected")
 
     # Epochs
-    test_start_time = time.time()
     references = list()  # references (true captions) for calculating BLEU-4 score
     hypotheses = list()  # hypotheses (predictions)
-    change_references = list()
-    change_hypotheses = list()
-    nochange_references = list()
-    nochange_hypotheses = list()
-    change_acc = 0
-    nochange_acc = 0
     evaluator = Evaluator(num_class=args.num_classes)
+
+    total_start = time.time()
+
+    seg_start = time.time()
     with torch.no_grad():
         for ind, (
             imgA,
@@ -226,31 +218,48 @@ def main(args):
             _,
             name,
         ) in enumerate(
-            tqdm(test_loader, desc="test_" + " EVALUATING AT BEAM SIZE " + str(1))
+            tqdm(
+                test_loader,
+                desc="test_SEGMENTATION",
+            )
         ):
-            # Move to GPU, if available
             imgA = imgA.to(DEVICE)
             imgB = imgB.to(DEVICE)
-            token_all = token_all.squeeze(0).to(DEVICE)
-            # decode_lengths = max(token_all_len.squeeze(0)).item()
-            # Forward prop.
             if encoder is not None:
                 feat1, feat2 = encoder(imgA, imgB)
             feat1, feat2, seg_pre = encoder_trans(feat1, feat2)
-            seq = decoder.sample(feat1, feat2)
-
-            # for segmentation
-            pred_seg = seg_pre.data.cpu().numpy()
-            seg_label = seg_label.cpu().numpy()
-            pred_seg = np.argmax(pred_seg, axis=1)
-
-            # for change detection: save mask?
+            pred_seg = np.argmax(seg_pre.data.cpu().numpy(), axis=1)
+            seg_label_np = seg_label.cpu().numpy()
             if args.save_mask:
-                save_mask(pred_seg, seg_label, name, args.result_path, args)
-            # Add batch sample into evaluator
-            evaluator.add_batch(seg_label, pred_seg)
+                save_mask(pred_seg, seg_label_np, name, args.result_path, args)
+            evaluator.add_batch(seg_label_np, pred_seg)
 
-            # for captioning
+    seg_time = time.time() - seg_start
+
+    cap_start = time.time()
+    with torch.no_grad():
+        for ind, (
+            imgA,
+            imgB,
+            seg_label,
+            token_all,
+            token_all_len,
+            _,
+            _,
+            name,
+        ) in enumerate(
+            tqdm(
+                test_loader,
+                desc="test_CAPTIONING" + " EVALUATING AT BEAM SIZE " + str(1),
+            )
+        ):
+            imgA = imgA.to(DEVICE)
+            imgB = imgB.to(DEVICE)
+            token_all = token_all.squeeze(0).to(DEVICE)
+            if encoder is not None:
+                feat1, feat2 = encoder(imgA, imgB)
+            feat1, feat2, _ = encoder_trans(feat1, feat2)
+            seq = decoder.sample(feat1, feat2)
             img_token = token_all.tolist()
             img_tokens = list(
                 map(
@@ -268,7 +277,6 @@ def main(args):
                 )
             )  # remove <start> and pads
             references.append(img_tokens)
-
             pred_seq = [
                 w
                 for w in seq
@@ -281,18 +289,14 @@ def main(args):
             ]
             hypotheses.append(pred_seq)
             assert len(references) == len(hypotheses)
-            pred_caption = ""
-            ref_caption = ""
-            for i in pred_seq:
-                pred_caption += (list(word_vocab.keys())[i]) + " "
-            ref_caption = ""
-            for i in img_tokens[0]:
-                ref_caption += (list(word_vocab.keys())[i]) + " "
+            pred_caption = " ".join(list(word_vocab.keys())[i] for i in pred_seq)
+
             ref_captions = ""
-            for i in img_tokens:
-                for j in i:
-                    ref_captions += (list(word_vocab.keys())[j]) + " "
-                ref_captions += ".    "
+            for tokens in img_tokens:
+                ref_captions += (
+                    " ".join(list(word_vocab.keys())[i] for i in tokens) + ".    "
+                )
+
             # for captioning: save captions?
             if args.save_caption:
                 save_captions(
@@ -303,118 +307,65 @@ def main(args):
                     name,
                     args.result_path,
                 )
-            if ref_caption in nochange_list:
-                nochange_references.append(img_tokens)
-                nochange_hypotheses.append(pred_seq)
-                if pred_caption in nochange_list:
-                    nochange_acc = nochange_acc + 1
-            else:
-                change_references.append(img_tokens)
-                change_hypotheses.append(pred_seq)
-                if pred_caption not in nochange_list:
-                    change_acc = change_acc + 1
 
-        test_time = time.time() - test_start_time
+    cap_time = time.time() - cap_start
 
-        # Fast test during the training
+    total_time = time.time() - total_start
 
-        Acc_seg = evaluator.Pixel_Accuracy()
-        Acc_class_seg = evaluator.Pixel_Accuracy_Class()
-        mIoU_seg, IoU = evaluator.Mean_Intersection_over_Union()
-        FWIoU_seg = evaluator.Frequency_Weighted_Intersection_over_Union()
-        Acc_seg = evaluator.Pixel_Accuracy()
-        F1_score, F1_class_score = evaluator.F1_Score()
-        print(
-            "Test of Segmentation:\n"
-            "Time: {0:.3f}\t"
-            "Acc_seg: {1:.5f}\t"
-            "Acc_class_seg: {2:.5f}\t"
-            "mIoU_seg: {3:.5f}\t"
-            "FWIoU_seg: {4:.5f}\t"
-            "IoU: {5}\t"
-            "F1: {6:.5f}\t"
-            "F1_class: {7}\t".format(
-                test_time,
-                Acc_seg,
-                Acc_class_seg,
-                mIoU_seg,
-                FWIoU_seg,
-                IoU,
-                F1_score,
-                F1_class_score,
-            )
+    print(f"Total time:        {total_time:.3f} s")
+    print(f"Segmentation time: {seg_time:.3f} s")
+    print(f"Captioning time:   {cap_time:.3f} s")
+
+    # Fast test during the training
+
+    Acc_seg = evaluator.Pixel_Accuracy()
+    Acc_class_seg = evaluator.Pixel_Accuracy_Class()
+    mIoU_seg, IoU = evaluator.Mean_Intersection_over_Union()
+    FWIoU_seg = evaluator.Frequency_Weighted_Intersection_over_Union()
+    Acc_seg = evaluator.Pixel_Accuracy()
+    F1_score, F1_class_score = evaluator.F1_Score()
+    print(
+        "Test of Segmentation:\n"
+        "Time: {0:.3f}\t"
+        "Acc_seg: {1:.5f}\t"
+        "Acc_class_seg: {2:.5f}\t"
+        "mIoU_seg: {3:.5f}\t"
+        "FWIoU_seg: {4:.5f}\t"
+        "IoU: {5}\t"
+        "F1: {6:.5f}\t"
+        "F1_class: {7}\t".format(
+            seg_time,
+            Acc_seg,
+            Acc_class_seg,
+            mIoU_seg,
+            FWIoU_seg,
+            IoU,
+            F1_score,
+            F1_class_score,
         )
+    )
 
-        # Calculate evaluation scores
-        print("len(nochange_references):", len(nochange_references))
-        print("len(change_references):", len(change_references))
-
-        if len(nochange_references) > 0:
-            print("nochange_metric:")
-            nochange_metric = get_eval_score(nochange_references, nochange_hypotheses)
-            Bleu_1 = nochange_metric["Bleu_1"]
-            Bleu_2 = nochange_metric["Bleu_2"]
-            Bleu_3 = nochange_metric["Bleu_3"]
-            Bleu_4 = nochange_metric["Bleu_4"]
-            Meteor = nochange_metric["METEOR"]
-            Rouge = nochange_metric["ROUGE_L"]
-            Cider = nochange_metric["CIDEr"]
-            print(
-                "BLEU-1: {0:.5f}\t"
-                "BLEU-2: {1:.5f}\t"
-                "BLEU-3: {2:.5f}\t"
-                "BLEU-4: {3:.5f}\t"
-                "Meteor: {4:.5f}\t"
-                "Rouge: {5:.5f}\t"
-                "Cider: {6:.5f}\t".format(
-                    Bleu_1, Bleu_2, Bleu_3, Bleu_4, Meteor, Rouge, Cider
-                )
-            )
-            print("nochange_acc:", nochange_acc / len(nochange_references))
-        if len(change_references) > 0:
-            print("change_metric:")
-            change_metric = get_eval_score(change_references, change_hypotheses)
-            Bleu_1 = change_metric["Bleu_1"]
-            Bleu_2 = change_metric["Bleu_2"]
-            Bleu_3 = change_metric["Bleu_3"]
-            Bleu_4 = change_metric["Bleu_4"]
-            Meteor = change_metric["METEOR"]
-            Rouge = change_metric["ROUGE_L"]
-            Cider = change_metric["CIDEr"]
-            print(
-                "BLEU-1: {0:.5f}\t"
-                "BLEU-2: {1:.5f}\t"
-                "BLEU-3: {2:.5f}\t"
-                "BLEU-4: {3:.5f}\t"
-                "Meteor: {4:.5f}\t"
-                "Rouge: {5:.5f}\t"
-                "Cider: {6:.5f}\t".format(
-                    Bleu_1, Bleu_2, Bleu_3, Bleu_4, Meteor, Rouge, Cider
-                )
-            )
-            print("change_acc:", change_acc / len(change_references))
-
-        score_dict = get_eval_score(references, hypotheses)
-        Bleu_1 = score_dict["Bleu_1"]
-        Bleu_2 = score_dict["Bleu_2"]
-        Bleu_3 = score_dict["Bleu_3"]
-        Bleu_4 = score_dict["Bleu_4"]
-        Meteor = score_dict["METEOR"]
-        Rouge = score_dict["ROUGE_L"]
-        Cider = score_dict["CIDEr"]
-        print(
-            "Test of Captioning:\n"
-            "Time: {0:.3f}\t"
-            "BLEU-1: {1:.5f}\t"
-            "BLEU-2: {2:.5f}\t"
-            "BLEU-3: {3:.5f}\t"
-            "BLEU-4: {4:.5f}\t"
-            "Meteor: {5:.5f}\t"
-            "Rouge: {6:.5f}\t"
-            "Cider: {7:.5f}\t".format(
-                test_time, Bleu_1, Bleu_2, Bleu_3, Bleu_4, Meteor, Rouge, Cider
-            )
+    score_dict = get_eval_score(references, hypotheses)
+    Bleu_1 = score_dict["Bleu_1"]
+    Bleu_2 = score_dict["Bleu_2"]
+    Bleu_3 = score_dict["Bleu_3"]
+    Bleu_4 = score_dict["Bleu_4"]
+    Meteor = score_dict["METEOR"]
+    Rouge = score_dict["ROUGE_L"]
+    Cider = score_dict["CIDEr"]
+    print(
+        "Test of Captioning:\n"
+        "Time: {0:.3f}\t"
+        "BLEU-1: {1:.5f}\t"
+        "BLEU-2: {2:.5f}\t"
+        "BLEU-3: {3:.5f}\t"
+        "BLEU-4: {4:.5f}\t"
+        "Meteor: {5:.5f}\t"
+        "Rouge: {6:.5f}\t"
+        "Cider: {7:.5f}\t".format(
+            cap_time, Bleu_1, Bleu_2, Bleu_3, Bleu_4, Meteor, Rouge, Cider
         )
+    )
 
 
 if __name__ == "__main__":

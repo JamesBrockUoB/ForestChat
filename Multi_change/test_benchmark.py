@@ -1,10 +1,12 @@
 import argparse
 import json
+import os
 import time
 from pathlib import Path
 
 import cv2
 import numpy as np
+import torch
 from benchmark_models.bifa.bifa import BiFA
 from benchmark_models.change_3d.trainer import Change3d_Trainer
 from benchmark_models.chg2cap.model_decoder import DecoderTransformer
@@ -28,13 +30,6 @@ def process_caption(
     args,
     references,
     hypotheses,
-    change_references,
-    change_hypotheses,
-    nochange_references,
-    nochange_hypotheses,
-    change_acc,
-    nochange_acc,
-    nochange_list,
 ):
     # Convert tokens
     img_token = token_all.tolist()
@@ -59,7 +54,6 @@ def process_caption(
 
     # Build captions
     pred_caption = " ".join(list(word_vocab.keys())[i] for i in pred_seq)
-    ref_caption = " ".join(list(word_vocab.keys())[i] for i in img_tokens[0])
     ref_captions = ""
     for tokens in img_tokens:
         ref_captions += " ".join(list(word_vocab.keys())[i] for i in tokens) + ".    "
@@ -74,20 +68,6 @@ def process_caption(
             name,
             args.result_path,
         )
-
-    # Update change/nochange lists and accuracy counters
-    if ref_caption in nochange_list:
-        nochange_references.append(img_tokens)
-        nochange_hypotheses.append(pred_seq)
-        if pred_caption in nochange_list:
-            nochange_acc += 1
-    else:
-        change_references.append(img_tokens)
-        change_hypotheses.append(pred_seq)
-        if pred_caption not in nochange_list:
-            change_acc += 1
-
-    return change_acc, nochange_acc
 
 
 def save_mask(pred, gt, name, save_path, args):
@@ -264,13 +244,6 @@ def main(args):
 
     # Custom dataloaders
     if args.data_name in ["LEVIR_MCI", "Forest-Change"]:
-        nochange_list = [
-            "the scene is the same as before ",
-            "there is no difference ",
-            "the two scenes seem identical ",
-            "no change has occurred ",
-            "almost nothing has changed ",
-        ]
         dataset = (
             ForestChangeDataset(
                 data_folder=args.data_folder,
@@ -308,12 +281,6 @@ def main(args):
     test_start_time = time.time()
     references = list()  # references (true captions) for calculating BLEU-4 score
     hypotheses = list()  # hypotheses (predictions)
-    change_references = list()
-    change_hypotheses = list()
-    nochange_references = list()
-    nochange_hypotheses = list()
-    change_acc = 0
-    nochange_acc = 0
     evaluator = Evaluator(num_class=args.num_classes)
     with torch.no_grad():
         for ind, (
@@ -340,7 +307,7 @@ def main(args):
 
                     seq = model.decoder.sample_beam(encoder_out, k=1)
 
-                    change_acc, nochange_acc = process_caption(
+                    process_caption(
                         seq,
                         token_all,
                         args.word_vocab,
@@ -348,13 +315,6 @@ def main(args):
                         args,
                         references,
                         hypotheses,
-                        change_references,
-                        change_hypotheses,
-                        nochange_references,
-                        nochange_hypotheses,
-                        change_acc,
-                        nochange_acc,
-                        nochange_list,
                     )
                 else:
                     if args.data_name == "LEVIR_MCI":
@@ -395,7 +355,7 @@ def main(args):
                 feat1, feat2 = encoder_trans(feat1, feat2)
                 seq = decoder.sample(feat1, feat2)
 
-                change_acc, nochange_acc = process_caption(
+                process_caption(
                     seq,
                     token_all,
                     args.word_vocab,
@@ -403,13 +363,6 @@ def main(args):
                     args,
                     references,
                     hypotheses,
-                    change_references,
-                    change_hypotheses,
-                    nochange_references,
-                    nochange_hypotheses,
-                    change_acc,
-                    nochange_acc,
-                    nochange_list,
                 )
 
         test_time = time.time() - test_start_time
@@ -445,57 +398,6 @@ def main(args):
             )
 
         if args.train_goal == 1:
-            # Calculate evaluation scores
-            print("len(nochange_references):", len(nochange_references))
-            print("len(change_references):", len(change_references))
-
-            if len(nochange_references) > 0:
-                print("nochange_metric:")
-                nochange_metric = get_eval_score(
-                    nochange_references, nochange_hypotheses
-                )
-                Bleu_1 = nochange_metric["Bleu_1"]
-                Bleu_2 = nochange_metric["Bleu_2"]
-                Bleu_3 = nochange_metric["Bleu_3"]
-                Bleu_4 = nochange_metric["Bleu_4"]
-                Meteor = nochange_metric["METEOR"]
-                Rouge = nochange_metric["ROUGE_L"]
-                Cider = nochange_metric["CIDEr"]
-                print(
-                    "BLEU-1: {0:.5f}\t"
-                    "BLEU-2: {1:.5f}\t"
-                    "BLEU-3: {2:.5f}\t"
-                    "BLEU-4: {3:.5f}\t"
-                    "Meteor: {4:.5f}\t"
-                    "Rouge: {5:.5f}\t"
-                    "Cider: {6:.5f}\t".format(
-                        Bleu_1, Bleu_2, Bleu_3, Bleu_4, Meteor, Rouge, Cider
-                    )
-                )
-                print("nochange_acc:", nochange_acc / len(nochange_references))
-            if len(change_references) > 0:
-                print("change_metric:")
-                change_metric = get_eval_score(change_references, change_hypotheses)
-                Bleu_1 = change_metric["Bleu_1"]
-                Bleu_2 = change_metric["Bleu_2"]
-                Bleu_3 = change_metric["Bleu_3"]
-                Bleu_4 = change_metric["Bleu_4"]
-                Meteor = change_metric["METEOR"]
-                Rouge = change_metric["ROUGE_L"]
-                Cider = change_metric["CIDEr"]
-                print(
-                    "BLEU-1: {0:.5f}\t"
-                    "BLEU-2: {1:.5f}\t"
-                    "BLEU-3: {2:.5f}\t"
-                    "BLEU-4: {3:.5f}\t"
-                    "Meteor: {4:.5f}\t"
-                    "Rouge: {5:.5f}\t"
-                    "Cider: {6:.5f}\t".format(
-                        Bleu_1, Bleu_2, Bleu_3, Bleu_4, Meteor, Rouge, Cider
-                    )
-                )
-                print("change_acc:", change_acc / len(change_references))
-
             score_dict = get_eval_score(references, hypotheses)
             Bleu_1 = score_dict["Bleu_1"]
             Bleu_2 = score_dict["Bleu_2"]

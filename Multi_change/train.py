@@ -164,8 +164,13 @@ class Trainer(object):
     def build_mci_model(self):
         args = self.args
 
-        # --- Initialize models ---
-        fine_tune_capdecoder = False
+        if args.train_stage == "s1":
+            fine_tune_capdecoder = True
+        elif args.train_stage == "s2":
+            fine_tune_capdecoder = args.train_goal != 0
+        else:
+            fine_tune_capdecoder = False
+
         self.encoder = Encoder(args.network)
         dims = [32, 64, 160, 256] if "b0" in args.network else [64, 128, 320, 512]
         self.encoder_trans = AttentiveEncoder(
@@ -202,6 +207,7 @@ class Trainer(object):
         )
         if args.loss_balancing_method == "uncert":
             decoder_params += [self.log_vars]
+
         self.decoder_optimizer = (
             torch.optim.Adam(decoder_params, lr=args.decoder_lr)
             if fine_tune_capdecoder
@@ -298,7 +304,6 @@ class Trainer(object):
         else:
             if args.train_stage == "s1":
                 self.encoder.fine_tune(args.fine_tune_encoder)
-                fine_tune_capdecoder = True
             elif args.train_stage == "s2":
                 if args.checkpoint is None:
                     raise ValueError("Error: checkpoint is None for stage s2.")
@@ -316,7 +321,6 @@ class Trainer(object):
                 self.encoder.eval()
                 self.encoder_trans.fine_tune(args.train_goal)
 
-                fine_tune_capdecoder = args.train_goal != 0
                 self.decoder.fine_tune(fine_tune_capdecoder)
                 self.decoder.train() if fine_tune_capdecoder else self.decoder.eval()
             else:
@@ -384,8 +388,6 @@ class Trainer(object):
         for id, (imgA, imgB, seg_label, _, _, token, token_len, _) in enumerate(
             self.train_loader
         ):
-            # if id == 120:
-            #    break
             start_time = time.time()
 
             # Move to GPU, if available
@@ -592,45 +594,73 @@ class Trainer(object):
         if self.encoder is not None:
             self.encoder.eval()
 
-        val_start_time = time.time()
-        references = list()  # references (true captions) for calculating BLEU-4 score
-        hypotheses = list()  # hypotheses (predictions)
-
+        val_start = time.time()
+        seg_time = 0.0
+        cap_time = 0.0
         self.evaluator.reset()
-        with torch.no_grad():
-            # Batches
-            for ind, (
-                imgA,
-                imgB,
-                seg_label,
-                token_all,
-                token_all_len,
-                _,
-                _,
-                _,
-            ) in enumerate(
-                tqdm(self.val_loader, desc="val_" + "EVALUATING AT BEAM SIZE " + str(1))
-            ):
-                # Move to GPU, if available
-                imgA = imgA.to(DEVICE)
-                imgB = imgB.to(DEVICE)
-                token_all = token_all.squeeze(0).to(DEVICE)
-                # Forward prop.
-                if self.encoder is not None:
-                    feat1, feat2 = self.encoder(imgA, imgB)
-                feat1, feat2, seg_pre = self.encoder_trans(feat1, feat2)
-                if self.args.train_goal != 0 or self.start_train_goal == 2:
-                    seq = self.decoder.sample(feat1, feat2)
 
-                # for segmentation
-                if self.args.train_goal != 1 or self.start_train_goal == 2:
+        if self.args.train_goal != 1 or self.start_train_goal == 2:
+            seg_start = time.time()
+            with torch.no_grad():
+                for ind, (
+                    imgA,
+                    imgB,
+                    seg_label,
+                    token_all,
+                    token_all_len,
+                    _,
+                    _,
+                    _,
+                ) in enumerate(tqdm(self.val_loader, desc="val_SEGMENTATION")):
+                    imgA = imgA.to(DEVICE)
+                    imgB = imgB.to(DEVICE)
+
+                    if self.encoder is not None:
+                        feat1, feat2 = self.encoder(imgA, imgB)
+
+                    feat1, feat2, seg_pre = self.encoder_trans(feat1, feat2)
+
                     pred_seg = seg_pre.data.cpu().numpy()
                     seg_label = seg_label.cpu().numpy()
                     pred_seg = np.argmax(pred_seg, axis=1)
                     # Add batch sample into evaluator
                     self.evaluator.add_batch(seg_label, pred_seg)
-                # for captioning
-                if self.args.train_goal != 0 or self.start_train_goal == 2:
+
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+
+            seg_time = time.time() - seg_start
+
+        if self.args.train_goal != 0 or self.start_train_goal == 2:
+            cap_start = time.time()
+            references = []
+            hypotheses = []
+            with torch.no_grad():
+                for ind, (
+                    imgA,
+                    imgB,
+                    seg_label,
+                    token_all,
+                    token_all_len,
+                    _,
+                    _,
+                    _,
+                ) in enumerate(
+                    tqdm(
+                        self.val_loader,
+                        desc="val_CAPTIONING" + " EVALUATING AT BEAM SIZE " + str(1),
+                    )
+                ):
+                    imgA = imgA.to(DEVICE)
+                    imgB = imgB.to(DEVICE)
+                    token_all = token_all.squeeze(0).to(DEVICE)
+
+                    if self.encoder is not None:
+                        feat1, feat2 = self.encoder(imgA, imgB)
+
+                    feat1, feat2, _ = self.encoder_trans(feat1, feat2)
+                    seq = self.decoder.sample(feat1, feat2)
+
                     img_token = token_all.tolist()
                     img_tokens = list(
                         map(
@@ -673,95 +703,102 @@ class Trainer(object):
                                 ref_caption += (list(word_vocab.keys())[j]) + " "
                             ref_caption += ".    "
 
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            val_time = time.time() - val_start_time
-            # Fast test during the training
-            # for segmentation
-            if self.args.train_goal != 1 or self.start_train_goal == 2:
-                Acc_seg = self.evaluator.Pixel_Accuracy()
-                Acc_class_seg = self.evaluator.Pixel_Accuracy_Class()
-                mIoU_seg, IoU = self.evaluator.Mean_Intersection_over_Union()
-                FWIoU_seg = self.evaluator.Frequency_Weighted_Intersection_over_Union()
-                Acc_seg = self.evaluator.Pixel_Accuracy()
-                F1_score, F1_class_score = self.evaluator.F1_Score()
-                print(
-                    "Test of Segmentation:\n"
-                    "Time: {0:.3f}\t"
-                    "Acc_seg: {1:.5f}\t"
-                    "Acc_class_seg: {2:.5f}\t"
-                    "mIoU_seg: {3:.5f}\t"
-                    "FWIoU_seg: {4:.5f}\t"
-                    "IoU: {5}\t"
-                    "F1: {6:.5f}\t"
-                    "F1_class: {7}\t".format(
-                        val_time,
-                        Acc_seg,
-                        Acc_class_seg,
-                        mIoU_seg,
-                        FWIoU_seg,
-                        IoU,
-                        F1_score,
-                        F1_class_score,
-                    )
-                )
-                wandb.log(
-                    {
-                        "epoch": epoch,
-                        "acc_seg_val": Acc_seg,
-                        "acc_class_seg_val": Acc_class_seg,
-                        "mIoU seg val": mIoU_seg,
-                        "FWIoU seg": FWIoU_seg,
-                        "IoU": IoU,
-                        "F1": F1_score,
-                    }
-                )
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
 
-            # Calculate evaluation scores
-            if self.args.train_goal != 0 or self.start_train_goal == 2:
-                score_dict = get_eval_score(references, hypotheses)
-                Bleu_1 = score_dict["Bleu_1"]
-                Bleu_2 = score_dict["Bleu_2"]
-                Bleu_3 = score_dict["Bleu_3"]
-                Bleu_4 = score_dict["Bleu_4"]
-                Meteor = score_dict["METEOR"]
-                Rouge = score_dict["ROUGE_L"]
-                Cider = score_dict["CIDEr"]
-                print_log(
-                    "Captioning_Validation:\n"
-                    "Epoch: {0}\t"
-                    "Time: {1:.3f}\t"
-                    "BLEU-1: {2:.5f}\t"
-                    "BLEU-2: {3:.5f}\t"
-                    "BLEU-3: {4:.5f}\t"
-                    "BLEU-4: {5:.5f}\t"
-                    "Meteor: {6:.5f}\t"
-                    "Rouge: {7:.5f}\t"
-                    "Cider: {8:.5f}\t".format(
-                        epoch,
-                        val_time,
-                        Bleu_1,
-                        Bleu_2,
-                        Bleu_3,
-                        Bleu_4,
-                        Meteor,
-                        Rouge,
-                        Cider,
-                    ),
-                    self.log,
+            cap_time = time.time() - cap_start
+        total_time = time.time() - val_start
+
+        print(f"Total validation time: {total_time:.3f} s")
+        print(f"Segmentation time:     {seg_time:.3f} s")
+        print(f"Captioning time:       {cap_time:.3f} s")
+
+        # Fast test during the training
+        # for segmentation
+        if self.args.train_goal != 1 or self.start_train_goal == 2:
+            Acc_seg = self.evaluator.Pixel_Accuracy()
+            Acc_class_seg = self.evaluator.Pixel_Accuracy_Class()
+            mIoU_seg, IoU = self.evaluator.Mean_Intersection_over_Union()
+            FWIoU_seg = self.evaluator.Frequency_Weighted_Intersection_over_Union()
+            Acc_seg = self.evaluator.Pixel_Accuracy()
+            F1_score, F1_class_score = self.evaluator.F1_Score()
+            print(
+                "Test of Segmentation:\n"
+                "Time: {0:.3f}\t"
+                "Acc_seg: {1:.5f}\t"
+                "Acc_class_seg: {2:.5f}\t"
+                "mIoU_seg: {3:.5f}\t"
+                "FWIoU_seg: {4:.5f}\t"
+                "IoU: {5}\t"
+                "F1: {6:.5f}\t"
+                "F1_class: {7}\t".format(
+                    seg_time,
+                    Acc_seg,
+                    Acc_class_seg,
+                    mIoU_seg,
+                    FWIoU_seg,
+                    IoU,
+                    F1_score,
+                    F1_class_score,
                 )
-                wandb.log(
-                    {
-                        "epoch": epoch,
-                        "BLEU-1_val": Bleu_1,
-                        "BLEU-2_val": Bleu_2,
-                        "BLEU-3_val": Bleu_3,
-                        "BLEU-4_val": Bleu_4,
-                        "Meteor_val": Meteor,
-                        "Rouge_val": Rouge,
-                        "Cider": Cider,
-                    }
-                )
+            )
+            wandb.log(
+                {
+                    "epoch": epoch,
+                    "acc_seg_val": Acc_seg,
+                    "acc_class_seg_val": Acc_class_seg,
+                    "mIoU seg val": mIoU_seg,
+                    "FWIoU seg": FWIoU_seg,
+                    "IoU": IoU,
+                    "F1": F1_score,
+                }
+            )
+
+        # Calculate evaluation scores
+        if self.args.train_goal != 0 or self.start_train_goal == 2:
+            score_dict = get_eval_score(references, hypotheses)
+            Bleu_1 = score_dict["Bleu_1"]
+            Bleu_2 = score_dict["Bleu_2"]
+            Bleu_3 = score_dict["Bleu_3"]
+            Bleu_4 = score_dict["Bleu_4"]
+            Meteor = score_dict["METEOR"]
+            Rouge = score_dict["ROUGE_L"]
+            Cider = score_dict["CIDEr"]
+            print_log(
+                "Captioning_Validation:\n"
+                "Epoch: {0}\t"
+                "Time: {1:.3f}\t"
+                "BLEU-1: {2:.5f}\t"
+                "BLEU-2: {3:.5f}\t"
+                "BLEU-3: {4:.5f}\t"
+                "BLEU-4: {5:.5f}\t"
+                "Meteor: {6:.5f}\t"
+                "Rouge: {7:.5f}\t"
+                "Cider: {8:.5f}\t".format(
+                    epoch,
+                    cap_time,
+                    Bleu_1,
+                    Bleu_2,
+                    Bleu_3,
+                    Bleu_4,
+                    Meteor,
+                    Rouge,
+                    Cider,
+                ),
+                self.log,
+            )
+            wandb.log(
+                {
+                    "epoch": epoch,
+                    "BLEU-1_val": Bleu_1,
+                    "BLEU-2_val": Bleu_2,
+                    "BLEU-3_val": Bleu_3,
+                    "BLEU-4_val": Bleu_4,
+                    "Meteor_val": Meteor,
+                    "Rouge_val": Rouge,
+                    "Cider": Cider,
+                }
+            )
 
         # Check if there was an improvement
         if self.start_train_goal != 2:
