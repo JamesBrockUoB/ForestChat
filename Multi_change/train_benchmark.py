@@ -188,7 +188,7 @@ class Trainer(object):
 
                 self.start_epoch = checkpoint.get("epoch", 0)
                 self.best_epoch = checkpoint.get("epoch", 0)
-                self.MIoU = checkpoint.get("best_mIoU", 0.3)
+                self.MIou = checkpoint.get("best_mIoU", 0.3)
                 self.best_bleu4 = checkpoint.get("best_bleu4", 0.0)
 
                 if "state_dict" in checkpoint:
@@ -271,7 +271,7 @@ class Trainer(object):
 
                 self.start_epoch = checkpoint.get("epoch", 0)
                 self.best_epoch = checkpoint.get("epoch", 0)
-                self.MIoU = checkpoint.get("best_mIoU", 0.3)
+                self.MIou = checkpoint.get("best_mIoU", 0.3)
                 self.best_bleu4 = checkpoint.get("best_bleu4", 0.0)
 
             self.model.to(DEVICE)
