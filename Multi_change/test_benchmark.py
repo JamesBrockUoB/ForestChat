@@ -336,6 +336,7 @@ def main(args):
 
                     evaluator.add_batch(seg_label, pred_seg)
             elif args.benchmark == "bifa":
+                args.train_goal = 0
                 if args.data_name == "LEVIR_MCI":
                     seg_label = (seg_label > 0).astype(np.uint8)
                     args.num_class = 2  # enforce
@@ -350,6 +351,7 @@ def main(args):
 
                 evaluator.add_batch(seg_label, pred_seg)
             elif args.benchmark == "chg2cap":
+                args.train_goal = 1
                 if encoder is not None:
                     feat1, feat2 = encoder(imgA, imgB)
                 feat1, feat2 = encoder_trans(feat1, feat2)
