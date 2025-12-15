@@ -33,6 +33,15 @@
 - This should create the `Forest-Change-dataset` folder in the /data directory.
 - From here, you can run the captioning app via `streamlit run captioning_app.py` in the `/Multi_change` directory. This will allow you to provide a single human annotated caption, and optionally four rule-based captions per sample. Future work will allow for any number of human captions to be provided.
 - Once captioning is complete, the data can be pre-processed as needed by running `python preprocess_data.py` in `/Multi_change`
+
+Captioning app screenshot
+<br>
+  <div align="center">
+    <img src="resource/captioning_app.png" width="800"/>
+  </div>
+<br>
+
+Forest-Change dataset examples
 <br>
   <div align="center">
     <img src="resource/dataset_examples.png" width="800"/>
