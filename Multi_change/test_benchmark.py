@@ -318,7 +318,7 @@ def main(args):
                     )
                 else:
                     if args.data_name == "LEVIR_MCI":
-                        seg_label = (seg_label > 0).astype(np.uint8)
+                        seg_label = (seg_label > 0).long()
                         args.num_class = 2  # enforce
 
                     seg_pred = model.update_bcd(imgA, imgB)
@@ -338,7 +338,7 @@ def main(args):
             elif args.benchmark == "bifa":
                 args.train_goal = 0
                 if args.data_name == "LEVIR_MCI":
-                    seg_label = (seg_label > 0).astype(np.uint8)
+                    seg_label = (seg_label > 0).long()
                     args.num_class = 2  # enforce
 
                 seg_pred = model(imgA, imgB)
