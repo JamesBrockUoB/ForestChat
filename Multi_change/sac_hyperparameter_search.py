@@ -149,13 +149,19 @@ if __name__ == "__main__":
         default="./models_ckpt/sam_vit_h_4b8939.pth",
         help="path of the backbone architecture used by AnyChange",
     )
+    parser.add_argument("--sweep_id")
     args = parser.parse_args()
 
-    sweep_id = wandb.sweep(
-        SWEEP_CONFIG,
-        project="forest-chat-anychange",
-        entity=os.environ.get("WANDB_USERNAME"),
+    sweep_id = (
+        wandb.sweep(
+            SWEEP_CONFIG,
+            project="forest-chat-anychange",
+            entity=os.environ.get("WANDB_USERNAME"),
+        )
+        if not args.sweep_id
+        else args.sweep_id
     )
+    print(sweep_id)
 
     # Create searcher instance
     searcher = AnyChangeHyperparameterSearcher(args)
@@ -183,4 +189,4 @@ if __name__ == "__main__":
                 wandb.run.summary["best_mIoU"] = metrics["val/mIoU"]
 
     # Run the sweep
-    wandb.agent(sweep_id, function=sweep_run)
+    wandb.agent(sweep_id, function=sweep_run, count=2)
