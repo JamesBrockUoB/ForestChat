@@ -22,13 +22,20 @@ SWEEP_CONFIG = {
     "method": "bayes",
     "metric": {"name": "val/mIoU", "goal": "maximize"},
     "parameters": {
+        "points_per_side": {"values": [16, 24, 32]},  # density of point prompts
         "change_confidence_threshold": {
             "values": [int(x) for x in np.arange(140, 180, 5)]
-        },
-        "points_per_side": {"values": [16, 24, 32]},
+        },  # filters low-confidence mask proposals
         "stability_score_thresh": {
             "values": [round(x, 2) for x in np.arange(0.9, 0.98, 0.01)]
-        },
+        },  # filters unstable masks
+        # optional exploratory parameters:
+        "area_thresh": {
+            "values": [0.7, 0.8, 0.9]
+        },  # minimal mask area fraction to keep
+        "object_sim_thresh": {
+            "values": [50, 60, 70]
+        },  # bi-temporal object similarity threshold
     },
     "early_terminate": {"type": "hyperband", "min_iter": 3, "eta": 2},
 }
@@ -58,9 +65,7 @@ class AnyChangeHyperparameterSearcher(object):
         val_start_time = time.time()
 
         # Batches
-        for batch in tqdm(
-            self.val_loader, desc="val_" + "EVALUATING AT BEAM SIZE " + str(1)
-        ):
+        for batch in tqdm(self.val_loader, desc="val_"):
             m = AnyChange(
                 "vit_h",
                 sam_checkpoint=self.args.anychange_network_path,
@@ -75,6 +80,8 @@ class AnyChangeHyperparameterSearcher(object):
                 change_confidence_threshold=config.change_confidence_threshold,
                 use_normalized_feature=True,
                 bitemporal_match=True,
+                area_thresh=config.area_thresh,
+                object_sim_thresh=config.object_sim_thresh,
             )
 
             imgA, imgB, seg_label, _ = batch
@@ -174,7 +181,7 @@ if __name__ == "__main__":
                 wandb.run.summary["best_mIoU"] = metrics["val/mIoU"]
 
     # Run the sweep
-    wandb.agent(sweep_id, function=sweep_run, count=15)
+    wandb.agent(sweep_id, function=sweep_run, count=20)
 
     # Print final best configuration
     print("\n=== Best Configuration ===")

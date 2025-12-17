@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import time
 
 import cv2
 import numpy as np
@@ -104,12 +105,11 @@ def main(args):
     )
 
     # Epochs
+    test_start_time = time.time()
     evaluator = Evaluator(num_class=args.num_classes)
 
     with torch.no_grad():
-        for batch in tqdm(
-            test_loader, desc="test_" + " EVALUATING AT BEAM SIZE " + str(1)
-        ):
+        for batch in tqdm(test_loader, desc="test_SAC"):
             imgA, imgB, seg_label, name = batch
             # Move to GPU, if available
             imgA = imgA.to(DEVICE).numpy()
@@ -129,14 +129,16 @@ def main(args):
                 sam_checkpoint=args.anychange_network_path,
             )
             m.make_mask_generator(
-                points_per_side=16,
-                stability_score_thresh=0.94,
+                points_per_side=args.points_per_side,
+                stability_score_thresh=args.stability_score_thresh,
             )
 
             m.set_hyperparameters(
-                change_confidence_threshold=150,
+                change_confidence_threshold=args.change_conf_thresh,
                 use_normalized_feature=True,
                 bitemporal_match=True,
+                area_thresh=args.area_thresh,
+                object_sim_thresh=args.object_sim_thresh,
             )
 
             changemasks, _, _ = m.forward(imgA, imgB)
@@ -149,6 +151,7 @@ def main(args):
             evaluator.add_batch(seg_label, pred_seg)
 
         # Fast test during the training
+        test_time = time.time() - test_start_time
 
         Acc_seg = evaluator.Pixel_Accuracy()
         Acc_class_seg = evaluator.Pixel_Accuracy_Class()
@@ -208,6 +211,11 @@ if __name__ == "__main__":
     )
     parser.add_argument("--split", default="test")
     parser.add_argument("--num_classes", default=2)
+    parser.add_argument("--points_per_side", default=16)
+    parser.add_argument("--stability_score_thresh", default=0.94)
+    parser.add_argument("--change_conf_thresh", default=150)
+    parser.add_argument("--area_thresh", default=0.8)
+    parser.add_argument("--object_sim_thresh", default=60)
 
     args = parser.parse_args()
 
