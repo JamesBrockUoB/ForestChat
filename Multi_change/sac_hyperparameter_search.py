@@ -181,7 +181,7 @@ if __name__ == "__main__":
                 wandb.run.summary["best_mIoU"] = metrics["val/mIoU"]
 
     # Run the sweep
-    wandb.agent(sweep_id, function=sweep_run, count=20)
+    wandb.agent(sweep_id, function=sweep_run)
 
     # Print final best configuration
     print("\n=== Best Configuration ===")
