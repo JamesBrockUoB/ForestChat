@@ -12,6 +12,9 @@ from tqdm import tqdm
 from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
 
+torch.set_num_threads(1)
+torch.set_num_interop_threads(1)
+
 load_dotenv()
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -167,8 +170,6 @@ if __name__ == "__main__":
     searcher = AnyChangeHyperparameterSearcher(args)
 
     def sweep_run():
-        torch.set_num_threads(1)
-        torch.set_num_interop_threads(1)
         with wandb.init() as run:
             # Run validation with current config
             run.config.update(
