@@ -129,7 +129,7 @@ def main(args):
                 sam_checkpoint=args.anychange_network_path,
             )
             m.make_mask_generator(
-                points_per_side=args.points_per_side,
+                points_per_side=16,
                 stability_score_thresh=args.stability_score_thresh,
             )
 
@@ -211,7 +211,6 @@ if __name__ == "__main__":
     )
     parser.add_argument("--split", default="test")
     parser.add_argument("--num_classes", default=2)
-    parser.add_argument("--points_per_side", type=int, default=16)
     parser.add_argument("--stability_score_thresh", type=float, default=0.94)
     parser.add_argument("--change_conf_thresh", type=int, default=150)
     parser.add_argument("--area_thresh", type=float, default=0.8)

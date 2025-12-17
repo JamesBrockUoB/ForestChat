@@ -22,7 +22,7 @@ SWEEP_CONFIG = {
     "method": "bayes",
     "metric": {"name": "val/mIoU", "goal": "maximize"},
     "parameters": {
-        "points_per_side": {"values": [16, 24, 32]},  # density of point prompts
+        "points_per_side": {"values": [16]},  # density of point prompts
         "change_confidence_threshold": {
             "values": [int(x) for x in np.arange(140, 180, 5)]
         },  # filters low-confidence mask proposals
