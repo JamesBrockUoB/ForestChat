@@ -211,11 +211,11 @@ if __name__ == "__main__":
     )
     parser.add_argument("--split", default="test")
     parser.add_argument("--num_classes", default=2)
-    parser.add_argument("--points_per_side", default=16)
-    parser.add_argument("--stability_score_thresh", default=0.94)
-    parser.add_argument("--change_conf_thresh", default=150)
-    parser.add_argument("--area_thresh", default=0.8)
-    parser.add_argument("--object_sim_thresh", default=60)
+    parser.add_argument("--points_per_side", type=int, default=16)
+    parser.add_argument("--stability_score_thresh", type=float, default=0.94)
+    parser.add_argument("--change_conf_thresh", type=int, default=150)
+    parser.add_argument("--area_thresh", type=float, default=0.8)
+    parser.add_argument("--object_sim_thresh", type=int, default=60)
 
     args = parser.parse_args()
 
