@@ -189,4 +189,10 @@ if __name__ == "__main__":
                 wandb.run.summary["best_mIoU"] = metrics["val/mIoU"]
 
     # Run the sweep
-    wandb.agent(sweep_id, function=sweep_run, count=2)
+    wandb.agent(
+        sweep_id,
+        function=sweep_run,
+        count=2,
+        project="fc-sac-hyperparameters",
+        entity=os.environ.get("WANDB_USERNAME"),
+    )
