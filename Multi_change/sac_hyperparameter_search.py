@@ -145,7 +145,7 @@ if __name__ == "__main__":
         "--val_batchsize", type=int, default=1, help="batch_size for validation"
     )
     parser.add_argument(
-        "--amychange_network_path",
+        "--anychange_network_path",
         default="./models_ckpt/sam_vit_h_4b8939.pth",
         help="path of the backbone architecture used by AnyChange",
     )
