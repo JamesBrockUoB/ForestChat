@@ -161,6 +161,8 @@ if __name__ == "__main__":
     searcher = AnyChangeHyperparameterSearcher(args)
 
     def sweep_run():
+        torch.set_num_threads(1)
+        torch.set_num_interop_threads(1)
         with wandb.init() as run:
             # Run validation with current config
             run.config.update(
@@ -182,9 +184,3 @@ if __name__ == "__main__":
 
     # Run the sweep
     wandb.agent(sweep_id, function=sweep_run)
-
-    # Print final best configuration
-    print("\n=== Best Configuration ===")
-    print(f"mIoU: {searcher.best_mIoU:.4f}")
-    print(searcher.best_config)
-    print(searcher.best_config)
