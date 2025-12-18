@@ -1,11 +1,11 @@
 import argparse
 import json
 import os
+import random
 import time
 
 import cv2
 import numpy as np
-import torch.optim
 from torch.utils import data
 from torchange.models.segment_any_change import AnyChange
 from tqdm import tqdm
@@ -79,10 +79,13 @@ def main(args):
     """
     Testing.
     """
-
+    random_str = str(random.randint(10, 100))
     args.result_path = os.path.join(
         args.result_path,
         "anychange_model",
+        time_file_str(),
+        "LEVIR-MCI-Trees" if "LEVIR-MCI" in args.data_folder else "Forest-Change",
+        random_str,
     )
     if not os.path.exists(args.result_path):
         os.makedirs(args.result_path, exist_ok=True)
@@ -211,9 +214,9 @@ if __name__ == "__main__":
     )
     parser.add_argument("--split", default="test")
     parser.add_argument("--num_classes", default=2)
-    parser.add_argument("--stability_score_thresh", type=float, default=0.94)
-    parser.add_argument("--change_conf_thresh", type=int, default=150)
-    parser.add_argument("--area_thresh", type=float, default=0.8)
+    parser.add_argument("--stability_score_thresh", type=float, default=0.93)
+    parser.add_argument("--change_conf_thresh", type=int, default=145)
+    parser.add_argument("--area_thresh", type=float, default=0.9)
     parser.add_argument("--object_sim_thresh", type=int, default=60)
 
     args = parser.parse_args()
