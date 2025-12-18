@@ -153,6 +153,7 @@ if __name__ == "__main__":
         help="path of the backbone architecture used by AnyChange",
     )
     parser.add_argument("--sweep_id")
+    parser.add_argument("--run_count", type=int, default=1)
     args = parser.parse_args()
 
     sweep_id = (
@@ -193,7 +194,7 @@ if __name__ == "__main__":
     wandb.agent(
         sweep_id,
         function=sweep_run,
-        count=2,
+        count=args.run_count,
         project="fc-sac-hyperparameters",
         entity=os.environ.get("WANDB_USERNAME"),
     )
