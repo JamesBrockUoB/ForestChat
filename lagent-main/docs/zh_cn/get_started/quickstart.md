@@ -2,9 +2,9 @@
 
 借助 Lagent 仅需几行代码就能构建大语言模型智能体。
 
-## GPT-3.5 驱动的 ReWOO 智能体
+## GPT-4o-mini 驱动的 ReWOO 智能体
 
-下面是使用 GPT-3.5 运行 ReWOO 的示例
+下面是使用 GPT-4o-mini 运行 ReWOO 的示例
 
 ```python
 # 从 Lagent 导入必要的模块和类
@@ -13,7 +13,7 @@ from lagent.actions import ActionExecutor, GoogleSearch
 from lagent.llms import GPTAPI
 
 # 初始化 LLM，你可能需要提供 API 密钥
-llm = GPTAPI(model_type='gpt-3.5-turbo', key=['Your OPENAI_API_KEY'])
+llm = GPTAPI(model_type='gpt-4o-mini', key=['Your OPENAI_API_KEY'])
 
 # 初始化 Goolge 搜索工具，你可能需要提供 API 密钥
 search_tool = GoogleSearch(api_key='Your SERPER_API_KEY')

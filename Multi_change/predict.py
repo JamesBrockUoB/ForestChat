@@ -1,19 +1,15 @@
 import argparse
 import json
-
-# 添加特定路径到 Python 解释器的搜索路径中
-# sys.path.append('F:\LCY\Change_Agent\Change-Agent-git\Multi_change')
-import os.path
-import sys
+import os
 
 import cv2
 import numpy as np
-import torch.optim
 from genericpath import exists
 from griffe import check
 from imageio.v2 import imread
 from mci_model.model_decoder import DecoderTransformer
 from mci_model.model_encoder_att import AttentiveEncoder, Encoder
+from scipy.ndimage import distance_transform_edt
 from skimage import measure
 from skimage.segmentation import find_boundaries
 from torchange.models.segment_any_change import AnyChange
@@ -24,6 +20,10 @@ from torchange.models.segment_any_change.segment_anything.utils.amg import (
     rle_to_mask,
 )
 from utils_tool.utils import *
+
+# 添加特定路径到 Python 解释器的搜索路径中
+# sys.path.append('F:\LCY\Change_Agent\Change-Agent-git\Multi_change')
+
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -200,7 +200,7 @@ class Change_Perception(object):
         imgB = imgB.to(DEVICE)
         feat1, feat2 = self.encoder(imgA, imgB)
         feat1, feat2, seg_pre = self.encoder_trans(feat1, feat2)
-        seq = self.decoder.sample(feat1, feat2, k=1)
+        seq = self.decoder.sample(feat1, feat2)
         pred_seq = [
             w
             for w in seq
@@ -389,11 +389,11 @@ class Change_Perception(object):
         return img_rgb
 
     def compute_object_num(self, changed_mask, object):
-        print("compute num start")
+        print("model_infer_compute_object_num: start")
         # compute the number of connected components
         mask = changed_mask
         mask_cp = 0 * mask.copy()
-        if object in ["road", "deforestation patches"]:
+        if object in ["road", "deforestation patches", "all changes"]:
             mask_cp[mask == 1] = 255
         elif object == "building":
             mask_cp[mask == 2] = 255
@@ -418,20 +418,137 @@ class Change_Perception(object):
         # return
         num_str = "Found " + str(num) + " changed " + object
         print(num_str)
-        print("compute num end")
+        print("model_infer_compute_object_num: end")
         return num_str
 
     # design more tool functions:
-    def compute_deforestation_percentage(self, changed_mask):
-        print("compute percentage start")
+    def compute_change_percentage(self, changed_mask):
+        print("model_infer_compute_percentage_change: start")
         """Calculate percentage from mask with error handling"""
         total_pixels = changed_mask.shape[0] * changed_mask.shape[1]
         deforestation_pixels = np.sum(changed_mask != 0)
         percentage = round((deforestation_pixels / total_pixels) * 100.0, 2)
-        percentage_str = f"{percentage} percent of the observed area has been affected by deforestation"
+        percentage_str = f"{percentage} percent of the observed area has been affected"
         print(percentage_str)
-        print("compute percentage end")
+        print("model_infer_compute_percentage_change: end")
         return percentage_str
+
+    def compute_patch_metrics(self, changed_mask, object, pixel_area=1.0):
+        """
+        Returns detailed patch morphology statistics for the given object in a mask.
+        """
+        print("model_infer_compute_change_patch_metrics: start")
+        mask_cp = np.zeros_like(changed_mask, dtype=np.uint8)
+        if object in ["road", "deforestation patches", "all changes"]:
+            mask_cp[changed_mask == 1] = 255
+        elif object == "building":
+            mask_cp[changed_mask == 2] = 255
+
+        lbl = measure.label(mask_cp, connectivity=2)
+        props = measure.regionprops(lbl)
+
+        areas = [p.area * pixel_area for p in props if p.area > 5]
+        if not areas:
+            return {"num_patches": 0}
+
+        perimeters = [p.perimeter for p in props if p.area > 5]
+        compactness = [
+            (4 * np.pi * a) / (p**2 + 1e-6) for a, p in zip(areas, perimeters)
+        ]
+
+        metrics = {
+            "num_patches": len(areas),
+            "total_change_area": sum(areas),
+            "mean_patch_area": np.mean(areas),
+            "median_patch_area": np.median(areas),
+            "largest_patch_area": max(areas),
+            "patch_area_cv": np.std(areas) / (np.mean(areas) + 1e-6),
+            "mean_compactness": np.mean(compactness),
+            "compactness_cv": np.std(compactness) / (np.mean(compactness) + 1e-6),
+        }
+        print("model_infer_compute_change_patch_metrics: end")
+        return metrics
+
+    def compute_linearity_metrics(self, changed_mask, object):
+        print("model_infer_compute_change_patch_linearity: start")
+        mask_cp = np.zeros_like(changed_mask, dtype=np.uint8)
+        if object in ["road", "deforestation patches", "all changes"]:
+            mask_cp[changed_mask == 1] = 255
+        elif object == "building":
+            mask_cp[changed_mask == 2] = 255
+
+        lbl = measure.label(mask_cp, connectivity=2)
+        props = measure.regionprops(lbl)
+
+        elongations = []
+        orientations = []
+
+        for p in props:
+            if p.minor_axis_length > 0 and p.area > 5:
+                elongation = p.major_axis_length / p.minor_axis_length
+                elongations.append(elongation)
+                orientations.append(p.orientation)
+
+        if not elongations:
+            return {}
+
+        metrics = {
+            "mean_elongation": np.mean(elongations),
+            "high_elongation_ratio": np.mean(np.array(elongations) > 5),
+            "orientation_std": np.std(orientations),
+        }
+        print("model_infer_compute_change_patch_linearity: end")
+        return metrics
+
+    def compute_edge_core_change(self, changed_mask, object, base_fraction=0.2):
+        print("model_infer_compute_change_patch_edge_core: start")
+        mask_cp = np.zeros_like(changed_mask, dtype=np.uint8)
+        if object in ["road", "deforestation patches", "all changes"]:
+            mask_cp[changed_mask == 1] = 255
+        elif object == "building":
+            mask_cp[changed_mask == 2] = 255
+
+        lbl = measure.label(mask_cp, connectivity=2)
+
+        props = measure.regionprops(lbl)
+
+        total_edge = 0
+        total_core = 0
+        total_pixels = 0
+
+        for p in props:
+            # Patch mask
+            patch_mask = (lbl == p.label).astype(np.uint8)
+            patch_area = patch_mask.sum()
+            total_pixels += patch_area
+
+            # Adaptive threshold: fraction of smallest dimension
+            adaptive_thresh = max(
+                1,
+                int(base_fraction * min(p.bbox[2] - p.bbox[0], p.bbox[3] - p.bbox[1])),
+            )
+
+            # Distance transform
+            distance = distance_transform_edt(patch_mask)
+
+            # Edge vs core
+            edge_pixels = (distance <= adaptive_thresh).sum()
+            core_pixels = (distance > adaptive_thresh).sum()
+
+            total_edge += edge_pixels
+            total_core += core_pixels
+
+        # Handle case with no patches
+        if total_pixels == 0:
+            return {"edge_loss_ratio": 0.0, "core_loss_ratio": 0.0}
+
+        metrics = {
+            "edge_loss_ratio": total_edge / total_pixels,
+            "core_loss_ratio": total_core / total_pixels,
+        }
+
+        print("model_infer_compute_change_patch_edge_core: end")
+        return metrics
 
 
 if __name__ == "__main__":

@@ -12,6 +12,8 @@ from preprocess_data import encode
 from torch.utils.data import DataLoader, Dataset
 from utils_tool.utils import *
 
+ORIGINAL_IMAGE_SIZE = 480
+
 
 class ForestChangeDataset(Dataset):
     """
@@ -51,6 +53,7 @@ class ForestChangeDataset(Dataset):
         self.transform = transform
         self.img_size = img_size
         self.num_classes = num_classes
+        self.PIXEL_SIZE = 30
 
         assert self.split in {"train", "val", "test"}
         self.img_ids = [
@@ -170,6 +173,7 @@ class ForestChangeDataset(Dataset):
             imgA = cv2.resize(imgA, self.img_size)
             imgB = cv2.resize(imgB, self.img_size)
             seg_label = cv2.resize(seg_label, self.img_size)
+            self.PIXEL_SIZE = self.PIXEL_SIZE * (ORIGINAL_IMAGE_SIZE / self.img_size[0])
 
         if self.transform:  # transform should contain a normalisation transform
             augmented = self.transform(image=imgA, image_B=imgB)

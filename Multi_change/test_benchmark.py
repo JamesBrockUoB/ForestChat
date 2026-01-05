@@ -355,6 +355,7 @@ def main(args):
                 if encoder is not None:
                     feat1, feat2 = encoder(imgA, imgB)
                 feat1, feat2 = encoder_trans(feat1, feat2)
+
                 seq = decoder.sample(feat1, feat2)
 
                 process_caption(

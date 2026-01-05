@@ -16,7 +16,7 @@ from lagent.llms import GPTAPI, HFTransformer, HFTransformerCasualLM
 load_dotenv()
 
 llm = GPTAPI(
-    model_type="gpt-3.5-turbo", key=os.environ.get("OPEN_AI_KEY")
+    model_type="gpt-4o-mini", key=os.environ.get("OPEN_AI_KEY")
 )  # KEY from openai
 # llm = HFTransformer(r'internlm/internlm-chat-7b-v1_1')
 # llm = HFTransformerCasualLM(r'internlm/internlm-chat-7b-v1_1')

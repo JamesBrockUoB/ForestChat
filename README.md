@@ -18,7 +18,7 @@
 
 ## LEVIR-MCI dataset 
 - Download the LEVIR_MCI dataset: [LEVIR-MCI](https://huggingface.co/datasets/lcybuaa/LEVIR-MCI/tree/main).
-- This dataset is an extension of our previously established [LEVIR-CC dataset](https://github.com/Chen-Yang-Liu/RSICC). It contains bi-temporal images as well as diverse change detection masks and descriptive sentences. It provides a crucial data foundation for exploring multi-task learning for change detection and change captioning.
+- This dataset is an extension of the previously established [LEVIR-CC dataset](https://github.com/Chen-Yang-Liu/RSICC). It contains bi-temporal images as well as diverse change detection masks and descriptive sentences. It provides a crucial data foundation for exploring multi-task learning for change detection and change captioning.
     <br>
     <div align="center">
       <img src="resource/dataset.png" width="800"/>
@@ -129,7 +129,7 @@ The overview of the MCI model as adapted to Forest-Chat:
   Simplified overview of the AnyChange model:
   <br>
   <div align="center">
-        <img src="resource/any_change_simplified_diagram.png" width="800"/>
+        <img src="resource/any_change_simplified_diagram_landscape.png" width="800"/>
   </div>
 
 ### Train
@@ -152,11 +152,11 @@ Run inference to get started as follows:
 ```python
 python predict.py --imgA_path {imgA_path} --imgB_path {imgA_path} --mask_save_path ./CDmask.png
 ```
-You can modify ``--checkpoint`` of ``Change_Perception.define_args()`` in ``predict.py``. Then you can use your own model, of course, you also can download our pretrained model ``MCI_model.pth`` here: [[Hugging face](https://huggingface.co/lcybuaa/Change-Agent/tree/main)]. After that, put it in `./models_ckpt/`.
+You can modify ``--checkpoint`` of ``Change_Perception.define_args()`` in ``predict.py``. Then you can use your own model. You can also use our pretrained models ``MCI_model.pth`` and ``Forest-Change_model.pth`` in the ``models_ckpt`` folder.
 
 This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI. E.g. --data_folder ./data/LEVIR-MCI-dataset/images --list_path ./data/LEVIR_MCI/ --token_folder ./data/LEVIR_MCI/tokens/ --data_name LEVIR_MCI --num_classes 3
 
-## Construction of Change-Agent
+## Construction of Forest-Chat
 <br>
 <div align="center">
       <img src="resource/forest-chat-diagram.png" width="800"/>

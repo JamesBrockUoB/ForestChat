@@ -104,15 +104,15 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
         3. **`compute_object_num(change_mask,object)`**:
            - **Parameters**:
              - `change_mask`: The mask from the `change_detection` function.
-             - `object`: The object type to be counted. It can be one of 'deforestation patches', 'building', or 'road'.
+             - `object`: The object type to be counted. It can be one of 'deforestation patches', 'all changes', 'building', or 'road'.
            - **Returns**:
              - The number of changed objects.
 
-        4. **`compute_deforestation_percentage(change_mask)`**:
+        4. **`compute_change_percentage(change_mask)`**:
            - **Parameters**:
              - `change_mask`: The mask from the `change_detection` function.
            - **Returns**:
-             - A caption that includes the deforestation rate percentage observed in the mask.
+             - A caption that includes the change percentage observed in the mask.
 
         5. **`anychange_change_detection(path_A, path_B, savepath_mask, process_mask=True)`**:
            - **Parameters**:
@@ -124,9 +124,50 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
              - A mask map representing the changed areas. The mask is a numpy array with dimensions (256,256).
                 - The mask may either be RGB if 'process_mask=False' or greyscale if 'process_mask=True' (default)
 
+        6. **`compute_patch_metrics(changed_mask, object, pixel_area=1.0)`**:
+           - **Parameters**:
+             - `changed_mask`: The mask from the `change_detection` function.
+             - `object`: The object type for which patch-level morphology metrics are computed.
+                          It can be one of 'deforestation patches', 'building', 'road', or 'all changes'.
+             - `pixel_area`: The physical area (in m^2) represented by a single pixel. Defaults to 1.0.
+           - **Returns**:
+              - A dictionary containing patch morphology statistics for the specified object type, including:
+               - `num_patches`: Number of connected change patches.
+               - `total_change_area`: Total area of all detected patches.
+               - `mean_patch_area`: Average patch area.
+               - `median_patch_area`: Median patch area.
+               - `largest_patch_area`: Area of the largest patch.
+               - `patch_area_cv`: Coefficient of variation of patch areas.
+               - `mean_compactness`: Mean compactness of patches.
+               - `compactness_cv`: Coefficient of variation of patch compactness.
+              - If no valid patches are detected, returns `{ "num_patches": 0 }`.
+
+        7. **`compute_linearity_metrics(changed_mask, object)`**:
+           - **Parameters**:
+             - `changed_mask`: The mask from the `change_detection` function.
+             - `object`: The object type for which linearity metrics are computed.
+                 It can be one of 'deforestation patches', 'building', 'road', or 'all changes'.
+           - **Returns**:
+             - A dictionary containing linearity metrics for the specified object type, including:
+              - `mean_elongation`: Average ratio of major to minor axis length across patches.
+              - `high_elongation_ratio`: Proportion of patches with elongation greater than 5.
+              - `orientation_std`: Standard deviation of patch orientations.
+             - Returns an empty dictionary if no valid patches are found.
+
+        8. **`compute_edge_core_change(changed_mask, object, distance_threshold=10)`**:
+           - **Parameters**:
+             - `changed_mask`: The mask from the `change_detection` function.
+             - `object`: The object type for which edge and core change metrics are computed.
+                 It can be one of 'deforestation patches', 'building', 'road', or 'all changes'.
+             - `base_fraction`: Fraction of patch's smallest dimension used as the distance threshold. Default 0.2 (20%).
+           - **Returns**:
+             - A dictionary containing spatial distribution metrics for the specified object type:
+              - `edge_loss_ratio`: Ratio of changed pixels located within the edge zone.
+              - `core_loss_ratio`: Ratio of changed pixels located within the core zone.
+
         NOTE: The code of Action Input must be placed in def solution()!!
         For example:
-        When the user wants to know what percentage of the image has new deforestation and to save the deforestation areas in red, "Action Input" should be as follows:
+        When the user wants to know what percentage of the image has new changes / deforestation and to save the deforestation areas in red, "Action Input" should be as follows:
         ``python
         def solution():
             from tools import Change_Perception
@@ -139,10 +180,71 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             Change_Perception_model = Change_Perception()
             mask = Change_Perception_model.change_detection(path_A, path_B, savepath_mask)
             mask_bgr = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
-            mask_bgr[mask == 1] = [0, 0, 255] # '1' stands for changed building (red)
+            mask_bgr[mask == 1] = [0, 0, 255] # '1' stands for changed building or deforestation (red)
+            mask_bgr[mask == 2] = [0, 255, 255] # '2' stands for changed road (yellow)
             cv2.imwrite(savepath_mask, mask_bgr)
-            deforestation_percent_caption = Change_Perception_model.compute_deforestation_percentage(mask)
-            return deforestation_percent_caption
+            change_percent_caption = Change_Perception_model.compute_change_percentage(mask)
+            return change_percent_caption
+        ```
+
+        If the user wants to know how many deforestation patches have changed, "Action Input" should be as follows:
+        ``python
+        def solution():
+            from tools import Change_Perception
+            import cv2
+            import numpy as np
+            path_A = 'xxxxxx'
+            path_B = 'xxxxxx'
+            savepath_mask = 'xxxxxx'
+            # initiate Change_Perception
+            Change_Perception_model = Change_Perception()
+            mask = Change_Perception_model.change_detection(path_A, path_B, savepath_mask)
+            mask_bgr = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
+            mask_bgr[mask == 1] = [0, 0, 255] # '1' stands for changed building or deforestation (red)
+            mask_bgr[mask == 2] = [0, 255, 255] # '2' stands for changed road (yellow)
+            cv2.imwrite(savepath_mask, mask_bgr)
+            changed_object_count = Change_Perception_model.compute_object_num(mask, 'deforestation patches')
+            return changed_object_count
+        ```
+
+        If the user wants to get change patch metrics, linearity metrics, and edge/core ratios for a specific object (or 'all changes') and return them in a single dictionary,
+        "Action Input" should be as follows:
+        ``python
+        def solution():
+            from tools import Change_Perception
+            import cv2
+            import numpy as np
+
+            path_A = 'xxxxxx'
+            path_B = 'xxxxxx'
+            savepath_mask = 'xxxxxx'
+
+            # initiate Change_Perception
+            Change_Perception_model = Change_Perception()
+
+            # compute the change mask
+            mask = Change_Perception_model.change_detection(path_A, path_B, savepath_mask)
+
+            # specify the object of interest (can be 'deforestation patches', 'building', 'road', or 'all changes')
+            obj = 'deforestation patches'
+
+            # compute patch morphology metrics
+            patch_metrics = Change_Perception_model.compute_patch_metrics(mask, obj)
+
+            # compute linearity metrics
+            linearity_metrics = Change_Perception_model.compute_linearity_metrics(mask, obj)
+
+            # compute edge vs core change metrics
+            edge_core_metrics = Change_Perception_model.compute_edge_core_change(mask, obj)
+
+            # combine results into a single dictionary for flexibility
+            combined_metrics = {
+                "patch_metrics": patch_metrics,
+                "linearity_metrics": linearity_metrics,
+                "edge_core_metrics": edge_core_metrics
+            }
+
+            return combined_metrics
         ```
 
         Alternatively, if the user wants to make use of the zero-shot AnyChange change detection to detect changes in forest cover and save the deforestation areas in red, 'Action Input should be as follows:

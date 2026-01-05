@@ -49,7 +49,7 @@ class GPTAPI(BaseAPIModel):
 
     def __init__(
         self,
-        model_type: str = "gpt-3.5-turbo",
+        model_type: str = "gpt-4o-mini",
         query_per_second: int = 1,
         retry: int = 2,
         json_mode: bool = False,

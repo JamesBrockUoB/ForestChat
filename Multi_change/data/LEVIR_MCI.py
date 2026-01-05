@@ -44,6 +44,7 @@ class LEVIRCCDataset(Dataset):
         self.split = split
         self.max_length = max_length
         self.num_classes = num_classes
+        self.PIXEL_SIZE = 0.5
 
         assert self.split in {"train", "val", "test"}
         self.img_ids = [

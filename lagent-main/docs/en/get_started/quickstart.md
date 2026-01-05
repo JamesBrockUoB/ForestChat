@@ -2,9 +2,9 @@
 
 Using Lagent, you can easily build agents with just a few lines of code.
 
-## Run a ReWOO agent with GPT-3.5
+## Run a ReWOO agent with GPT-4o-mini
 
-Below is an example of running ReWOO with GPT-3.5
+Below is an example of running ReWOO with GPT-4o-mini
 
 ```python
 # Import necessary modules and classes from the "lagent" library.
@@ -13,7 +13,7 @@ from lagent.actions import ActionExecutor, GoogleSearch
 from lagent.llms import GPTAPI
 
 # Initialize the Language Model (llm) and provide your API key.
-llm = GPTAPI(model_type='gpt-3.5-turbo', key=['Your OPENAI_API_KEY'])
+llm = GPTAPI(model_type='gpt-4o-mini', key=['Your OPENAI_API_KEY'])
 
 # Initialize the Google Search tool and provide your API key.
 search_tool = GoogleSearch(api_key='Your SERPER_API_KEY')

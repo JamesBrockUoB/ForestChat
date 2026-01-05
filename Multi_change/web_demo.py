@@ -75,7 +75,7 @@ class StreamlitUI:
     def setup_sidebar(self):
         """Setup the sidebar for model and plugin selection."""
         model_name = st.sidebar.selectbox(
-            "**Language Model Selection:**", options=["gpt-3.5-turbo", "internlm"]
+            "**Language Model Selection:**", options=["gpt-4o-mini", "internlm-2.5-7B"]
         )
         if model_name != st.session_state["model_selected"]:
             model = self.init_model(model_name)
