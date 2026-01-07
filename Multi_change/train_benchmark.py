@@ -100,7 +100,7 @@ class Trainer(object):
                             if split == "train"
                             else args.increased_val_data_size
                         ),
-                        num_classes=args.num_class,
+                        num_classes=args.num_classes,
                     )
                     if "Forest-Change" in args.data_name
                     else LEVIRMCITreesDataset(
@@ -111,7 +111,7 @@ class Trainer(object):
                         vocab_file=args.vocab_file,
                         max_length=args.max_length,
                         allow_unk=args.allow_unk,
-                        num_classes=args.num_class,
+                        num_classes=args.num_classes,
                     )
                 )
                 datasets.append(dataset)
@@ -134,7 +134,7 @@ class Trainer(object):
         else:
             raise ValueError("Unknown dataset selected")
 
-        self.evaluator = Evaluator(num_class=args.num_class)
+        self.evaluator = Evaluator(num_class=args.num_classes)
 
         self.best_model_path = None
 
@@ -400,7 +400,7 @@ class Trainer(object):
 
             if args.data_name == "LEVIR-MCI-Trees":
                 seg_label = (seg_label > 0).long()
-                args.num_class = 2  # enforce
+                args.num_classes = 2  # enforce
 
             imgA = imgA.to(DEVICE)
             imgB = imgB.to(DEVICE)
@@ -650,7 +650,7 @@ class Trainer(object):
             ):
                 if args.data_name == "LEVIR-MCI-Trees":
                     seg_label = (seg_label > 0).long()
-                    args.num_class = 2  # enforce
+                    args.num_classes = 2  # enforce
 
                 # Move to GPU, if available
                 imgA = imgA.to(DEVICE)
@@ -774,8 +774,8 @@ class Trainer(object):
                             for j in i:
                                 ref_caption += (list(word_vocab.keys())[j]) + " "
                             ref_caption += ".    "
-                            # print(f"Pred caption: {pred_caption}")
-                            # print(f"Ref caption: {ref_caption}")
+                            print(f"Pred caption: {pred_caption}")
+                            print(f"Ref caption: {ref_caption}")
 
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
@@ -1033,7 +1033,7 @@ if __name__ == "__main__":
         default=None,
         help="path to checkpoint for resuming training",
     )
-    parser.add_argument("--num_class", type=int, default=2)
+    parser.add_argument("--num_classes", type=int, default=2)
 
     args = parser.parse_args()
 
