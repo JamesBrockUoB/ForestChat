@@ -17,7 +17,7 @@ from benchmark_models.change_3d.utils import BCEDiceLoss
 from benchmark_models.chg2cap.model_decoder import DecoderTransformer
 from benchmark_models.chg2cap.model_encoder import AttentiveEncoder, Encoder
 from data.ForestChange import ForestChangeDataset
-from data.LEVIR_MCI import LEVIRCCDataset
+from data.LEVIRMCITrees import LEVIRMCITreesDataset
 from einops import rearrange
 from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence
@@ -82,7 +82,7 @@ class Trainer(object):
         self.build_benchmark_model()
 
         # Custom dataloaders
-        if args.data_name in ["LEVIR_MCI", "Forest-Change"]:
+        if args.data_name in ["LEVIR-MCI-Trees", "Forest-Change"]:
             datasets = []
             for split in ["train", "val"]:
                 dataset = (
@@ -103,7 +103,7 @@ class Trainer(object):
                         num_classes=args.num_class,
                     )
                     if "Forest-Change" in args.data_name
-                    else LEVIRCCDataset(
+                    else LEVIRMCITreesDataset(
                         data_folder=args.data_folder,
                         list_path=args.list_path,
                         split=split,
@@ -398,7 +398,7 @@ class Trainer(object):
         ):
             start_time = time.time()
 
-            if args.data_name == "LEVIR_MCI":
+            if args.data_name == "LEVIR-MCI-Trees":
                 seg_label = (seg_label > 0).long()
                 args.num_class = 2  # enforce
 
@@ -648,7 +648,7 @@ class Trainer(object):
                     desc="val_" + "EVALUATING AT BEAM SIZE " + str(1),
                 )
             ):
-                if args.data_name == "LEVIR_MCI":
+                if args.data_name == "LEVIR-MCI-Trees":
                     seg_label = (seg_label > 0).long()
                     args.num_class = 2  # enforce
 

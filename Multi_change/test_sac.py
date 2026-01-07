@@ -84,7 +84,7 @@ def main(args):
         args.result_path,
         "anychange_model",
         time_file_str(),
-        "LEVIR-MCI-Trees" if "LEVIR-MCI" in args.data_folder else "Forest-Change",
+        args.data_folder,
         random_str,
     )
     if not os.path.exists(args.result_path):

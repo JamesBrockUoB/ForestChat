@@ -12,7 +12,7 @@ from benchmark_models.change_3d.trainer import Change3d_Trainer
 from benchmark_models.chg2cap.model_decoder import DecoderTransformer
 from benchmark_models.chg2cap.model_encoder import AttentiveEncoder, Encoder
 from data.ForestChange import ForestChangeDataset
-from data.LEVIR_MCI import LEVIRCCDataset
+from data.LEVIRMCITrees import LEVIRMCITreesDataset
 from einops import rearrange
 from torch.utils import data
 from tqdm import tqdm
@@ -243,7 +243,7 @@ def main(args):
         raise ValueError("Unknown benchmark model selected.")
 
     # Custom dataloaders
-    if args.data_name in ["LEVIR_MCI", "Forest-Change"]:
+    if args.data_name in ["LEVIR-MCI-Trees", "Forest-Change"]:
         dataset = (
             ForestChangeDataset(
                 data_folder=args.data_folder,
@@ -256,7 +256,7 @@ def main(args):
                 num_classes=args.num_classes,
             )
             if "Forest-Change" in args.data_name
-            else LEVIRCCDataset(
+            else LEVIRMCITreesDataset(
                 data_folder=args.data_folder,
                 list_path=args.list_path,
                 split=args.split,
@@ -317,7 +317,7 @@ def main(args):
                         hypotheses,
                     )
                 else:
-                    if args.data_name == "LEVIR_MCI":
+                    if args.data_name == "LEVIR-MCI-Trees":
                         seg_label = (seg_label > 0).long()
                         args.num_class = 2  # enforce
 
@@ -337,7 +337,7 @@ def main(args):
                     evaluator.add_batch(seg_label, pred_seg)
             elif args.benchmark == "bifa":
                 args.train_goal = 0
-                if args.data_name == "LEVIR_MCI":
+                if args.data_name == "LEVIR-MCI-Trees":
                     seg_label = (seg_label > 0).long()
                     args.num_class = 2  # enforce
 

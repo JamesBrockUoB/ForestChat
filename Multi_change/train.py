@@ -10,7 +10,7 @@ import numpy as np
 import torch
 import wandb
 from data.ForestChange import ForestChangeDataset
-from data.LEVIR_MCI import LEVIRCCDataset
+from data.LEVIRMCITrees import LEVIRMCITreesDataset
 from mci_model.model_decoder import DecoderTransformer
 from mci_model.model_encoder_att import AttentiveEncoder, Encoder
 from torch.nn.utils.rnn import pack_padded_sequence
@@ -103,7 +103,7 @@ class Trainer(object):
             self.grads = torch.zeros(sum(self.grad_dims), NUM_TASKS).to(DEVICE)
 
         # Custom dataloaders
-        if args.data_name in ["LEVIR_MCI", "Forest-Change"]:
+        if args.data_name in ["LEVIR-MCI-Trees", "Forest-Change"]:
             datasets = []
             for split in ["train", "val"]:
                 dataset = (
@@ -124,7 +124,7 @@ class Trainer(object):
                         num_classes=args.num_classes,
                     )
                     if "Forest-Change" in args.data_name
-                    else LEVIRCCDataset(
+                    else LEVIRMCITreesDataset(
                         data_folder=args.data_folder,
                         list_path=args.list_path,
                         split=split,

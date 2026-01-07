@@ -21,7 +21,6 @@ parser.add_argument(
 parser.add_argument(
     "--word_count_threshold", default=5, type=int
 )  # default 5, might change to 3 but needs retraining
-parser.add_argument("--keep_only_trees", default=False, type=str2bool)
 
 SPECIAL_TOKENS = {
     "<NULL>": 0,
@@ -34,7 +33,7 @@ DATA_PATH_ROOT = "data"
 
 def main(args):
     dataset_folder_map = {
-        "LEVIR_MCI": "LEVIR-MCI-dataset",
+        "LEVIR-MCI-Trees": "LEVIR-MCI-Trees-dataset",
         "Forest-Change": "Forest-Change-dataset",
     }
 
@@ -130,8 +129,7 @@ def main(args):
         with open(os.path.join(save_dir + output_vocab_json), "w") as f:
             json.dump(word_freq, f)
 
-    if args.keep_only_trees:
-        filter_forest_images(os.path.join(DATA_PATH_ROOT, "LEVIR-MCI-dataset"))
+    filter_forest_images(os.path.join(DATA_PATH_ROOT, "LEVIR-MCI-Trees-dataset"))
 
 
 def filter_forest_images(dataset_root):

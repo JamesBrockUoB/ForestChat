@@ -10,13 +10,56 @@
 </div>
 
 ## Table of Contents
-- [LEVIR-MCI dataset](#LEVIR-MCI-dataset)
+- [Preparation](#Preparation)
+- [LEVIR-MCI-Trees dataset](#LEVIR-MCI-Trees-dataset)
 - [Forest-Change dataset](#Forest-Change-dataset)
 - [Training of MCI model](#Training-of-the-multi-level-change-interpretation-model)
 - [Construction of Forest-Chat Agent](#Construction-of-Change-Agent)
 - [Citation](#Citation)
 
-## LEVIR-MCI dataset 
+### Preparation
+    
+- **Environment Installation**:
+    <details open>
+    
+    **Step 1**: Create a virtual environment named `Multi_change_env` and activate it.
+    ```python
+    conda create -n Multi_change_env python=3.9
+    conda activate Multi_change_env
+    ```
+    
+    **Step 2**: Download or clone the repository.
+    ```python
+    git clone https://github.com/JamesBrockUoB/ForestChat.git
+    cd ./ForestChat/Multi_change
+    ```
+    
+    **Step 3**: Install dependencies.
+    ```python
+    pip install -r requirements.txt
+    ```
+    </details>
+
+    **Step 4**: Setup .env file.
+    Create a file in the project root folder called `.env` with the following variables:
+      - OPEN_AI_KEY: Your OPEN_AI API key - https://platform.openai.com/api-keys
+      - SERPER_API_KEY - Your Google Search / Scholar API key - https://serpapi.com/
+      - WANDB_USERNAME - Your Weights & Biases username for run logging - https://wandb.ai/site/
+    
+    **Step 5**: Download AnyChange
+    <details open>
+    
+    Link: [AnyChange](https://github.com/facebookresearch/segment-anything?tab=readme-ov-file#model-checkpoints)
+
+    Place the downloaded model into: `Multi_change/models_ckpt/` with the name unchanged (`sam_vit_h_4b8939.pth`)
+
+    Simplified overview of the AnyChange model:
+    <br>
+    <div align="center">
+          <img src="resource/any_change_simplified_diagram_landscape.png" width="800"/>
+    </div>
+
+## LEVIR-MCI-Trees dataset 
 - Download the LEVIR_MCI dataset: [LEVIR-MCI](https://huggingface.co/datasets/lcybuaa/LEVIR-MCI/tree/main).
 - This dataset is an extension of the previously established [LEVIR-CC dataset](https://github.com/Chen-Yang-Liu/RSICC). It contains bi-temporal images as well as diverse change detection masks and descriptive sentences. It provides a crucial data foundation for exploring multi-task learning for change detection and change captioning.
     <br>
@@ -24,6 +67,36 @@
       <img src="resource/dataset.png" width="800"/>
     </div>
     <br>
+
+- **IMPORTANT**: Rename the folder to `LEVIR-MCI-Trees-dataset`
+- The data structure of LEVIR-MCI-Trees is organized as follows:
+  ```
+  ├─/DATA_PATH_ROOT/LEVIR-MCI-Trees-dataset/
+          ├─LevirCCcaptions.json
+          ├─images
+                ├─train
+                │  ├─A
+                │  ├─B
+                │  ├─label
+                ├─val
+                │  ├─A
+                │  ├─B
+                │  ├─label
+                ├─test
+                │  ├─A
+                │  ├─B
+                │  ├─label
+  ```
+  where folder ``A`` contains pre-phase images, folder ``B`` contains post-phase images, and folder ``label`` contains the change detection masks.
+  </details>
+
+- **Filter out examples that don't contain tree/forest related captions and extract text files for the descriptions of each image pair in LEVIR-MCI-Trees**:
+
+    ```
+    python preprocess_data.py --dataset LEVIR-MCI-Trees-dataset --captions_json LevirCCcaptions.json
+    ```
+
+    After running, you will find some generated files in `./data/LEVIR-MCI-Trees/`. 
 
 ## Forest-Change dataset
 - Data is available in the `Multi_change/data/Forest-Change` folder and can be prepared by running `python preprocess_data.py` in `Multi_change`.
@@ -56,88 +129,21 @@ The overview of the MCI model as adapted to Forest-Chat:
     </div>
 <br>
 
-### Preparation
-    
-- **Environment Installation**:
-    <details open>
-    
-    **Step 1**: Create a virtual environment named `Multi_change_env` and activate it.
-    ```python
-    conda create -n Multi_change_env python=3.9
-    conda activate Multi_change_env
-    ```
-    
-    **Step 2**: Download or clone the repository.
-    ```python
-    git clone https://github.com/JamesBrockUoB/ForestChat.git
-    cd ./ForestChat/Multi_change
-    ```
-    
-    **Step 3**: Install dependencies.
-    ```python
-    pip install -r requirements.txt
-    ```
-    </details>
+### Train
+Make sure you performed the data preparation above. Then, start training as follows:
+```python
+python train.py --train_goal 2 --savepath ./models_ckpt/
+```
+This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI-Trees. E.g. --data_folder ./data/LEVIR-MCI-Trees-dataset/images --list_path ./data/LEVIR-MCI-Trees/ --token_folder ./data/LEVIR-MCI-Trees/tokens/ --data_name LEVIR-MCI-Trees --num_classes 3
 
-    **Step 4**: Setup .env file.
-    Create a file in the project root folder called `.env` with the following variables:
-      - OPEN_AI_KEY: Your OPEN_AI API key - https://platform.openai.com/api-keys
-      - SERPER_API_KEY - Your Google Search / Scholar API key - https://serpapi.com/
-      - WANDB_USERNAME - Your Weights & Biases username for run logging - https://wandb.ai/site/
-
-- **Download Dataset**:
-  <details open>
-      
-  Link: [LEVIR-MCI](https://huggingface.co/datasets/lcybuaa/LEVIR-MCI/tree/main). The data structure of LEVIR-MCI is organized as follows:
-
-    ```
-    ├─/DATA_PATH_ROOT/Levir-MCI-dataset/
-            ├─LevirCCcaptions.json
-            ├─images
-                 ├─train
-                 │  ├─A
-                 │  ├─B
-                 │  ├─label
-                 ├─val
-                 │  ├─A
-                 │  ├─B
-                 │  ├─label
-                 ├─test
-                 │  ├─A
-                 │  ├─B
-                 │  ├─label
-    ```
-    where folder ``A`` contains pre-phase images, folder ``B`` contains post-phase images, and folder ``label`` contains the change detection masks.
-    </details>
-
-- **Extract text files for the descriptions of each image pair in LEVIR-MCI**:
-
-    ```
-    python preprocess_data.py --dataset LEVIR_MCI-dataset --captions_json LevirCCcaptions.json
-    ```
-
-    If you wish to create a subset of LEVIR-MCI that explicitly contains changes to trees called `LEVIR-MCI-Trees`, then add: --keep_only_trees True
-    After that, you can find some generated files in `./data/LEVIR_MCI/`. 
-
-- **Download AnyChange**:
-  <details open>
-  
-  Link: [AnyChange](https://github.com/facebookresearch/segment-anything?tab=readme-ov-file#model-checkpoints)
-
-  Place the downloaded model into: `Multi_change/models_ckpt/` with the name unchanged (`sam_vit_h_4b8939.pth`)
-
-  Simplified overview of the AnyChange model:
-  <br>
-  <div align="center">
-        <img src="resource/any_change_simplified_diagram_landscape.png" width="800"/>
-  </div>
+*Note that when evaluating on LEVIR-MCI-Trees, segmentation scores will come out as 3-class IoU scores if using num_classes = 3, rather than binary. If wanting binary, you will need to convert predictions manually via post-processing of output masks.*
 
 ### Train
 Make sure you performed the data preparation above. Then, start training as follows:
 ```python
 python train.py --train_goal 2 --savepath ./models_ckpt/
 ```
-This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI. E.g. --data_folder ./data/LEVIR-MCI-dataset/images --list_path ./data/LEVIR_MCI/ --token_folder ./data/LEVIR_MCI/tokens/ --data_name LEVIR_MCI --num_classes 3
+This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI-Trees. E.g. --data_folder ./data/LEVIR-MCI-Trees-dataset/images --list_path ./data/LEVIR-MCI-Trees/ --token_folder ./data/LEVIR-MCI-Trees/tokens/ --data_name LEVIR-MCI-Trees --num_classes 3
 
 ### Evaluate
 ```python
@@ -145,7 +151,7 @@ python test.py --checkpoint {checkpoint_PATH}
 ```
 We recommend training the model 5 times to get an average score.
 
-This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI. E.g. --data_folder ./data/LEVIR-MCI-dataset/images --list_path ./data/LEVIR_MCI/ --token_folder ./data/LEVIR_MCI/tokens/ --data_name LEVIR_MCI --num_classes 3
+This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI-Trees. E.g. --data_folder ./data/LEVIR-MCI-Trees-dataset/images --list_path ./data/LEVIR-MCI-Trees/ --token_folder ./data/LEVIR-MCI-Trees/tokens/ --data_name LEVIR-MCI-Trees --num_classes 3
 
 ### Inference
 Run inference to get started as follows:
@@ -154,12 +160,12 @@ python predict.py --imgA_path {imgA_path} --imgB_path {imgA_path} --mask_save_pa
 ```
 You can modify ``--checkpoint`` of ``Change_Perception.define_args()`` in ``predict.py``. Then you can use your own model. You can also use our pretrained models ``MCI_model.pth`` and ``Forest-Change_model.pth`` in the ``models_ckpt`` folder.
 
-This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI. E.g. --data_folder ./data/LEVIR-MCI-dataset/images --list_path ./data/LEVIR_MCI/ --token_folder ./data/LEVIR_MCI/tokens/ --data_name LEVIR_MCI --num_classes 3
+This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI-Trees. E.g. --data_folder ./data/LEVIR-MCI-Trees-dataset/images --list_path ./data/LEVIR-MCI-Trees/ --token_folder ./data/LEVIR-MCI-Trees/tokens/ --data_name LEVIR-MCI-Trees --num_classes 3
 
 ## Construction of Forest-Chat
 <br>
 <div align="center">
-      <img src="resource/forest-chat-diagram.png" width="800"/>
+      <img src="resource/new_forest-chat_diagram.png" width="800"/>
 </div>
 
 - **Agent Installation**:

@@ -11,4 +11,4 @@ tmp_dir/
 .vscode/
 wandb/
 Multi_change/data/Forest-Change/
-Multi_change/data/LEVIR_MCI/
+Multi_change/data/LEVIR-MCI-Trees/

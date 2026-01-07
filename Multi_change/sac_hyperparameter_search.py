@@ -18,7 +18,7 @@ torch.set_num_interop_threads(1)
 load_dotenv()
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-NUM_CLASS = 2  # 3 for LEVIR-MCI
+NUM_CLASS = 2  # 3 for LEVIR-MCI-Trees
 
 SWEEP_CONFIG = {
     "name": "AnyChange Hyperparameter Search",

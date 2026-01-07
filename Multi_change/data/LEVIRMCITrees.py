@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader, Dataset
 from utils_tool.utils import *
 
 
-class LEVIRCCDataset(Dataset):
+class LEVIRMCITreesDataset(Dataset):
     """
     A PyTorch Dataset class to be used in a PyTorch DataLoader to create batches.
     """
