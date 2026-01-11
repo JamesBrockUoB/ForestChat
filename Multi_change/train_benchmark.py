@@ -388,10 +388,6 @@ class Trainer(object):
             self.decoder.train()
             self.encoder.train()
             self.encoder_trans.train()
-            self.decoder_optimizer.zero_grad()
-            self.encoder_trans_optimizer.zero_grad()
-            if self.encoder_optimizer is not None:
-                self.encoder_optimizer.zero_grad()
 
         for id, (imgA, imgB, seg_label, _, _, token, token_len, _) in enumerate(
             self.train_loader
@@ -479,6 +475,11 @@ class Trainer(object):
                 det_loss.backward()
                 self.optimizer.step()
             elif args.benchmark == "chg2cap":
+                self.decoder_optimizer.zero_grad()
+                self.encoder_trans_optimizer.zero_grad()
+                if self.encoder_optimizer is not None:
+                    self.encoder_optimizer.zero_grad()
+
                 feat1, feat2 = self.encoder(imgA, imgB)
                 feat1, feat2 = self.encoder_trans(feat1, feat2)
                 scores, caps_sorted, decode_lengths, sort_ind = self.decoder(
@@ -774,8 +775,8 @@ class Trainer(object):
                             for j in i:
                                 ref_caption += (list(word_vocab.keys())[j]) + " "
                             ref_caption += ".    "
-                            print(f"Pred caption: {pred_caption}")
-                            print(f"Ref caption: {ref_caption}")
+                            # print(f"Pred caption: {pred_caption}")
+                            # print(f"Ref caption: {ref_caption}")
 
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
