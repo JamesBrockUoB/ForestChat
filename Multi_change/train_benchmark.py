@@ -868,6 +868,12 @@ class Trainer(object):
                     }
                 )
 
+        if args.benchmark == "chg2cap":
+            self.decoder_lr_scheduler.step()
+            self.encoder_trans_lr_scheduler.step()
+            if self.encoder_lr_scheduler is not None:
+                self.encoder_lr_scheduler.step()
+
         # Check if there was an improvement
         if args.train_goal == 0:
             Bleu_4 = 0

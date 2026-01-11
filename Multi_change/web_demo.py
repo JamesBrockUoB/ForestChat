@@ -308,9 +308,7 @@ class StreamlitUI:
                         use_container_width=True,
                     )
 
-                percentage_str = change_perception.compute_deforestation_percentage(
-                    mask
-                )
+                percentage_str = change_perception.compute_change_percentage(mask)
                 st.markdown(percentage_str)
                 st.markdown(f"📁 Output saved at: `{savepath_mask}`")
             except Exception as e:
