@@ -136,7 +136,7 @@ python train.py --train_goal 2 --savepath ./models_ckpt/
 ```
 This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI-Trees. E.g. --data_folder ./data/LEVIR-MCI-Trees-dataset/images --list_path ./data/LEVIR-MCI-Trees/ --token_folder ./data/LEVIR-MCI-Trees/tokens/ --data_name LEVIR-MCI-Trees --num_classes 3
 
-*Note that when evaluating on LEVIR-MCI-Trees, segmentation scores will come out as 3-class IoU scores if using num_classes = 3, rather than binary. If wanting binary, you will need to convert predictions manually via post-processing of output masks.*
+*Note that when evaluating on LEVIR-MCI-Trees, segmentation scores will come out as 3-class IoU scores if using num_classes = 3, rather than binary. If wanting binary, you will need to convert predictions manually via post-processing of output masks. A cell performs this function in the `dataset_utils_notebook.ipynb` file with the cell containing the function `evaluate_folder`.*  
 
 ### Train
 Make sure you performed the data preparation above. Then, start training as follows:
