@@ -158,7 +158,7 @@ Run inference to get started as follows:
 ```python
 python predict.py --imgA_path {imgA_path} --imgB_path {imgA_path} --mask_save_path ./CDmask.png
 ```
-You can modify ``--checkpoint`` of ``Change_Perception.define_args()`` in ``predict.py``. Then you can use your own model. You can also use our pretrained models ``MCI_model.pth`` and ``Forest-Change_model.pth`` in the ``models_ckpt`` folder.
+You can modify ``--checkpoint`` of ``Change_Perception.define_args()`` in ``predict.py``. Then you can use your own model. You can also use our pretrained models ``LEVIR-MCI_-Trees_model.pth`` and ``Forest-Change_model.pth`` in the ``models_ckpt`` folder.
 
 This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI-Trees. E.g. --data_folder ./data/LEVIR-MCI-Trees-dataset/images --list_path ./data/LEVIR-MCI-Trees/ --token_folder ./data/LEVIR-MCI-Trees/tokens/ --data_name LEVIR-MCI-Trees --num_classes 3
 
