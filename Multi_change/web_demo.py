@@ -248,9 +248,29 @@ class StreamlitUI:
                     st.write("No points selected yet.")
 
         st.markdown("---")
-        st.markdown("## 🎯 Run AnyChange Model")
+        st.markdown("## 🎯 Run FC-Zero-shot")
 
-        if st.button("Run"):
+        col_run, col_opts = st.columns([1, 4])
+
+        with col_run:
+            run_clicked = st.button("Run")
+
+        with col_opts:
+            c1, c2, c3, c4 = st.columns(4)
+
+            with c1:
+                show_percentage = st.checkbox("Change %", value=True)
+
+            with c2:
+                show_patches = st.checkbox("Patch Stats", value=True)
+
+            with c3:
+                show_edges = st.checkbox("Edge/Core Stats")
+
+            with c4:
+                show_linearity = st.checkbox("Linearity Stats")
+
+        if run_clicked:
             points = st.session_state.selected_points[selected_image_key]
             path_A = os.path.join(root_dir, st.session_state["image_A_name"])
             path_B = os.path.join(root_dir, st.session_state["image_B_name"])
@@ -267,7 +287,7 @@ class StreamlitUI:
 
             try:
                 with st.spinner(
-                    "Running AnyChange Model... This may take up to a minute."
+                    "Running FC-Zero-shot... This may take up to a minute."
                 ):
                     change_perception = Change_Perception()
                     if len(points) == 0:
@@ -304,16 +324,39 @@ class StreamlitUI:
                 with col3:
                     st.image(
                         savepath_mask,
-                        caption="🔍 AnyChange Output",
+                        caption="🔍 FC-Zero-shot Output",
                         use_container_width=True,
                     )
 
-                percentage_str = change_perception.compute_change_percentage(mask)
-                st.markdown(percentage_str)
+                if show_percentage:
+                    percentage_str = change_perception.compute_change_percentage(mask)
+                    st.markdown(f"Change percentage\n\n {percentage_str}")
+
+                if show_patches:
+                    change_statistics = change_perception.compute_patch_metrics(
+                        mask, "all changes", change_perception.pixel_area
+                    )
+                    st.markdown(f"Change patch statistics\n\n {change_statistics}")
+
+                if show_edges:
+                    edge_statistics = change_perception.compute_edge_core_change(
+                        mask, "all changes"
+                    )
+                    st.markdown(
+                        f"Edge vs Core (edge threshold set at 20% of patch size ) change patch analysis\n\n {edge_statistics}"
+                    )
+
+                if show_linearity:
+                    linearity_statistics = change_perception.compute_linearity_metrics(
+                        mask, "all changes"
+                    )
+                    st.markdown(
+                        f"Change patch linearity analysis\n\n {linearity_statistics}"
+                    )
                 st.markdown(f"📁 Output saved at: `{savepath_mask}`")
             except Exception as e:
                 st.markdown(
-                    f"☠️ Uh oh! Ran into a problem executing the model: {e} - double check model hyperparameters"
+                    f"☠️ Uh oh! Ran into a problem executing the model: {e} - double check model hyperparameters. Point querying may not work for binary change detection cases."
                 )
 
     def render_action(self, action):
@@ -396,9 +439,11 @@ def main():
             model, plugin_action
         )
 
-    tab_selection = st.selectbox("Choose a mode:", ["Forest-Chat Agent", "AnyChange"])
+    tab_selection = st.selectbox(
+        "Choose a mode:", ["Forest-Chat", "FC-Zero-shot Point Querying"]
+    )
 
-    if tab_selection == "Forest-Chat Agent":
+    if tab_selection == "Forest-Chat":
         for prompt, agent_return in zip(
             st.session_state["user"], st.session_state["assistant"]
         ):
@@ -442,7 +487,7 @@ def main():
             logger.info(agent_return.inner_steps)
             st.session_state["ui"].render_assistant(agent_return)
 
-    elif tab_selection == "AnyChange":
+    elif tab_selection == "FC-Zero-shot Point Querying":
         st.session_state["ui"].render_point_selector_tab()
 
 

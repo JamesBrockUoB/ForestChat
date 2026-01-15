@@ -132,14 +132,14 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
              - `pixel_area`: The physical area (in m^2) represented by a single pixel. Defaults to 1.0.
            - **Returns**:
               - A dictionary containing patch morphology statistics for the specified object type, including:
-               - `num_patches`: Number of connected change patches.
-               - `total_change_area`: Total area of all detected patches.
-               - `mean_patch_area`: Average patch area.
-               - `median_patch_area`: Median patch area.
-               - `largest_patch_area`: Area of the largest patch.
-               - `patch_area_cv`: Coefficient of variation of patch areas.
-               - `mean_compactness`: Mean compactness of patches.
-               - `compactness_cv`: Coefficient of variation of patch compactness.
+               - `Number of patches`: Number of connected change patches.
+               - `Total change area (m^2)`: Total area of all detected patches.
+               - `Mean patch area (m^2)`: Average patch area.
+               - `Median patch area (m^2)`: Median patch area.
+               - `Largest patch area (m^2)`: Area of the largest patch.
+               - `Patch area coefficient of variation`: Coefficient of variation of patch areas.
+               - `Mean compactness`: Mean compactness of patches.
+               - `Compactness coefficient of variation`: Coefficient of variation of patch compactness.
               - If no valid patches are detected, returns `{ "num_patches": 0 }`.
 
         7. **`compute_linearity_metrics(changed_mask, object)`**:
@@ -149,9 +149,9 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
                  It can be one of 'deforestation patches', 'building', 'road', or 'all changes'.
            - **Returns**:
              - A dictionary containing linearity metrics for the specified object type, including:
-              - `mean_elongation`: Average ratio of major to minor axis length across patches.
-              - `high_elongation_ratio`: Proportion of patches with elongation greater than 5.
-              - `orientation_std`: Standard deviation of patch orientations.
+              - `Mean elongation`: Average ratio of major to minor axis length across patches.
+              - `High elongation ratio (elongation > 3)`: Proportion of patches with elongation greater than 5.
+              - `Orientation std`: Standard deviation of patch orientations.
              - Returns an empty dictionary if no valid patches are found.
 
         8. **`compute_edge_core_change(changed_mask, object, distance_threshold=10)`**:
@@ -162,8 +162,8 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
              - `base_fraction`: Fraction of patch's smallest dimension used as the distance threshold. Default 0.2 (20%).
            - **Returns**:
              - A dictionary containing spatial distribution metrics for the specified object type:
-              - `edge_loss_ratio`: Ratio of changed pixels located within the edge zone.
-              - `core_loss_ratio`: Ratio of changed pixels located within the core zone.
+              - `Edge loss ratio`: Ratio of changed pixels located within the edge zone.
+              - `Core loss ratio`: Ratio of changed pixels located within the core zone.
 
         NOTE: The code of Action Input must be placed in def solution()!!
         For example:
