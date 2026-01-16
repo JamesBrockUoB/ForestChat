@@ -83,6 +83,15 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
         ```
         Note:
         In addition to the commonly used python dependency packages, you can use a custom library 'Change_Perception' from tools import Change_Perception(), which contains the following function:
+
+        **IMPORTANT DATASET SELECTION:**
+        Change_Perception() defaults to the Forest-Change dataset for forest/deforestation detection.
+        - For forest changes: Change_Perception() or Change_Perception(dataset_name='Forest-Change')
+        - For road/building changes: Change_Perception(dataset_name='LEVIR-MCI-Trees')
+
+        Use LEVIR-MCI-Trees when the user mentions "road", "building", "urban", "infrastructure", "LEVIR-MCI", or "LEVIR-MCI-Trees".
+        Otherwise, use the default Forest-Change dataset.
+
         1. **`change_detection(path_A, path_B, savepath_mask)`**:
            - **Parameters**:
              - `path_A`: Path to the first image.
@@ -166,6 +175,38 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
               - `Core loss ratio`: Ratio of changed pixels located within the core zone.
 
         NOTE: The code of Action Input must be placed in def solution()!!
+
+        **DATASET SELECTION:**
+        By default, Change_Perception uses the Forest-Change dataset, so you can initialize it without parameters:
+        - Change_Perception() - Uses Forest-Change dataset (default)
+
+        However, if the user mentions:
+        - "road" or "building" change detection
+        - "LEVIR-MCI" or "LEVIR-MCI-Trees" dataset
+        - urban or infrastructure changes
+
+        Then you MUST initialize with the LEVIR-MCI-Trees dataset:
+        - Change_Perception(dataset_name='LEVIR-MCI-Trees')
+
+        **Examples:**
+
+        For Forest-Change dataset (DEFAULT - forest/deforestation detection):
+        ```python
+        def solution():
+            from tools import Change_Perception
+            # Default initialization for forest changes
+            Change_Perception_model = Change_Perception()
+            # ... or explicitly: Change_Perception(dataset_name='Forest-Change')
+        ```
+
+        For LEVIR-MCI-Trees dataset (road/building detection):
+        ```python
+        def solution():
+            from tools import Change_Perception
+            # Use this for road/building changes
+            Change_Perception_model = Change_Perception(dataset_name='LEVIR-MCI-Trees')
+        ```
+
         For example:
         When the user wants to know what percentage of the image has new changes / deforestation and to save the deforestation areas in red, "Action Input" should be as follows:
         ``python
@@ -176,7 +217,7 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             path_A = 'xxxxxx'
             path_B = 'xxxxxx'
             savepath_mask = 'xxxxxx'
-            # initiate Change_Perception
+            # initiate Change_Perception (default is Forest-Change dataset)
             Change_Perception_model = Change_Perception()
             mask = Change_Perception_model.change_detection(path_A, path_B, savepath_mask)
             mask_bgr = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
@@ -229,7 +270,7 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             obj = 'deforestation patches'
 
             # compute patch morphology metrics
-            patch_metrics = Change_Perception_model.compute_patch_metrics(mask, obj)
+            patch_metrics = Change_Perception_model.compute_patch_metrics(mask, obj, self.pixel_area) # pixel_area is dataset dependent
 
             # compute linearity metrics
             linearity_metrics = Change_Perception_model.compute_linearity_metrics(mask, obj)
@@ -257,13 +298,33 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             savepath_mask = 'xxxxxx'
             # initiate Change_Perception
             Change_Perception_model = Change_Perception()
-            mask = Change_Perception.anychange_change_detection(path_A, path_B, savepath_mask, process_mask=True)
+            mask = Change_Perception_model.anychange_change_detection(path_A, path_B, savepath_mask, process_mask=True)
             mask_bgr = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
-            mask_bgr[mask == 1] = [0, 0, 255] # '1' stands for changed building (red)
+            mask_bgr[mask == 1] = [0, 0, 255] # '1' stands for changed area (red)
             cv2.imwrite(savepath_mask, mask_bgr)
             return mask_bgr
         '''
         If the user wants the raw AnyChange model output, then set 'process_mask=False' and assign the result to 'mask_bgr', save the mask and then return it
+
+        If the user mentions "road" or "building" detection, or mentions "LEVIR-MCI" or "LEVIR-MCI-Trees" dataset, use the LEVIR-MCI-Trees dataset instead:
+        ''python
+        def solution():
+            from tools import Change_Perception
+            import cv2
+            import numpy as np
+            path_A = 'xxxxxx'
+            path_B = 'xxxxxx'
+            savepath_mask = 'xxxxxx'
+            # Use LEVIR-MCI-Trees dataset for road/building detection
+            Change_Perception_model = Change_Perception(dataset_name='LEVIR-MCI-Trees')
+            mask = Change_Perception_model.change_detection(path_A, path_B, savepath_mask)
+            mask_bgr = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
+            mask_bgr[mask == 1] = [0, 0, 255] # '1' stands for changed road or deforestation (red)
+            mask_bgr[mask == 2] = [0, 255, 255] # '2' stands for changed building (yellow)
+            cv2.imwrite(savepath_mask, mask_bgr)
+            changed_object_count = Change_Perception_model.compute_object_num(mask, 'building')
+            return changed_object_count
+        '''
 
         Args:
             command (:class:`str`): Python code snippet

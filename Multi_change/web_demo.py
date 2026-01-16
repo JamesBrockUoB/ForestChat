@@ -16,7 +16,7 @@ from lagent.agents.react import ReAct
 from lagent.llms import GPTAPI
 from lagent.llms.huggingface import HFTransformerCasualLM
 from PIL import Image, ImageDraw
-from predict import Change_Perception
+from predict import DATASET_CONFIGS, Change_Perception
 from streamlit.logger import get_logger
 from streamlit_image_coordinates import streamlit_image_coordinates as sic
 
@@ -34,6 +34,7 @@ class SessionState:
         st.session_state["assistant"] = []
         st.session_state["user"] = []
         st.session_state["history"] = []
+        st.session_state["dataset_selected"] = "Forest-Change"
 
         action_list = [
             Visual_Change_Process_PythonInterpreter(),
@@ -44,6 +45,7 @@ class SessionState:
         st.session_state["model_map"] = {}
         st.session_state["model_selected"] = None
         st.session_state["plugin_actions"] = set()
+        st.session_state["change_perception_instance"] = None
 
     def clear_state(self):
         """Clear the existing session state."""
@@ -68,71 +70,114 @@ class StreamlitUI:
             page_title="Forest-ChatAgent-web",
             page_icon="./docs/imgs/lagent_icon.png",
         )
-        st.header("🌏 :blue[Forest-Chat] Agent ", divider="rainbow")
+        st.header("🌍 :blue[Forest-Chat] Agent ", divider="rainbow")
 
         st.sidebar.title("Configuration")
 
     def setup_sidebar(self):
-        """Setup the sidebar for model and plugin selection."""
-        model_name = st.sidebar.selectbox(
-            "**Language Model Selection:**", options=["gpt-4o-mini", "internlm-2.5-7B"]
-        )
-        if model_name != st.session_state["model_selected"]:
-            model = self.init_model(model_name)
-            self.session_state.clear_state()
-            st.session_state["model_selected"] = model_name
-            if "chatbot" in st.session_state:
-                del st.session_state["chatbot"]
-        else:
-            model = st.session_state["model_map"][model_name]
+        """Setup the sidebar with compact spacing and clear visual hierarchy."""
 
-        plugin_name = st.sidebar.multiselect(
-            "**Tool Selection:**",
-            options=list(st.session_state["plugin_map"].keys()),
-            # default=[list(st.session_state['plugin_map'].keys())[0]],
-            default=list(st.session_state["plugin_map"].keys()),
-        )
-
-        plugin_action = [st.session_state["plugin_map"][name] for name in plugin_name]
-        if "chatbot" in st.session_state:
-            st.session_state["chatbot"]._action_executor = ActionExecutor(
-                actions=plugin_action
-            )
-        if st.sidebar.button("**Clear conversation**", key="clear"):
-            self.session_state.clear_state()
+        st.sidebar.markdown("**📸 Image Upload**")
 
         uploaded_file_A = st.sidebar.file_uploader(
-            "**Upload Image_A:**", type=["png", "jpg", "jpeg"], key="image_A"
+            "Image A",
+            type=["png", "jpg", "jpeg"],
+            key="image_A",
+            label_visibility="collapsed",
         )
         uploaded_file_B = st.sidebar.file_uploader(
-            "**Upload Image_B:**", type=["png", "jpg", "jpeg"], key="image_B"
+            "Image B",
+            type=["png", "jpg", "jpeg"],
+            key="image_B",
+            label_visibility="collapsed",
         )
-        # , 'mp4', 'mp3', 'wav'
 
         if (
             uploaded_file_A
             and uploaded_file_B
             and uploaded_file_A.name == uploaded_file_B.name
         ):
-            file_A_base, file_A_ext = os.path.splitext(uploaded_file_A.name)
-            file_B_base, file_B_ext = os.path.splitext(uploaded_file_B.name)
-            new_name_A = f"{file_A_base}_A{file_A_ext}"
-            new_name_B = f"{file_B_base}_B{file_B_ext}"
+            base, ext = os.path.splitext(uploaded_file_A.name)
+            new_name_A = f"{base}_A{ext}"
+            new_name_B = f"{base}_B{ext}"
         else:
             new_name_A = uploaded_file_A.name if uploaded_file_A else None
             new_name_B = uploaded_file_B.name if uploaded_file_B else None
 
         if uploaded_file_A:
-            image_A_bytes = uploaded_file_A.read()
-            st.session_state["image_A_bytes"] = image_A_bytes
+            st.session_state["image_A_bytes"] = uploaded_file_A.read()
             st.session_state["image_A_name"] = new_name_A
 
         if uploaded_file_B:
-            image_B_bytes = uploaded_file_B.read()
-            st.session_state["image_B_bytes"] = image_B_bytes
+            st.session_state["image_B_bytes"] = uploaded_file_B.read()
             st.session_state["image_B_name"] = new_name_B
 
-        return model_name, model, plugin_action, uploaded_file_A, uploaded_file_B
+        st.sidebar.markdown("**📊 Dataset**")
+
+        dataset_name = st.sidebar.selectbox(
+            "Dataset",
+            options=list(DATASET_CONFIGS.keys()),
+            index=list(DATASET_CONFIGS.keys()).index(
+                st.session_state.get("dataset_selected", "Forest-Change")
+            ),
+            label_visibility="collapsed",
+        )
+
+        # Dataset details — visually nested
+        if dataset_name in DATASET_CONFIGS:
+            config = DATASET_CONFIGS[dataset_name]
+            with st.sidebar.expander("↳ Dataset details", expanded=False):
+                st.caption(f"Classes: {config['num_classes']}")
+                st.caption(f"Pixel area: {config['pixel_area']} m²")
+                st.caption(f"Model: {os.path.basename(config['checkpoint'])}")
+
+        if dataset_name != st.session_state.get("dataset_selected"):
+            st.session_state["dataset_selected"] = dataset_name
+            st.session_state["change_perception_instance"] = None
+            st.toast(f"Dataset changed to {dataset_name}", icon="📊")
+
+        st.sidebar.markdown("**🤖 Language Model**")
+
+        model_name = st.sidebar.selectbox(
+            "Model",
+            options=["gpt-4o-mini", "internlm-2.5-7B"],
+            label_visibility="collapsed",
+        )
+
+        if model_name != st.session_state["model_selected"]:
+            model = self.init_model(model_name)
+            self.session_state.clear_state()
+            st.session_state["model_selected"] = model_name
+            st.session_state.pop("chatbot", None)
+        else:
+            model = st.session_state["model_map"][model_name]
+
+        st.sidebar.markdown("**🔧 Tools**")
+
+        plugin_name = st.sidebar.multiselect(
+            "Tools",
+            options=list(st.session_state["plugin_map"].keys()),
+            default=list(st.session_state["plugin_map"].keys()),
+            label_visibility="collapsed",
+        )
+
+        plugin_action = [st.session_state["plugin_map"][name] for name in plugin_name]
+
+        if "chatbot" in st.session_state:
+            st.session_state["chatbot"]._action_executor = ActionExecutor(
+                actions=plugin_action
+            )
+
+        st.sidebar.button("🗑️ Clear conversation")
+
+        return (
+            model_name,
+            model,
+            plugin_action,
+            uploaded_file_A,
+            uploaded_file_B,
+            dataset_name,
+        )
 
     def init_model(self, option):
         """Initialize the model based on the selected option."""
@@ -148,6 +193,18 @@ class StreamlitUI:
                     "internlm/internlm2_5-7b-chat"
                 )
         return st.session_state["model_map"][option]
+
+    def get_change_perception(self, dataset_name):
+        """Get or create Change_Perception instance for the selected dataset."""
+        if (
+            st.session_state["change_perception_instance"] is None
+            or st.session_state["change_perception_instance"].dataset_name
+            != dataset_name
+        ):
+            st.session_state["change_perception_instance"] = Change_Perception(
+                dataset_name=dataset_name
+            )
+        return st.session_state["change_perception_instance"]
 
     def initialize_chatbot(self, model, plugin_action):
         """Initialize the chatbot with the given model and plugin actions."""
@@ -165,7 +222,7 @@ class StreamlitUI:
             if agent_return.response:
                 st.markdown(agent_return.response)
 
-    def render_point_selector_tab(self):
+    def render_point_selector_tab(self, dataset_name):
         MAX_POINTS = 3
 
         available_images = []
@@ -248,7 +305,7 @@ class StreamlitUI:
                     st.write("No points selected yet.")
 
         st.markdown("---")
-        st.markdown("## 🎯 Run FC-Zero-shot")
+        st.markdown(f"## 🎯 Run FC-Zero-shot on **{dataset_name}**")
 
         col_run, col_opts = st.columns([1, 4])
 
@@ -289,7 +346,8 @@ class StreamlitUI:
                 with st.spinner(
                     "Running FC-Zero-shot... This may take up to a minute."
                 ):
-                    change_perception = Change_Perception()
+                    change_perception = self.get_change_perception(dataset_name)
+
                     if len(points) == 0:
                         mask = change_perception.anychange_change_detection(
                             path_A=path_A,
@@ -324,116 +382,130 @@ class StreamlitUI:
                 with col3:
                     st.image(
                         savepath_mask,
-                        caption="🔍 FC-Zero-shot Output",
+                        caption="📍 FC-Zero-shot Output",
                         use_container_width=True,
                     )
 
                 if show_percentage:
                     percentage_str = change_perception.compute_change_percentage(mask)
-                    st.markdown(f"Change percentage\n\n {percentage_str}")
+                    st.markdown(f"**Change percentage:**\n\n {percentage_str}")
 
                 if show_patches:
                     change_statistics = change_perception.compute_patch_metrics(
                         mask, "all changes", change_perception.pixel_area
                     )
-                    st.markdown(f"Change patch statistics\n\n {change_statistics}")
+                    st.markdown(f"**Change patch statistics:**\n\n {change_statistics}")
 
                 if show_edges:
                     edge_statistics = change_perception.compute_edge_core_change(
                         mask, "all changes"
                     )
                     st.markdown(
-                        f"Edge vs Core (edge threshold set at 20% of patch size ) change patch analysis\n\n {edge_statistics}"
+                        f"**Edge vs Core (edge threshold set at 20% of patch size ) analysis:**\n\n {edge_statistics}"
                     )
 
                 if show_linearity:
                     linearity_statistics = change_perception.compute_linearity_metrics(
                         mask, "all changes"
                     )
-                    st.markdown(
-                        f"Change patch linearity analysis\n\n {linearity_statistics}"
-                    )
+                    st.markdown(f"**Linearity analysis:**\n\n {linearity_statistics}")
                 st.markdown(f"📁 Output saved at: `{savepath_mask}`")
             except Exception as e:
-                st.markdown(
-                    f"☠️ Uh oh! Ran into a problem executing the model: {e} - double check model hyperparameters. Point querying may not work for binary change detection cases."
-                )
+                st.error(f"⚠️ Error executing the model: {e}")
 
     def render_action(self, action):
-        with st.expander(action.type, expanded=True):
-            st.markdown(
-                "<p style='text-align: left;display:flex;'> <span style='font-size:14px;font-weight:600;width:70px;text-align-last: justify;'>Tool</span><span style='width:14px;text-align:left;display:block;'>:</span><span style='flex:1;'>"  # noqa E501
-                + action.type
-                + "</span></p>",
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                "<p style='text-align: left;display:flex;'> <span style='font-size:14px;font-weight:600;width:70px;text-align-last: justify;'>Thought</span><span style='width:14px;text-align:left;display:block;'>:</span><span style='flex:1;'>"  # noqa E501
-                + action.thought
-                + "</span></p>",
-                unsafe_allow_html=True,
-            )
-            if isinstance(action.args, dict) and "text" in action.args:
-                st.markdown(
-                    "<p style='text-align: left;display:flex;'><span style='font-size:14px;font-weight:600;width:70px;text-align-last: justify;'>Execution Content</span><span style='width:14px;text-align:left;display:block;'>:</span></p>",  # noqa E501
-                    unsafe_allow_html=True,
+        # Collapse by default for NoAction / FinishAction
+        expand_by_default = not (action.type in ["NoAction", "FinishAction"])
+
+        with st.expander(action.type, expanded=expand_by_default):
+
+            def valid_text(x):
+                return (
+                    isinstance(x, str)
+                    and x.strip()
+                    and x.strip().lower() != "undefined"
                 )
-                st.markdown(action.args["text"])
+
+            # Tool
+            st.markdown(f"**Tool:** {action.type}")
+
+            # Thought
+            thought = getattr(action, "thought", None)
+            if valid_text(thought):
+                st.markdown(f"**Thought:** {thought}")
+
+            # Execution Content (skip for NoAction)
+            if action.type != "NoAction" and isinstance(action.args, dict):
+                text = action.args.get("text")
+                if valid_text(text):
+                    st.markdown("**Execution Content:**")
+                    st.markdown(text)
+
+            # Results
             if action.result:
                 self.render_action_results(action)
 
     def render_action_results(self, action):
-        """Render the results of action, including text, images, videos, and
-        audios."""
-        if isinstance(action.result, dict):
-            action.result = list(action.result)
-
         for result in action.result:
-            if isinstance(result, dict):
-                st.markdown(
-                    "<p style='text-align: left;display:flex;'><span style='font-size:14px;font-weight:600;width:70px;text-align-last: justify;'> Result</span><span style='width:14px;text-align:left;display:block;'>:</span></p>",  # noqa E501
-                    unsafe_allow_html=True,
-                )
-                if "text" in result["type"]:
-                    st.markdown(
-                        "<p style='text-align: left;'>" + result["content"] + "</p>",
-                        unsafe_allow_html=True,
-                    )
-                if "image" in result["type"]:
-                    image_path = result["content"]
-                    image_data = open(image_path, "rb").read()
-                    st.image(image_data, caption="Generated Image")
-                if "video" in result["type"]:
-                    video_data = result["content"]
-                    video_data = open(video_data, "rb").read()
-                    st.video(video_data)
-                if "audio" in result["type"]:
-                    audio_data = result["content"]
-                    audio_data = open(audio_data, "rb").read()
-                    st.audio(audio_data)
+            # Only handle dicts
+            if not isinstance(result, dict):
+                continue
+
+            rtype = result.get("type")
+            content = result.get("content")
+
+            # Skip empty/undefined text blocks, but **do not touch images/videos/audio**
+            if rtype == "text":
+                if not (
+                    isinstance(content, str)
+                    and content.strip()
+                    and content.strip().lower() != "undefined"
+                ):
+                    continue
+                st.markdown("**Result:**")
+                st.markdown(content)
+
+            elif rtype == "image" and content:
+                try:
+                    with open(content, "rb") as f:
+                        st.image(f.read(), caption="Generated Image")
+                except Exception:
+                    continue  # don't break rendering if file missing
+
+            elif rtype == "video" and content:
+                try:
+                    with open(content, "rb") as f:
+                        st.video(f.read())
+                except Exception:
+                    continue
+
+            elif rtype == "audio" and content:
+                try:
+                    with open(content, "rb") as f:
+                        st.audio(f.read())
+                except Exception:
+                    continue
 
 
 def main():
     logger = get_logger(__name__)
-    # Initialize Streamlit UI and setup sidebar
+
     if "ui" not in st.session_state:
         session_state = SessionState()
         session_state.init_state()
         st.session_state["ui"] = StreamlitUI(session_state)
-
     else:
         st.set_page_config(
             layout="wide",
             page_title="Forest-ChatAgent-web",
             page_icon="./docs/imgs/lagent_icon.png",
         )
-        st.header("🌏:blue[Forest-Chat] Agent ", divider="rainbow")
-    model_name, model, plugin_action, uploaded_file_A, uploaded_file_B = (
+        st.header("🌍:blue[Forest-Chat] Agent ", divider="rainbow")
+
+    model_name, model, plugin_action, uploaded_file_A, uploaded_file_B, dataset_name = (
         st.session_state["ui"].setup_sidebar()
     )
 
-    # Initialize chatbot if it is not already initialized
-    # or if the model has changed
     if "chatbot" not in st.session_state or model != st.session_state["chatbot"]._llm:
         st.session_state["chatbot"] = st.session_state["ui"].initialize_chatbot(
             model, plugin_action
@@ -454,7 +526,7 @@ def main():
             st.session_state["ui"].render_user(user_input)
             st.session_state["user"].append(user_input)
 
-            prefix = ""
+            prefix = f"Using dataset: {dataset_name}. "
             file_path_A = file_path_B = None
 
             if "image_A_bytes" in st.session_state:
@@ -488,7 +560,7 @@ def main():
             st.session_state["ui"].render_assistant(agent_return)
 
     elif tab_selection == "FC-Zero-shot Point Querying":
-        st.session_state["ui"].render_point_selector_tab()
+        st.session_state["ui"].render_point_selector_tab(dataset_name)
 
 
 if __name__ == "__main__":

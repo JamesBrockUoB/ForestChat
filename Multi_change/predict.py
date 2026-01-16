@@ -4,6 +4,7 @@ import os
 
 import cv2
 import numpy as np
+import torch
 from genericpath import exists
 from griffe import check
 from imageio.v2 import imread
@@ -21,62 +22,59 @@ from torchange.models.segment_any_change.segment_anything.utils.amg import (
 )
 from utils_tool.utils import *
 
-# 添加特定路径到 Python 解释器的搜索路径中
-# sys.path.append('F:\LCY\Change_Agent\Change-Agent-git\Multi_change')
-
-
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
-# compute_change_map(path_A, path_B)函数: 生成一个掩膜mask用来表示两个图像之间的变化区域
-"""
-Args:
-    path_A: 图像A的路径
-    path_B: 图像B的路径
-Returns:
-    change_map: 变化区域的掩膜
-"""
-# def compute_change_mask(path_A, path_B):
-#     import cv2
-#     import numpy as np
-#     img_A = cv2.imread(path_A)
-#     img_B = cv2.imread(path_B)
-#     change_map = (img_B-img_A).astype(np.uint8)
-#     # 阈值化
-#     change_map = cv2.cvtColor(change_map, cv2.COLOR_BGR2GRAY)
-#     change_map = cv2.threshold(change_map, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
-#     cv2.imwrite('E:\change_map.png', change_map)
-#     return 'I have save the changed mask in E:\change_map.png'
-
-# compute_change_caption(path_A, path_B)函数：生成一个文本用于描述两个图像之间变化
-"""
-Args:
-    path_A: 图像A的路径
-    path_B: 图像B的路径
-Returns:
-    caption: 变化描述文本
-"""
+# Dataset configurations
+DATASET_CONFIGS = {
+    "Forest-Change": {
+        "data_folder": "./data/Forest-Change-dataset/images",
+        "list_path": "./data/Forest-Change/",
+        "checkpoint": "./models_ckpt/Forest-Change_model.pth",
+        "num_classes": 2,
+        "pixel_area": 30,
+        "mean": [0.2267 * 255, 0.29982 * 255, 0.22058 * 255],
+        "std": [0.0923 * 255, 0.06658 * 255, 0.05681 * 255],
+    },
+    "LEVIR-MCI-Trees": {
+        "data_folder": "./data/LEVIR-MCI-Trees-dataset/images",
+        "list_path": "./data/LEVIR-MCI-Trees/",
+        "checkpoint": "./models_ckpt/LEVIR-MCI-Trees_model.pth",
+        "num_classes": 3,
+        "pixel_area": 0.5,
+        "mean": [0.39073 * 255, 0.38623 * 255, 0.32989 * 255],
+        "std": [0.15329 * 255, 0.14628 * 255, 0.13648 * 255],
+    },
+}
 
 
 class Change_Perception(object):
-    def define_args(self, parent_parser=None):
-
+    def define_args(self, parent_parser=None, dataset_name="Forest-Change"):
         script_path = os.path.abspath(__file__)
         script_dir = os.path.dirname(script_path)
         print(script_dir)
+
         parser = argparse.ArgumentParser(
             description="Remote_Sensing_Image_Change_Interpretation",
             parents=[parent_parser] if parent_parser else [],
             add_help=False,
         )
 
+        # Get dataset-specific config
+        config = DATASET_CONFIGS.get(dataset_name, DATASET_CONFIGS["Forest-Change"])
+
+        parser.add_argument(
+            "--dataset_name",
+            default=dataset_name,
+            choices=list(DATASET_CONFIGS.keys()),
+            help="Name of the dataset to use",
+        )
         parser.add_argument(
             "--data_folder",
-            default="./data/Forest-Change-dataset/images",
+            default=config["data_folder"],
         )
         parser.add_argument(
             "--list_path",
-            default="./data/Forest-Change/",
+            default=config["list_path"],
         )
         parser.add_argument("--vocab_file", default="vocab")
         parser.add_argument(
@@ -85,9 +83,7 @@ class Change_Perception(object):
             help="path of the metadata file for the dataset",
         )
         parser.add_argument("--gpu_id", type=int, default=0)
-        parser.add_argument(
-            "--checkpoint", default="./models_ckpt/Forest-Change_model.pth"
-        )
+        parser.add_argument("--checkpoint", default=config["checkpoint"])
         parser.add_argument("--result_path", default="./predict_results/")
         parser.add_argument("--network", default="segformer-mit_b1")
         parser.add_argument("--encoder_dim", type=int, default=512)
@@ -97,26 +93,29 @@ class Change_Perception(object):
         parser.add_argument("--n_layers", type=int, default=3)
         parser.add_argument("--decoder_n_layers", type=int, default=1)
         parser.add_argument("--feature_dim", type=int, default=512)
-        parser.add_argument("--num_classes", type=int, default=2)
+        parser.add_argument("--num_classes", type=int, default=config["num_classes"])
 
         args = parser.parse_args()
-
         return args
 
-    def __init__(self, parent_parser=None):
+    def __init__(self, parent_parser=None, dataset_name="Forest-Change"):
         """
         Training and validation.
+
+        Args:
+            parent_parser: Parent argument parser (optional)
+            dataset_name: Name of the dataset to use ("Forest-Change" or "LEVIR-MCI-Trees").
+                         Defaults to "Forest-Change" if not specified.
         """
-        args = self.define_args(parent_parser=parent_parser)
+        args = self.define_args(parent_parser=parent_parser, dataset_name=dataset_name)
         self.args = args
-        if "Forest-Change" in args.data_folder:
-            self.pixel_area = 30
-            self.mean = [0.2267 * 255, 0.29982 * 255, 0.22058 * 255]
-            self.std = [0.0923 * 255, 0.06658 * 255, 0.05681 * 255]
-        else:
-            self.pixel_area = 0.5
-            self.mean = [0.39073 * 255, 0.38623 * 255, 0.32989 * 255]
-            self.std = [0.15329 * 255, 0.14628 * 255, 0.13648 * 255]
+        self.dataset_name = dataset_name
+
+        # Load dataset-specific configuration
+        config = DATASET_CONFIGS[dataset_name]
+        self.pixel_area = config["pixel_area"]
+        self.mean = config["mean"]
+        self.std = config["std"]
 
         with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
             self.word_vocab = json.load(f)
@@ -125,6 +124,7 @@ class Change_Perception(object):
             os.path.join(args.list_path) + args.metadata_file + ".json", "r"
         ) as f:
             self.max_length = json.load(f)["max_length"]
+
         # Load checkpoint
         snapshot_full_path = args.checkpoint
 
@@ -158,6 +158,7 @@ class Change_Perception(object):
             checkpoint["encoder_trans_dict"], strict=False
         )
         self.decoder.load_state_dict(checkpoint["decoder_dict"])
+
         # Move to GPU, if available
         self.encoder.eval()
         self.encoder = self.encoder.to(DEVICE)
@@ -167,7 +168,6 @@ class Change_Perception(object):
         self.decoder = self.decoder.to(DEVICE)
 
     def preprocess(self, path_A, path_B):
-
         imgA = imread(path_A)
         imgB = imread(path_B)
         imgA = np.asarray(imgA, np.float32)
@@ -189,7 +189,7 @@ class Change_Perception(object):
         imgA = torch.FloatTensor(imgA)
         imgB = torch.FloatTensor(imgB)
 
-        imgA = imgA.unsqueeze(0)  # (1, 3, 256, 256)
+        imgA = imgA.unsqueeze(0)
         imgB = imgB.unsqueeze(0)
 
         return imgA, imgB
@@ -197,7 +197,6 @@ class Change_Perception(object):
     def generate_change_caption(self, path_A, path_B):
         print("model_infer_change_captioning: start")
         imgA, imgB = self.preprocess(path_A, path_B)
-        # Move to GPU, if available
         imgA = imgA.to(DEVICE)
         imgB = imgB.to(DEVICE)
         feat1, feat2 = self.encoder(imgA, imgB)
@@ -217,7 +216,6 @@ class Change_Perception(object):
         for i in pred_seq:
             pred_caption += (list(self.word_vocab.keys())[i]) + " "
 
-        caption = "there is forest change"
         caption = pred_caption
         print("change captioning:", caption)
         return caption
@@ -225,15 +223,12 @@ class Change_Perception(object):
     def change_detection(self, path_A, path_B, savepath_mask):
         print("model_infer_change_detection: start")
         imgA, imgB = self.preprocess(path_A, path_B)
-        # Move to GPU, if available
         imgA = imgA.to(DEVICE)
         imgB = imgB.to(DEVICE)
         feat1, feat2 = self.encoder(imgA, imgB)
         feat1, feat2, seg_pre = self.encoder_trans(feat1, feat2)
-        # for segmentation
         pred_seg = seg_pre.data.cpu().numpy()
         pred_seg = np.argmax(pred_seg, axis=1)
-        # 保存图片
         pred = pred_seg[0].astype(np.uint8)
 
         pred_rgb = np.zeros((pred.shape[0], pred.shape[1], 3), dtype=np.uint8)
@@ -242,10 +237,8 @@ class Change_Perception(object):
 
         cv2.imwrite(savepath_mask, pred_rgb)
         print("model_infer: mask saved in", savepath_mask)
-
         print("model_infer_change_detection: end")
-        return pred  # (256,256,3) or (256, 256) if not rgb
-        # return 'change detection successfully. '
+        return pred
 
     def anychange_change_detection(
         self, path_A, path_B, savepath_mask, process_mask=True
@@ -255,12 +248,7 @@ class Change_Perception(object):
         imgB = imread(path_B)
 
         m = AnyChange("vit_h", sam_checkpoint="./models_ckpt/sam_vit_h_4b8939.pth")
-
-        m.make_mask_generator(
-            points_per_side=16,
-            stability_score_thresh=0.95,
-        )
-
+        m.make_mask_generator(points_per_side=16, stability_score_thresh=0.95)
         m.set_hyperparameters(
             change_confidence_threshold=155,
             use_normalized_feature=True,
@@ -276,7 +264,6 @@ class Change_Perception(object):
             img_rgb[img == 1] = [0, 255, 255]
         else:
             anns = []
-
             for idx in range(len(mask_data["rles"])):
                 ann_i = {
                     "segmentation": rle_to_mask(mask_data["rles"][idx]),
@@ -293,14 +280,13 @@ class Change_Perception(object):
             sorted_anns = sorted(anns, key=lambda x: x["area"], reverse=True)
             H, W = sorted_anns[0]["segmentation"].shape
             img = np.ones((H, W, 4), dtype=np.float32)
-            img[:, :, 3] = 0  # alpha channel
+            img[:, :, 3] = 0
 
             for ann in sorted_anns:
                 m = ann["segmentation"]
                 boundary = find_boundaries(m)
-                color_mask = np.concatenate([np.random.random(3), [0.35]])  # RGBA
-                color_boundary = np.array([0.0, 1.0, 1.0, 0.8])  # cyan boundaries
-
+                color_mask = np.concatenate([np.random.random(3), [0.35]])
+                color_boundary = np.array([0.0, 1.0, 1.0, 0.8])
                 img[m] = color_mask
                 img[boundary] = color_boundary
 
@@ -308,9 +294,7 @@ class Change_Perception(object):
 
         img_rgb = cv2.resize(img_rgb, (256, 256))
         cv2.imwrite(savepath_mask, img_rgb)
-
         print("model_infer: mask saved in", savepath_mask)
-
         print("model_infer_change_detection_with_anychange: end")
         return img_rgb
 
@@ -606,10 +590,15 @@ if __name__ == "__main__":
         description="Remote_Sensing_Image_Change_Interpretation"
     )
 
-    # Custom args for inference
     parser.add_argument("--imgA_path", required=True)
     parser.add_argument("--imgB_path", required=True)
     parser.add_argument("--mask_save_path", required=True)
+    parser.add_argument(
+        "--dataset_name",
+        default="Forest-Change",
+        choices=list(DATASET_CONFIGS.keys()),
+        help="Dataset to use",
+    )
 
     args = parser.parse_args()
 
@@ -619,11 +608,16 @@ if __name__ == "__main__":
     imgA_path = args.imgA_path
     imgB_path = args.imgB_path
 
-    Change_Perception = Change_Perception(parent_parser=parser)
+    Change_Perception = Change_Perception(
+        parent_parser=parser, dataset_name=args.dataset_name
+    )
     Change_Perception.generate_change_caption(imgA_path, imgB_path)
     mask = Change_Perception.change_detection(imgA_path, imgB_path, args.mask_save_path)
     Change_Perception.compute_change_percentage(mask)
     Change_Perception.compute_object_num(mask, "deforestation patches")
+    Change_Perception.compute_patch_metrics(
+        mask, "deforestation patches", Change_Perception.pixel_area
+    )
 
     base, ext = os.path.splitext(args.mask_save_path)
     anychange_mask_filename = f"{base}_anychange{ext}"
