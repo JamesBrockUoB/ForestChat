@@ -214,13 +214,49 @@ class StreamlitUI:
         with st.chat_message("user"):
             st.markdown(prompt)
 
+    def is_valid_text(self, text):
+        """Check if text is valid (not empty, not 'undefined', etc.)"""
+        if not isinstance(text, str):
+            return False
+
+        cleaned = text.strip()
+        # Expanded list of invalid values
+        invalid_values = ["undefined", "none", "null", "", "nan", "n/a", "```"]
+
+        return cleaned and cleaned.lower() not in invalid_values
+
+    def clean_markdown_artifacts(self, text):
+        """Remove stray markdown code fences and clean up the text."""
+        if not isinstance(text, str):
+            return text
+
+        # Remove leading/trailing backticks and code fences
+        cleaned = text.strip()
+
+        # Remove trailing ``` or ```python etc
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3].strip()
+
+        # Remove leading ``` or ```python etc
+        if cleaned.startswith("```"):
+            lines = cleaned.split("\n")
+            if lines[0].strip().startswith("```"):
+                cleaned = "\n".join(lines[1:]).strip()
+
+        return cleaned
+
     def render_assistant(self, agent_return):
         with st.chat_message("assistant"):
             for action in agent_return.actions:
                 if action:
                     self.render_action(action)
-            if agent_return.response:
-                st.markdown(agent_return.response)
+
+            # Only render final response if it's valid
+            if agent_return.response and self.is_valid_text(agent_return.response):
+                # Strip any trailing/leading backticks before rendering
+                cleaned = agent_return.response.strip().rstrip("`").lstrip("`").strip()
+                if cleaned:  # Make sure there's still content after stripping
+                    st.markdown(cleaned)
 
     def render_point_selector_tab(self, dataset_name):
         MAX_POINTS = 3
@@ -414,77 +450,115 @@ class StreamlitUI:
                 st.error(f"⚠️ Error executing the model: {e}")
 
     def render_action(self, action):
-        # Collapse by default for NoAction / FinishAction
         expand_by_default = not (action.type in ["NoAction", "FinishAction"])
 
         with st.expander(action.type, expanded=expand_by_default):
-
-            def valid_text(x):
-                return (
-                    isinstance(x, str)
-                    and x.strip()
-                    and x.strip().lower() != "undefined"
-                )
-
             # Tool
             st.markdown(f"**Tool:** {action.type}")
 
             # Thought
             thought = getattr(action, "thought", None)
-            if valid_text(thought):
+            if self.is_valid_text(thought):
                 st.markdown(f"**Thought:** {thought}")
 
             # Execution Content (skip for NoAction)
             if action.type != "NoAction" and isinstance(action.args, dict):
                 text = action.args.get("text")
-                if valid_text(text):
+                if self.is_valid_text(text):
                     st.markdown("**Execution Content:**")
                     st.markdown(text)
 
-            # Results
+            # Results - with debugging
             if action.result:
+                # DEBUG: Print all results
+                print(
+                    f"\n🔍 Action '{action.type}' has {len(action.result)} result(s):"
+                )
+                for idx, res in enumerate(action.result):
+                    print(f"  [{idx}] type={type(res)}, value={res}")
+
                 self.render_action_results(action)
 
     def render_action_results(self, action):
-        for result in action.result:
-            # Only handle dicts
+        # Track what we've rendered to avoid duplicates
+        rendered_something = False
+
+        # Collect all results by type first
+        text_results = []
+        image_results = []
+        video_results = []
+        audio_results = []
+
+        for idx, result in enumerate(action.result):
             if not isinstance(result, dict):
+                print(f"  ⚠️ Skipping non-dict result at index {idx}: {result}")
                 continue
 
             rtype = result.get("type")
             content = result.get("content")
 
-            # Skip empty/undefined text blocks, but **do not touch images/videos/audio**
+            print(f"  📋 Result {idx}: type='{rtype}', content='{content}'")
+
             if rtype == "text":
-                if not (
-                    isinstance(content, str)
-                    and content.strip()
-                    and content.strip().lower() != "undefined"
-                ):
-                    continue
-                st.markdown("**Result:**")
-                st.markdown(content)
+                # Check if valid before adding
+                if self.is_valid_text(content):
+                    # Clean up markdown artifacts before rendering
+                    cleaned_content = self.clean_markdown_artifacts(content)
+                    if self.is_valid_text(cleaned_content):  # Re-check after cleaning
+                        print(f"    ✅ Valid text, will render")
+                        text_results.append(cleaned_content)
+                    else:
+                        print(f"    ❌ Invalid after cleaning: '{cleaned_content}'")
+                else:
+                    print(f"    ❌ Invalid/undefined text, skipping: '{content}'")
 
-            elif rtype == "image" and content:
-                try:
-                    with open(content, "rb") as f:
-                        st.image(f.read(), caption="Generated Image")
-                except Exception:
-                    continue  # don't break rendering if file missing
+            elif rtype == "image" and content and self.is_valid_text(content):
+                image_results.append(content)
+            elif rtype == "video" and content and self.is_valid_text(content):
+                video_results.append(content)
+            elif rtype == "audio" and content and self.is_valid_text(content):
+                audio_results.append(content)
 
-            elif rtype == "video" and content:
-                try:
-                    with open(content, "rb") as f:
-                        st.video(f.read())
-                except Exception:
-                    continue
+        # Render text results
+        if text_results:
+            st.markdown("**Result:**")
+            for text in text_results:
+                # Strip any trailing/leading backticks before rendering
+                cleaned = text.strip().rstrip("`").lstrip("`").strip()
+                st.markdown(cleaned)
+            rendered_something = True
 
-            elif rtype == "audio" and content:
-                try:
-                    with open(content, "rb") as f:
-                        st.audio(f.read())
-                except Exception:
-                    continue
+        # Render image (only one expected)
+        if image_results:
+            try:
+                with open(image_results[0], "rb") as f:
+                    st.image(
+                        f.read(), caption="Generated Image", use_container_width=True
+                    )
+                rendered_something = True
+            except Exception as e:
+                print(f"    ❌ Error rendering image: {e}")
+
+        # Render videos
+        for video_path in video_results:
+            try:
+                with open(video_path, "rb") as f:
+                    st.video(f.read())
+                rendered_something = True
+            except Exception as e:
+                print(f"    ❌ Error rendering video: {e}")
+
+        # Render audio
+        for audio_path in audio_results:
+            try:
+                with open(audio_path, "rb") as f:
+                    st.audio(f.read())
+                rendered_something = True
+            except Exception as e:
+                print(f"    ❌ Error rendering audio: {e}")
+
+        if not rendered_something:
+            print(f"  ⚠️ Nothing was rendered for this action")
 
 
 def main():
@@ -529,8 +603,21 @@ def main():
             prefix = f"Using dataset: {dataset_name}. "
             file_path_A = file_path_B = None
 
+            has_images = (
+                "image_A_bytes" in st.session_state
+                or "image_B_bytes" in st.session_state
+            )
+
+            if has_images:
+                col1, col2 = st.columns(2)
+
             if "image_A_bytes" in st.session_state:
-                st.image(st.session_state["image_A_bytes"], caption="Uploaded Image_A")
+                if has_images:
+                    with col1:
+                        st.image(
+                            st.session_state["image_A_bytes"],
+                            caption="Uploaded Image_A",
+                        )
                 file_path_A = os.path.join(root_dir, st.session_state["image_A_name"])
                 if not os.path.exists(file_path_A):
                     with open(file_path_A, "wb") as f:
@@ -539,7 +626,12 @@ def main():
                 prefix += f"The path of the image_A: {file_path_A}. "
 
             if "image_B_bytes" in st.session_state:
-                st.image(st.session_state["image_B_bytes"], caption="Uploaded Image_B")
+                if has_images:
+                    with col2:
+                        st.image(
+                            st.session_state["image_B_bytes"],
+                            caption="Uploaded Image_B",
+                        )
                 file_path_B = os.path.join(root_dir, st.session_state["image_B_name"])
                 if not os.path.exists(file_path_B):
                     with open(file_path_B, "wb") as f:
@@ -551,7 +643,11 @@ def main():
             print(f"user_input: {full_input}")
             st.session_state["history"].append(dict(role="user", content=full_input))
 
-            agent_return = st.session_state["chatbot"].chat(st.session_state["history"])
+            with st.spinner("🤔 Processing your query..."):
+                agent_return = st.session_state["chatbot"].chat(
+                    st.session_state["history"]
+                )
+
             st.session_state["history"].append(
                 dict(role="assistant", content=agent_return.response)
             )
