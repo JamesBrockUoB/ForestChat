@@ -10,12 +10,13 @@
 </div>
 
 ## Table of Contents
-- [Preparation](#Preparation)
-- [LEVIR-MCI-Trees dataset](#LEVIR-MCI-Trees-dataset)
-- [Forest-Change dataset](#Forest-Change-dataset)
-- [Training of MCI model](#Training-of-the-multi-level-change-interpretation-model)
-- [Construction of Forest-Chat Agent](#Construction-of-Change-Agent)
-- [Citation](#Citation)
+- [Preparation](#preparation)
+- [LEVIR-MCI-Trees dataset](#levir-mci-trees-dataset)
+- [Forest-Change dataset](#forest-change-dataset)
+- [Training of the adapted multi-level change interpretation model](#training-of-the-adapted-multi-level-change-interpretation-model)
+- [Construction of Forest-Chat](#construction-of-forest-chat)
+- [Acknowledgement](#acknowledgement)
+- [License](#license)
 
 ### Preparation
     
@@ -158,7 +159,7 @@ Run inference to get started as follows:
 ```python
 python predict.py --imgA_path {imgA_path} --imgB_path {imgA_path} --mask_save_path ./CDmask.png
 ```
-You can modify ``--checkpoint`` of ``Change_Perception.define_args()`` in ``predict.py``. Then you can use your own model. You can also use our pretrained models ``LEVIR-MCI_-Trees_model.pth`` and ``Forest-Change_model.pth`` in the ``models_ckpt`` folder.
+You can modify ``--checkpoint`` of ``Change_Perception.define_args()`` in ``predict.py``. Then you can use your own model, or use our pretrained models ``LEVIR-MCI-Trees_model.pth`` and ``Forest-Change_model.pth`` which are available at HuggingFace: [Forest-Change](https://huggingface.co/JimmyBrocko/Forest-Change) and [LEVIR-MCI-Trees](https://huggingface.co/JimmyBrocko/LEVIR-MCI-Trees).
 
 This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI-Trees. E.g. --data_folder ./data/LEVIR-MCI-Trees-dataset/images --list_path ./data/LEVIR-MCI-Trees/ --token_folder ./data/LEVIR-MCI-Trees/tokens/ --data_name LEVIR-MCI-Trees --num_classes 3
 
