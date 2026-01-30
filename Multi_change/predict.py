@@ -5,8 +5,6 @@ import os
 import cv2
 import numpy as np
 import torch
-from genericpath import exists
-from griffe import check
 from imageio.v2 import imread
 from mci_model.model_decoder import DecoderTransformer
 from mci_model.model_encoder_att import AttentiveEncoder, Encoder
@@ -19,6 +17,15 @@ from torchange.models.segment_any_change.segment_anything.utils.amg import (
     area_from_rle,
     box_xyxy_to_xywh,
     rle_to_mask,
+)
+
+# Uncertainty quantification imports
+from utils_tool.uncertainty_module import (
+    MCDropoutPredictor,
+    UncertaintyEstimator,
+    UncertaintyVisualizer,
+    export_object_statistics,
+    generate_uncertainty_report,
 )
 from utils_tool.utils import *
 
@@ -167,6 +174,24 @@ class Change_Perception(object):
         self.decoder.eval()
         self.decoder = self.decoder.to(DEVICE)
 
+        # Initialize uncertainty estimators if enabled
+        if args.compute_uncertainty:
+            print(f"\n{'='*70}")
+            print(f"UNCERTAINTY QUANTIFICATION ENABLED")
+            print(f"MC Dropout samples: {args.n_mc_samples}")
+            print(f"Note: Inference will be ~{args.n_mc_samples}x slower")
+            print(f"{'='*70}\n")
+
+            self.mc_predictor = MCDropoutPredictor(
+                self.encoder, self.encoder_trans, DEVICE, n_samples=args.n_mc_samples
+            )
+            self.uncertainty_estimator = UncertaintyEstimator(
+                num_classes=args.num_classes
+            )
+            self.uncertainty_visualizer = UncertaintyVisualizer(
+                num_classes=args.num_classes
+            )
+
     def preprocess(self, path_A, path_B):
         imgA = imread(path_A)
         imgB = imread(path_B)
@@ -225,6 +250,52 @@ class Change_Perception(object):
         imgA, imgB = self.preprocess(path_A, path_B)
         imgA = imgA.to(DEVICE)
         imgB = imgB.to(DEVICE)
+
+        # Compute with or without uncertainty
+        if self.args.compute_uncertainty:
+            print("Computing with uncertainty (MC Dropout)...")
+
+            # MC Dropout inference
+            predictions, probabilities = self.mc_predictor.predict_with_uncertainty(
+                imgA, imgB
+            )
+
+            # Get mean prediction
+            mean_probs = np.mean(probabilities, axis=0)[0]  # [num_classes, H, W]
+            pred = np.argmax(mean_probs, axis=0).astype(np.uint8)  # [H, W]
+
+            # Compute uncertainties
+            aleatoric_map = self.uncertainty_estimator.compute_aleatoric_uncertainty(
+                mean_probs
+            )
+            epistemic_map, _ = self.uncertainty_estimator.compute_epistemic_uncertainty(
+                [p[0] for p in predictions], [p[0] for p in probabilities]
+            )
+
+            print(
+                f"  Aleatoric: mean={aleatoric_map.mean():.3f}, max={aleatoric_map.max():.3f}"
+            )
+            print(
+                f"  Epistemic: mean={epistemic_map.mean():.3f}, max={epistemic_map.max():.3f}"
+            )
+
+            # Extract per-object uncertainties
+            objects = self.uncertainty_estimator.extract_object_uncertainties(
+                pred, mean_probs, aleatoric_map, epistemic_map
+            )
+            print(f"  Found {len(objects)} objects with uncertainty stats")
+
+            # Save uncertainty outputs
+            self._save_uncertainty_outputs(
+                path_A,
+                path_B,
+                savepath_mask,
+                pred,
+                aleatoric_map,
+                epistemic_map,
+                objects,
+            )
+
         feat1, feat2 = self.encoder(imgA, imgB)
         feat1, feat2, seg_pre = self.encoder_trans(feat1, feat2)
         pred_seg = seg_pre.data.cpu().numpy()
@@ -584,6 +655,66 @@ class Change_Perception(object):
             "Core loss ratio": round(total_core / total_pixels, 4),
         }
 
+    def _save_uncertainty_outputs(
+        self, path_A, path_B, savepath_mask, pred, aleatoric_map, epistemic_map, objects
+    ):
+        """Save uncertainty visualizations and statistics."""
+        base_path = os.path.splitext(savepath_mask)[0]
+        save_dir = os.path.dirname(savepath_mask)
+        base_name = os.path.basename(base_path)
+
+        # Load original images
+        imgA_orig = cv2.imread(path_A)
+        imgB_orig = cv2.imread(path_B)
+
+        # Resize if needed
+        if imgA_orig.shape[:2] != pred.shape:
+            imgA_orig = cv2.resize(imgA_orig, (pred.shape[1], pred.shape[0]))
+            imgB_orig = cv2.resize(imgB_orig, (pred.shape[1], pred.shape[0]))
+
+        # Main uncertainty visualization
+        print("  Saving uncertainty visualization...")
+        self.uncertainty_visualizer.create_uncertainty_visualization(
+            imgA_orig,
+            imgB_orig,
+            pred,
+            aleatoric_map,
+            epistemic_map,
+            save_path=f"{base_path}_uncertainty.png",
+        )
+
+        # Object overlay
+        if len(objects) > 0:
+            print("  Saving object overlay...")
+            self.uncertainty_visualizer.create_object_overlay(
+                imgB_orig, objects, save_path=f"{base_path}_objects_overlay.png"
+            )
+
+        # Individual uncertainty masks
+        print("  Saving uncertainty masks...")
+        self.uncertainty_visualizer.save_uncertainty_masks(
+            aleatoric_map, epistemic_map, save_dir=save_dir, name=base_name
+        )
+
+        # Export statistics
+        print("  Exporting statistics...")
+        export_object_statistics(objects, f"{base_path}_uncertainty_stats.json")
+
+        # Generate report
+        if len(objects) > 0:
+            print("  Generating report...")
+            generate_uncertainty_report(objects, f"{base_path}_uncertainty_report.txt")
+
+        print(f"\n  Uncertainty outputs:")
+        print(f"    {base_path}_uncertainty.png")
+        print(f"    {base_path}_objects_overlay.png")
+        print(f"    {base_path}_aleatoric_unc.png")
+        print(f"    {base_path}_epistemic_unc.png")
+        print(f"    {base_path}_total_unc.png")
+        print(f"    {base_path}_uncertainty_stats.json")
+        if len(objects) > 0:
+            print(f"    {base_path}_uncertainty_report.txt\n")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -594,10 +725,22 @@ if __name__ == "__main__":
     parser.add_argument("--imgB_path", required=True)
     parser.add_argument("--mask_save_path", required=True)
     parser.add_argument(
-        "--dataset_name",
+        "--dataset",
         default="Forest-Change",
         choices=list(DATASET_CONFIGS.keys()),
         help="Dataset to use",
+    )
+    parser.add_argument(
+        "--compute_uncertainty",
+        type=str2bool,
+        default=False,
+        help="Enable uncertainty quantification using MC Dropout",
+    )
+    parser.add_argument(
+        "--n_mc_samples",
+        type=int,
+        default=10,
+        help="Number of MC Dropout samples for epistemic uncertainty",
     )
 
     args = parser.parse_args()
@@ -609,7 +752,7 @@ if __name__ == "__main__":
     imgB_path = args.imgB_path
 
     Change_Perception = Change_Perception(
-        parent_parser=parser, dataset_name=args.dataset_name
+        parent_parser=parser, dataset_name=args.dataset
     )
     Change_Perception.generate_change_caption(imgA_path, imgB_path)
     mask = Change_Perception.change_detection(imgA_path, imgB_path, args.mask_save_path)
