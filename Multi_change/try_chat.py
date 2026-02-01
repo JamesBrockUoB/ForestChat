@@ -35,8 +35,8 @@ if __name__ == "__main__":
     history = []
     while True:
         user_input = input("\n||<User>||Please input your message: ")
-        # user_input='The path of picture A is F:/LCY/Change_Agent/Multi_change/predict_result/test_000004_A.png, the path of picture B is F:/LCY/Change_Agent/Multi_change/predict_result/test_000004_B.png, the masks for detecting changes in buildings and roads are displayed in red and green respectively. The result can be saved in E:/1.png'
-        # user_input='The path of picture A is F:/LCY/Change_Agent/Multi_change/predict_result/test_000004_A.png, the path of picture B is F:/LCY/Change_Agent/Multi_change/predict_result/test_000004_B.png, Describe what has changed in the two images'
+        # user_input='The path of picture A is <path A>, the path of picture B is <path B>, the masks for detecting changes in buildings and roads are displayed in red and green respectively. The result can be saved in <save path>'
+        # user_input='The path of picture A is <path A>, the path of picture B is <path B, Describe what has changed in the two images'
 
         print("\n||Start thinking ...")
         history.append(dict(role="user", content=user_input))
