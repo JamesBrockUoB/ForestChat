@@ -172,7 +172,7 @@ This is now configured to use the Forest-Change dataset by default, check comman
 - **Agent Installation**:
     ```python
     cd ./ForestChat/lagent-main
-    pip install -e .[all]
+    pip install -e '.[all]' or pip install -e .
     ```
 - **Run Agent**:
 

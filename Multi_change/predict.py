@@ -89,6 +89,18 @@ class Change_Perception(object):
             default="metadata",
             help="path of the metadata file for the dataset",
         )
+        parser.add_argument(
+            "--compute_uncertainty",
+            type=str2bool,
+            default=False,
+            help="Enable uncertainty quantification using MC Dropout",
+        )
+        parser.add_argument(
+            "--n_mc_samples",
+            type=int,
+            default=10,
+            help="Number of MC Dropout samples for epistemic uncertainty",
+        )
         parser.add_argument("--gpu_id", type=int, default=0)
         parser.add_argument("--checkpoint", default=config["checkpoint"])
         parser.add_argument("--result_path", default="./predict_results/")
@@ -729,18 +741,6 @@ if __name__ == "__main__":
         default="Forest-Change",
         choices=list(DATASET_CONFIGS.keys()),
         help="Dataset to use",
-    )
-    parser.add_argument(
-        "--compute_uncertainty",
-        type=str2bool,
-        default=False,
-        help="Enable uncertainty quantification using MC Dropout",
-    )
-    parser.add_argument(
-        "--n_mc_samples",
-        type=int,
-        default=10,
-        help="Number of MC Dropout samples for epistemic uncertainty",
     )
 
     args = parser.parse_args()
