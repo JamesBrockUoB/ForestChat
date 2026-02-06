@@ -1087,15 +1087,17 @@ if __name__ == "__main__":
                 trainer.args.train_goal = goal
                 if goal == 2:
                     trainer.args.train_stage = "s1"
-                    trainer.args.checkpoint = None
+
+                    if not (args.resume_from_checkpoint and goal == args.train_goal):
+                        trainer.args.checkpoint = None
                 else:
                     trainer.args.train_stage = "s2"
-                    trainer.args.checkpoint = trainer.best_model_path
-                    trainer.build_mci_model()
 
-                if args.resume_from_checkpoint and goal == args.train_goal:
-                    trainer.best_model_path = args.checkpoint
-                    trainer.args.checkpoint = args.checkpoint
+                    if args.resume_from_checkpoint and goal == args.train_goal:
+                        trainer.args.checkpoint = args.checkpoint
+                    else:
+                        trainer.args.checkpoint = trainer.best_model_path
+                    trainer.build_mci_model()
 
                 for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
                     trainer.training(trainer.args, epoch)
