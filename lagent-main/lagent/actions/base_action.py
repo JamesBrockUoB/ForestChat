@@ -11,7 +11,8 @@ try:
 except ImportError:
     from typing_extensions import Annotated
 
-from class_registry import AutoRegister, ClassRegistry
+from class_registry import ClassRegistry
+from class_registry.base import AutoRegister
 from griffe import Docstring, DocstringSectionKind
 
 from ..schema import ActionReturn, ActionStatusCode
@@ -255,7 +256,7 @@ class ToolMeta(ABCMeta):
         return super().__new__(mcs, name, base, attrs)
 
 
-class BaseAction(metaclass=AutoRegister(TOOL_REGISTRY, ToolMeta)):
+class BaseAction(AutoRegister(TOOL_REGISTRY), metaclass=ToolMeta):
     """Base class for all actions.
 
     Args:

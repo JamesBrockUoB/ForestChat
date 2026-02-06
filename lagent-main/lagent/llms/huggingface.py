@@ -14,6 +14,13 @@ logger = logging.getLogger(__name__)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+if DEVICE.type == "cuda":
+    MODEL_DTYPE = torch.float16
+elif DEVICE.type == "mps":  # Apple GPU
+    MODEL_DTYPE = torch.bfloat16  # or float16 if supported
+else:
+    MODEL_DTYPE = torch.float32  # CPU fallback
+
 
 class HFTransformer(BaseModel):
     """Model wrapper around HuggingFace general models.
@@ -41,7 +48,7 @@ class HFTransformer(BaseModel):
         tokenizer_path: Optional[str] = None,
         tokenizer_kwargs: dict = dict(),
         tokenizer_only: bool = False,
-        model_kwargs: dict = dict(device_map="auto"),
+        model_kwargs: dict = dict(device_map=DEVICE),
         meta_template: Optional[Dict] = None,
         stop_words_id: Union[List[int], int] = None,
         **kwargs,
@@ -126,7 +133,7 @@ class HFTransformer(BaseModel):
         import torch
         from transformers import AutoModel
 
-        model_kwargs.setdefault("torch_dtype", torch.float16)
+        model_kwargs.setdefault("torch_dtype", MODEL_DTYPE)
         model_kwargs.setdefault("device_map", DEVICE)
         self.model = AutoModel.from_pretrained(
             path, trust_remote_code=True, **model_kwargs
@@ -329,7 +336,7 @@ class HFTransformerCasualLM(HFTransformer):
         import torch
         from transformers import AutoModelForCausalLM
 
-        model_kwargs.setdefault("torch_dtype", torch.float16)
+        model_kwargs.setdefault("torch_dtype", MODEL_DTYPE)
         model_kwargs.setdefault("device_map", DEVICE)
         self.model = AutoModelForCausalLM.from_pretrained(
             path, trust_remote_code=True, **model_kwargs
