@@ -62,6 +62,22 @@ class Evaluator(object):
 
         return mean_f1, f1_per_class_str
 
+    def Precision_Recall_Class(self):
+        """
+        Returns per-class precision and recall, and their means
+        """
+        cm = self.confusion_matrix
+        precision = np.diag(cm) / (np.sum(cm, axis=0) + 1e-6)
+        recall = np.diag(cm) / (np.sum(cm, axis=1) + 1e-6)
+
+        mean_precision = np.nanmean(precision)
+        mean_recall = np.nanmean(recall)
+
+        precision_str = "  ".join([f"{p:.4f}" for p in precision])
+        recall_str = "  ".join([f"{r:.4f}" for r in recall])
+
+        return mean_precision, precision_str, mean_recall, recall_str
+
     def _generate_matrix(self, gt_image, pre_image):
         mask = (gt_image >= 0) & (gt_image < self.num_class)
         label = self.num_class * gt_image[mask].astype("int") + pre_image[mask]

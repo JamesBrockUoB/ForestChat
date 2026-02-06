@@ -721,6 +721,9 @@ class Trainer(object):
             FWIoU_seg = self.evaluator.Frequency_Weighted_Intersection_over_Union()
             Acc_seg = self.evaluator.Pixel_Accuracy()
             F1_score, F1_class_score = self.evaluator.F1_Score()
+            Precision, Precision_class, Recall, Recall_class = (
+                self.evaluator.Precision_Recall_Class()
+            )
             print(
                 "Test of Segmentation:\n"
                 "Time: {0:.3f}\t"
@@ -730,7 +733,11 @@ class Trainer(object):
                 "FWIoU_seg: {4:.5f}\t"
                 "IoU: {5}\t"
                 "F1: {6:.5f}\t"
-                "F1_class: {7}\t".format(
+                "F1_class: {7}\t"
+                "Precision: {8:.5f}\t"
+                "Precision_class: {9}\t"
+                "Recall: {10:.5f}\t"
+                "Recall_class: {11}\t".format(
                     seg_time,
                     Acc_seg,
                     Acc_class_seg,
@@ -739,6 +746,10 @@ class Trainer(object):
                     IoU,
                     F1_score,
                     F1_class_score,
+                    Precision,
+                    Precision_class,
+                    Recall,
+                    Recall_class,
                 )
             )
             wandb.log(
