@@ -8,9 +8,9 @@ opendatalab==0.0.10
 pandas==2.1.2
 Pillow==10.0.1
 pyarrow==14.0.0
-torch==2.1.0
-torchaudio==2.1.0
-torchvision==0.16.0
+torch==2.5.1
+torchaudio==2.5.1
+torchvision==0.20.1
 tqdm==4.66.4
 imageio==2.37.0
 einops==0.8.1
@@ -29,3 +29,4 @@ accelerate==0.32.1
 wandb==0.21.0
 fvcore==0.1.5.post20221221
 pytorchvideo==0.1.5
+sam2==1.1.0
