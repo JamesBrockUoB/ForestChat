@@ -79,15 +79,15 @@ class SegmentAnyChange:
         if self.embed_data1 is None:
             self.extract_image_embedding(img1, img2)
 
-        mask_data1 = self.mask_generator._generate_masks(img1)
-        mask_data2 = self.mask_generator._generate_masks(img2)
-        # mask_data1.filter((mask_data1["areas"] / (h * w)) < self.area_thresh)
-        # mask_data2.filter((mask_data2["areas"] / (h * w)) < self.area_thresh)
+        # Generate masks using the images
+        t1_mask_data = self.mask_generator._generate_masks(img1)
+        t2_mask_data = self.mask_generator._generate_masks(img2)
 
+        # Use the cached embeddings from extract_image_embedding
         return {
-            "t1_mask_data": mask_data1,
+            "t1_mask_data": t1_mask_data,
             "t1_image_embedding": self.embed_data1["image_embedding"],
-            "t2_mask_data": mask_data2,
+            "t2_mask_data": t2_mask_data,
             "t2_image_embedding": self.embed_data2["image_embedding"],
         }
 
@@ -150,7 +150,7 @@ class SegmentAnyChange:
         return predictions
 
     def __call__(self, img1, img2):
-        cmasks, t1_masks, t2_masks = self.forward(img1, img2)
+        cmasks, _, _ = self.forward(img1, img2)
         predictions = self.to_eval_format_predictions(cmasks)
         self.clear_cached_embedding()
         return predictions

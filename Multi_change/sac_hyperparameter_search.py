@@ -120,8 +120,8 @@ class AnyChangeHyperparameterSearcher(object):
             "val/Precision": evaluator.Precision_Recall_Class()[0],
             "val/Precision_class": evaluator.Precision_Recall_Class()[1],
             "val/Recall": evaluator.Precision_Recall_Class()[2],
-            "val/Recall_class": evaluator.Precision_Recall_Class()[3]
-            ** config,  # Log all hyperparameters
+            "val/Recall_class": evaluator.Precision_Recall_Class()[3],
+            **config,  # Log all hyperparameters
         }
 
         # Track best configuration
@@ -163,7 +163,7 @@ if __name__ == "__main__":
     sweep_id = (
         wandb.sweep(
             SWEEP_CONFIG,
-            project="forest-chat-anychange",
+            project="fc-sac-hyperparameters",
             entity=os.environ.get("WANDB_USERNAME"),
         )
         if not args.sweep_id

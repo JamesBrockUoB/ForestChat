@@ -32,22 +32,12 @@ class AnyChange2(SegmentAnyChange):
         model_cfg="sam2.1_hiera_l",
         sam2_checkpoint="../models_ckpt/sam2.1_hiera_large.pt",
     ):
-        sam2 = build_sam2(
-            model_cfg, sam2_checkpoint, device=DEVICE, apply_postprocessing=False
-        )
-        self.sam2 = sam2.to(DEVICE)
-        self.mask_generator = SAM2AutomaticMaskGenerator(sam2)
-
-        self.set_hyperparameters()
-
-        self.embed_data1 = None
-        self.embed_data2 = None
+        super().__init__(model_cfg, sam2_checkpoint)
 
     def set_hyperparameters(
         self,
         change_confidence_threshold=155,
         auto_threshold=False,
-        use_normalized_feature=True,
         area_thresh=0.8,
         match_hist=False,
         object_sim_thresh=60,
@@ -57,7 +47,6 @@ class AnyChange2(SegmentAnyChange):
         self.match_hist = match_hist
         self.change_confidence_threshold = change_confidence_threshold
         self.auto_threshold = auto_threshold
-        self.use_normalized_feature = use_normalized_feature
         self.object_sim_thresh = object_sim_thresh
         self.use_bitemporal_match = bitemporal_match
 
@@ -103,7 +92,8 @@ class AnyChange2(SegmentAnyChange):
             keep = change_confidence > angle2cosine(self.change_confidence_threshold)
 
             mask_data = copy.deepcopy(mask_data)
-            mask_data["change_confidence"] = change_confidence
+
+            mask_data["change_confidence"] = change_confidence.unsqueeze(1)
             mask_data.filter(keep)
             return mask_data
 

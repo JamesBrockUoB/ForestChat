@@ -13,7 +13,7 @@ from tqdm import tqdm
 from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
 
-logging.getLogger("sam2").setLevel(logging.WARNING)
+logging.getLogger().setLevel(logging.WARNING)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -115,7 +115,7 @@ def main(args):
     evaluator = Evaluator(num_class=args.num_classes)
 
     with torch.no_grad():
-        for batch in tqdm(test_loader, desc="test_SAC"):
+        for batch in tqdm(test_loader, desc="test_SAC_2"):
             imgA, imgB, seg_label, name = batch
             # Move to GPU, if available
             imgA = imgA.to(DEVICE).numpy()
@@ -142,7 +142,6 @@ def main(args):
 
             m.set_hyperparameters(
                 change_confidence_threshold=args.change_conf_thresh,
-                use_normalized_feature=True,
                 bitemporal_match=True,
                 area_thresh=args.area_thresh,
                 object_sim_thresh=args.object_sim_thresh,

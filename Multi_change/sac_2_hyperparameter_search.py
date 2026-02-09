@@ -1,4 +1,5 @@
 import argparse
+import logging
 import os
 import time
 
@@ -10,6 +11,8 @@ from torch.utils import data
 from tqdm import tqdm
 from utils_tool.metrics import Evaluator
 from utils_tool.utils import *
+
+logging.getLogger().setLevel(logging.WARNING)
 
 torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
@@ -24,7 +27,7 @@ SWEEP_CONFIG = {
     "method": "bayes",
     "metric": {"name": "val/mIoU", "goal": "maximize"},
     "parameters": {
-        "points_per_side": {"values": [16]},  # density of point prompts
+        "points_per_side": {"values": [8]},  # density of point prompts
         "change_confidence_threshold": {
             "values": [int(x) for x in np.arange(140, 180, 5)]
         },  # filters low-confidence mask proposals
@@ -69,13 +72,17 @@ class AnyChange2HyperparameterSearcher(object):
         # Batches
         for batch in tqdm(self.val_loader, desc="val_"):
             m = AnyChange2(
-                model_cfg=args.sam2_config_file,
-                sam2_checkpoint=args.anychange_network_path,
+                model_cfg=self.args.sam2_config_file,
+                sam2_checkpoint=self.args.anychange_network_path,
+            )
+
+            m.make_mask_generator(
+                points_per_side=config.points_per_side,
+                stability_score_thresh=config.stability_score_thresh,
             )
 
             m.set_hyperparameters(
                 change_confidence_threshold=config.change_confidence_threshold,
-                use_normalized_feature=True,
                 bitemporal_match=True,
                 area_thresh=config.area_thresh,
                 object_sim_thresh=config.object_sim_thresh,
@@ -114,8 +121,8 @@ class AnyChange2HyperparameterSearcher(object):
             "val/Precision": evaluator.Precision_Recall_Class()[0],
             "val/Precision_class": evaluator.Precision_Recall_Class()[1],
             "val/Recall": evaluator.Precision_Recall_Class()[2],
-            "val/Recall_class": evaluator.Precision_Recall_Class()[3]
-            ** config,  # Log all hyperparameters
+            "val/Recall_class": evaluator.Precision_Recall_Class()[3],
+            **config,  # Log all hyperparameters
         }
 
         # Track best configuration
@@ -163,7 +170,7 @@ if __name__ == "__main__":
     sweep_id = (
         wandb.sweep(
             SWEEP_CONFIG,
-            project="forest-chat-anychange",
+            project="fc-sac-2-hyperparameters",
             entity=os.environ.get("WANDB_USERNAME"),
         )
         if not args.sweep_id
@@ -199,6 +206,6 @@ if __name__ == "__main__":
         sweep_id,
         function=sweep_run,
         count=args.run_count,
-        project="fc-sac-hyperparameters",
+        project="fc-sac-2-hyperparameters",
         entity=os.environ.get("WANDB_USERNAME"),
     )
