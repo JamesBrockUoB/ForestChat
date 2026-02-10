@@ -4,8 +4,7 @@ import math
 import numpy as np
 import torch
 import torch.nn.functional as F
-from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
-from segment_any_change_2.base_sam2 import SegmentAnyChange, build_sam2
+from segment_any_change_2.base_sam2 import SegmentAnyChange
 from skimage.filters.thresholding import threshold_otsu
 from torchange.models.segment_any_change.segment_anything.utils.amg import (
     MaskData,
@@ -93,8 +92,12 @@ class AnyChange2(SegmentAnyChange):
 
             mask_data = copy.deepcopy(mask_data)
 
-            mask_data["change_confidence"] = change_confidence.unsqueeze(1)
+            mask_data["change_confidence"] = change_confidence
             mask_data.filter(keep)
+
+            if len(mask_data["rles"]) == 0:
+                return _empty_maskdata_like(mask_data)
+
             return mask_data
 
         changemasks = MaskData()
@@ -372,3 +375,16 @@ class AnyChange2(SegmentAnyChange):
                 pass
 
         return sam2_output
+
+    def _empty_maskdata_like(self, ref: MaskData) -> MaskData:
+        empty = MaskData()
+        for k, v in ref.items():
+            if isinstance(v, torch.Tensor):
+                empty._stats[k] = v[:0]
+            elif isinstance(v, np.ndarray):
+                empty._stats[k] = v[:0]
+            elif isinstance(v, list):
+                empty._stats[k] = []
+            else:
+                empty._stats[k] = None
+        return empty

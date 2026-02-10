@@ -14,5 +14,4 @@ streamlit-image-coordinates
 streamlit-file-browser
 tiktoken
 timeout-decorator
-typing-extensions
-sentencepiece
+typing-extensions==4.14.1

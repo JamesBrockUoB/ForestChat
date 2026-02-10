@@ -319,8 +319,8 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             Change_Perception_model = Change_Perception(dataset_name='LEVIR-MCI-Trees')
             mask = Change_Perception_model.change_detection(path_A, path_B, savepath_mask)
             mask_bgr = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
-            mask_bgr[mask == 1] = [0, 0, 255] # '1' stands for changed road or deforestation (red)
-            mask_bgr[mask == 2] = [0, 255, 255] # '2' stands for changed building (yellow)
+            mask_bgr[mask == 1] = [0, 0, 255] # '1' stands for changed building or deforestation (red)
+            mask_bgr[mask == 2] = [0, 255, 255] # '2' stands for changed road (yellow)
             cv2.imwrite(savepath_mask, mask_bgr)
             changed_object_count = Change_Perception_model.compute_object_num(mask, 'building')
             return changed_object_count

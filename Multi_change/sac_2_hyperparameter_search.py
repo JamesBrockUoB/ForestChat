@@ -27,20 +27,15 @@ SWEEP_CONFIG = {
     "method": "bayes",
     "metric": {"name": "val/mIoU", "goal": "maximize"},
     "parameters": {
-        "points_per_side": {"values": [8]},  # density of point prompts
+        "points_per_side": {"values": [16]},
         "change_confidence_threshold": {
             "values": [int(x) for x in np.arange(140, 180, 5)]
-        },  # filters low-confidence mask proposals
+        },
         "stability_score_thresh": {
             "values": [round(x, 2) for x in np.arange(0.9, 0.98, 0.01)]
-        },  # filters unstable masks
-        # optional exploratory parameters:
-        "area_thresh": {
-            "values": [0.7, 0.8, 0.9]
-        },  # minimal mask area fraction to keep
-        "object_sim_thresh": {
-            "values": [50, 60, 70]
-        },  # bi-temporal object similarity threshold
+        },
+        "area_thresh": {"values": [0.7, 0.8, 0.9]},
+        "object_sim_thresh": {"values": [50, 60, 70]},
     },
     "early_terminate": {"type": "hyperband", "min_iter": 3, "eta": 2},
 }
