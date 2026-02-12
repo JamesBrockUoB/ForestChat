@@ -1090,12 +1090,21 @@ if __name__ == "__main__":
                     trainer.args.checkpoint = None
                 else:
                     trainer.args.train_stage = "s2"
-                    trainer.args.checkpoint = trainer.best_model_path
+                    trainer.args.checkpoint = (
+                        trainer.best_model_path
+                        if trainer.best_model_path is not None
+                        else args.checkpoint
+                    )
+                    if trainer.args.checkpoint is None:
+                        raise ValueError(
+                            "Error: No checkpoint available for stage s2. Cannot proceed."
+                        )
                     trainer.build_mci_model()
 
                 if args.resume_from_checkpoint and goal == args.train_goal:
                     trainer.best_model_path = args.checkpoint
                     trainer.args.checkpoint = args.checkpoint
+                    args.resume_from_checkpoint = False
 
                 for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
                     trainer.training(trainer.args, epoch)

@@ -96,7 +96,7 @@ class AnyChange2(SegmentAnyChange):
             mask_data.filter(keep)
 
             if len(mask_data["rles"]) == 0:
-                return _empty_maskdata_like(mask_data)
+                return self._empty_maskdata_like(mask_data)
 
             return mask_data
 
