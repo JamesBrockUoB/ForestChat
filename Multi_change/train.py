@@ -1087,7 +1087,9 @@ if __name__ == "__main__":
                 trainer.args.train_goal = goal
                 if goal == 2:
                     trainer.args.train_stage = "s1"
-                    trainer.args.checkpoint = None
+
+                    if not (args.resume_from_checkpoint and goal == args.train_goal):
+                        trainer.args.checkpoint = None
                 else:
                     trainer.args.train_stage = "s2"
                     trainer.args.checkpoint = (
