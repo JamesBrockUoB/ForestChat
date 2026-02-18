@@ -12,7 +12,7 @@ import wandb
 from data.ForestChange import ForestChangeDataset
 from data.LEVIRMCITrees import LEVIRMCITreesDataset
 from mci_model.model_decoder import DecoderTransformer
-from mci_model.model_encoder_att import AttentiveEncoder, Encoder
+from mci_model.model_encoder_att import AttentiveEncoder, Encoder, get_backbone_dims
 from torch.nn.utils.rnn import pack_padded_sequence
 from torch.utils import data
 from tqdm import tqdm
@@ -173,7 +173,8 @@ class Trainer(object):
             fine_tune_capdecoder = False
 
         self.encoder = Encoder(args.network)
-        dims = [32, 64, 160, 256] if "b0" in args.network else [64, 128, 320, 512]
+        dims = get_backbone_dims(args.network)
+
         self.encoder_trans = AttentiveEncoder(
             train_stage=args.train_stage,
             n_layers=args.n_layers,

@@ -5,6 +5,69 @@ from torch import einsum, nn
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+BACKBONE_FEATURE_DIMS = {
+    # AlexNet
+    "alexnet": [64, 192, 384, 256],
+    # VGG family
+    "vgg11": [64, 128, 256, 512],
+    "vgg16": [64, 128, 256, 512],
+    "vgg19": [64, 128, 256, 512],
+    # Inception
+    "inception": [192, 288, 768, 2048],
+    # ResNet family
+    "resnet18": [64, 128, 256, 512],
+    "resnet34": [64, 128, 256, 512],
+    "resnet50": [256, 512, 1024, 2048],
+    "resnet101": [256, 512, 1024, 2048],
+    "resnet152": [256, 512, 1024, 2048],
+    # ResNeXt family
+    "resnext50_32x4d": [256, 512, 1024, 2048],
+    "resnext101_32x8d": [256, 512, 1024, 2048],
+    # DenseNet family
+    "densenet121": [64, 128, 256, 1024],
+    "densenet169": [64, 128, 256, 1664],
+    "densenet201": [64, 128, 256, 1920],
+    # RegNet family
+    "regnet_x_400mf": [32, 64, 160, 400],
+    "regnet_x_8gf": [64, 192, 432, 1920],
+    "regnet_x_16gf": [80, 240, 576, 2048],
+    # SegFormer family
+    "segformer-b0": [32, 64, 160, 256],
+    "segformer-b1": [64, 128, 320, 512],
+    "segformer-b2": [64, 128, 320, 512],
+    "segformer-b3": [64, 128, 320, 512],
+    "segformer-b4": [64, 128, 320, 512],
+    "segformer-b5": [64, 128, 320, 512],
+}
+
+
+def get_backbone_dims(network_name: str) -> list:
+    """
+    Get feature pyramid dimensions for a given backbone network.
+
+    Args:
+        network_name: Name of the backbone network (e.g., "resnet50", "segformer-b0")
+
+    Returns:
+        List of 4 integers representing the feature dimensions at different stages
+
+    Raises:
+        ValueError: If the network name is not recognized
+    """
+    if network_name in BACKBONE_FEATURE_DIMS:
+        return BACKBONE_FEATURE_DIMS[network_name]
+
+    # Handle segformer variants
+    if "segformer" in network_name:
+        variant = network_name.split("-")[-1]  # Extract b0, b1, etc.
+        key = f"segformer-{variant}"
+        if key in BACKBONE_FEATURE_DIMS:
+            return BACKBONE_FEATURE_DIMS[key]
+
+    raise ValueError(
+        f"Unknown network: {network_name}. Available networks: {list(BACKBONE_FEATURE_DIMS.keys())}"
+    )
+
 
 class Encoder(nn.Module):
     """
@@ -62,13 +125,31 @@ class Encoder(nn.Module):
             modules = list(cnn.children())[:-1]
         elif self.network == "regnet_x_400mf":  # 400,1/32H,1/32W
             cnn = models.regnet_x_400mf(pretrained=True)
-            modules = list(cnn.children())[:-2]
+            modules = nn.Sequential(
+                cnn.stem,
+                cnn.trunk_output.block1,
+                cnn.trunk_output.block2,
+                cnn.trunk_output.block3,
+                cnn.trunk_output.block4,
+            )
         elif self.network == "regnet_x_8gf":  # 1920,1/32H,1/32W
             cnn = models.regnet_x_8gf(pretrained=True)
-            modules = list(cnn.children())[:-2]
+            modules = nn.Sequential(
+                cnn.stem,
+                cnn.trunk_output.block1,
+                cnn.trunk_output.block2,
+                cnn.trunk_output.block3,
+                cnn.trunk_output.block4,
+            )
         elif self.network == "regnet_x_16gf":  # 2048,1/32H,1/32W
             cnn = models.regnet_x_16gf(pretrained=True)
-            modules = list(cnn.children())[:-2]
+            modules = nn.Sequential(
+                cnn.stem,
+                cnn.trunk_output.block1,
+                cnn.trunk_output.block2,
+                cnn.trunk_output.block3,
+                cnn.trunk_output.block4,
+            )
         elif "segformer" in self.network:
             from .segformer import Segformer_baseline
 
