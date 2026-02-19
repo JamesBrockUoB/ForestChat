@@ -9,7 +9,7 @@ import torch
 from data.ForestChange import ForestChangeDataset
 from data.LEVIRMCITrees import LEVIRMCITreesDataset
 from mci_model.model_decoder import DecoderTransformer
-from mci_model.model_encoder_att import AttentiveEncoder, Encoder
+from mci_model.model_encoder_att import AttentiveEncoder, Encoder, get_backbone_dims
 from torch.utils import data
 from tqdm import tqdm
 from utils_tool.metrics import Evaluator
@@ -132,7 +132,7 @@ def main(args):
 
     encoder = Encoder(args.network)
 
-    dims = [32, 64, 160, 256] if "b0" in args.network else [64, 128, 320, 512]
+    dims = get_backbone_dims(args.network)
     encoder_trans = AttentiveEncoder(
         train_stage=None,
         n_layers=args.n_layers,
