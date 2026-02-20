@@ -13,6 +13,8 @@ from torch.utils.data import DataLoader, Dataset
 from utils_tool.utils import *
 
 ORIGINAL_IMAGE_SIZE = 480
+NORMALISATION_MEAN = [0.2267 * 255, 0.29982 * 255, 0.22058 * 255]
+NORMALISATION_STD = [0.0923 * 255, 0.06658 * 255, 0.05681 * 255]
 
 
 class ForestChangeDataset(Dataset):
@@ -180,13 +182,11 @@ class ForestChangeDataset(Dataset):
             imgA = augmented["image"]
             imgB = augmented["image_B"]
         else:
-            mean = [0.2267 * 255, 0.29982 * 255, 0.22058 * 255]
-            std = [0.0923 * 255, 0.06658 * 255, 0.05681 * 255]
-            for i, _ in enumerate(mean):
-                imgA[:, :, i] -= mean[i]
-                imgA[:, :, i] /= std[i]
-                imgB[:, :, i] -= mean[i]
-                imgB[:, :, i] /= std[i]
+            for i, _ in enumerate(NORMALISATION_MEAN):
+                imgA[:, :, i] -= NORMALISATION_MEAN[i]
+                imgA[:, :, i] /= NORMALISATION_STD[i]
+                imgB[:, :, i] -= NORMALISATION_MEAN[i]
+                imgB[:, :, i] /= NORMALISATION_STD[i]
 
         imgA = imgA.transpose(2, 0, 1)
         imgB = imgB.transpose(2, 0, 1)

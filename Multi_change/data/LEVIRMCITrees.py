@@ -11,6 +11,9 @@ from preprocess_data import encode
 from torch.utils.data import DataLoader, Dataset
 from utils_tool.utils import *
 
+NORMALISATION_MEAN = [0.39073 * 255, 0.38623 * 255, 0.32989 * 255]
+NORMALISATION_STD = [0.15329 * 255, 0.14628 * 255, 0.13648 * 255]
+
 
 class LEVIRMCITreesDataset(Dataset):
     """
@@ -136,13 +139,11 @@ class LEVIRMCITreesDataset(Dataset):
         seg_label[seg_label == 255] = 2
         seg_label[seg_label == 128] = 1
 
-        mean = [0.39073 * 255, 0.38623 * 255, 0.32989 * 255]
-        std = [0.15329 * 255, 0.14628 * 255, 0.13648 * 255]
-        for i, _ in enumerate(mean):
-            imgA[i, :, :] -= mean[i]
-            imgA[i, :, :] /= std[i]
-            imgB[i, :, :] -= mean[i]
-            imgB[i, :, :] /= std[i]
+        for i, _ in enumerate(NORMALISATION_MEAN):
+            imgA[i, :, :] -= NORMALISATION_MEAN[i]
+            imgA[i, :, :] /= NORMALISATION_STD[i]
+            imgB[i, :, :] -= NORMALISATION_MEAN[i]
+            imgB[i, :, :] /= NORMALISATION_STD[i]
         if datafiles["token"] is not None:
             caption = open(datafiles["token"])
             caption = caption.read()
