@@ -6,7 +6,6 @@ import albumentations as A
 import cv2
 import numpy as np
 import torch
-from data import ForestChange, LEVIRMCITrees
 from eval_func.bleu.bleu import Bleu
 from eval_func.cider.cider import Cider
 from eval_func.meteor.meteor import Meteor

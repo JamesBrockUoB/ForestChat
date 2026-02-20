@@ -25,6 +25,7 @@ Usage:
 
 import argparse
 import json
+import logging
 import os
 import time
 
@@ -40,6 +41,11 @@ from tqdm import tqdm
 from utils_tool.utils import get_eval_score, str2bool
 
 load_dotenv()
+
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
 
 def get_output_path(result_path: str, data_name: str, split: str) -> str:
@@ -86,9 +92,6 @@ def evaluate(
     split: str,
     result_path: str,
 ):
-    """
-    Score GPT-4V captions against ground-truth references using get_eval_score(),
-    """
     ref_list = []
     hyp_list = []
     missing = []
@@ -109,7 +112,7 @@ def evaluate(
     score_dict = get_eval_score(ref_list, hyp_list)
 
     print(
-        "\n=== GPT-4V Zero-Shot Change Captioning ===\n"
+        "\n=== GPT-4o Zero-Shot Change Captioning ===\n"
         f"Dataset : {data_name}  |  Split: {split}\n"
         f"BLEU-1  : {score_dict['Bleu_1']:.5f}\n"
         f"BLEU-2  : {score_dict['Bleu_2']:.5f}\n"
@@ -158,7 +161,7 @@ def main(args):
 
         with open(output_path, "a") as f_out:
             for imgA, imgB, _, _, _, _, _, name in tqdm(
-                loader, desc="GPT-4V captioning"
+                loader, desc="GPT-4o captioning"
             ):
                 img_name = name[0]
 
@@ -171,7 +174,8 @@ def main(args):
                 try:
                     caption = captioner.query(enc_A, enc_B, prompt)
                 except Exception as e:
-                    print(f"\n  [ERROR] {img_name}: {e}")
+                    cause = e.__cause__ if e.__cause__ is not None else e
+                    print(f"\n  [ERROR] {img_name}: {type(cause).__name__}: {cause}")
                     continue
 
                 print(f"\n  {img_name} -> {caption}")
@@ -218,7 +222,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Zero-shot image change captioning with GPT-4V"
+        description="Zero-shot image change captioning with GPT-4o"
     )
 
     parser.add_argument(
@@ -245,7 +249,7 @@ if __name__ == "__main__":
         default=None,
         help="OpenAI API key (defaults to OPENAI_API_KEY env var)",
     )
-    parser.add_argument("--model", default="gpt-4-vision-preview")
+    parser.add_argument("--model", default="gpt-4o")
     parser.add_argument("--max_tokens", type=int, default=300)
     parser.add_argument("--temperature", type=float, default=0.2)
     parser.add_argument(

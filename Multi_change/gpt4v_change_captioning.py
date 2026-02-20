@@ -9,6 +9,7 @@ and vocab/metadata files, matching the conventions of train.py and test.py.
 """
 
 import base64
+import logging
 import os
 import tempfile
 from typing import Optional
@@ -16,16 +17,32 @@ from typing import Optional
 import cv2
 import numpy as np
 import requests
-from data import ForestChange, LEVIRMCITrees
-from tenacity import retry, stop_after_attempt, wait_random_exponential
+from data.ForestChange import NORMALISATION_MEAN as FOREST_MEAN
+from data.ForestChange import NORMALISATION_STD as FOREST_STD
+from data.ForestChange import ForestChangeDataset
+from data.LEVIRMCITrees import NORMALISATION_MEAN as LEVIR_MEAN
+from data.LEVIRMCITrees import NORMALISATION_STD as LEVIR_STD
+from data.LEVIRMCITrees import LEVIRMCITreesDataset
+from tenacity import (
+    before_sleep_log,
+    retry,
+    stop_after_attempt,
+    wait_random_exponential,
+)
 from torch.utils import data
+
+logger = logging.getLogger(__name__)
+
+DATASET_NORM = {
+    "Forest-Change": (FOREST_MEAN, FOREST_STD),
+    "LEVIR-MCI-Trees": (LEVIR_MEAN, LEVIR_STD),
+}
 
 
 def _numpy_to_base64(img_chw: np.ndarray, mean, std) -> str:
     """
     Reverse the normalisation applied in the dataloader, convert CHW -> HWC,
-    write to a temp PNG and return as base64. We need to undo normalisation
-    so GPT-4V sees the actual image rather than normalised float values.
+    write to a temp PNG and return as base64.
     """
     img = img_chw.copy().astype(np.float32)  # (C, H, W)
     for c in range(img.shape[0]):
@@ -41,15 +58,6 @@ def _numpy_to_base64(img_chw: np.ndarray, mean, std) -> str:
         encoded = base64.b64encode(f.read()).decode("utf-8")
     os.remove(tmp_path)
     return encoded
-
-
-DATASET_NORM = {
-    "Forest-Change": (ForestChange.NORMALISATION_MEAN, ForestChange.NORMALISATION_STD),
-    "LEVIR-MCI-Trees": (
-        LEVIRMCITrees.NORMALISATION_MEAN,
-        LEVIRMCITrees.NORMALISATION_STD,
-    ),
-}
 
 
 SYSTEM_MESSAGE = (
@@ -128,12 +136,12 @@ DATASET_PROMPTS = {
 
 
 class GPT4VChangeCaptioner:
-    """Queries GPT-4V with a before/after image pair for zero-shot change captioning."""
+    """Queries GPT-4o with a before/after image pair for zero-shot change captioning."""
 
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model: str = "gpt-4-vision-preview",
+        model: str = "gpt-4o",
         max_tokens: int = 300,
         temperature: float = 0.2,
     ):
@@ -147,7 +155,12 @@ class GPT4VChangeCaptioner:
         self.max_tokens = max_tokens
         self.temperature = temperature
 
-    @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
+    @retry(
+        wait=wait_random_exponential(min=1, max=60),
+        stop=stop_after_attempt(6),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
+    )
     def query(self, base64_A: str, base64_B: str, prompt: str) -> str:
         headers = {
             "Content-Type": "application/json",
@@ -184,11 +197,16 @@ class GPT4VChangeCaptioner:
             "temperature": self.temperature,
         }
 
-        response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
-            json=payload,
-        )
+        try:
+            response = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=60,
+            )
+        except requests.exceptions.RequestException as e:
+            raise IOError(f"Network error: {type(e).__name__}: {e}") from e
+
         if not response.ok:
             raise IOError(
                 f"GPT-4V request failed [{response.status_code}]: {response.json()}"
