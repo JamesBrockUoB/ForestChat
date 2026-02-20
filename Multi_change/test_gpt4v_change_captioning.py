@@ -14,7 +14,7 @@ Usage:
   # LEVIR-MCI-Trees
   python test_gpt4v_change_captioning.py \
       --data_name LEVIR-MCI-Trees \
-      --data_folder ./data/LEVIR-MCI-Trees/images \
+      --data_folder ./data/LEVIR-MCI-Trees-dataset/images \
       --list_path ./data/LEVIR-MCI-Trees/ \
       --token_folder ./data/LEVIR-MCI-Trees/tokens/ \
       --result_path ./predict_results/gpt4v
