@@ -52,18 +52,6 @@ def get_output_path(result_path: str, data_name: str, split: str) -> str:
     return os.path.join(result_path, f"gpt4v_{data_name}_{split}_captions.jsonl")
 
 
-def load_done(output_path: str) -> set:
-    done = set()
-    if os.path.exists(output_path):
-        with open(output_path) as f:
-            for line in f:
-                try:
-                    done.add(json.loads(line)["name"])
-                except (json.JSONDecodeError, KeyError):
-                    continue
-    return done
-
-
 def load_results(output_path: str) -> dict:
     results = {}
     with open(output_path) as f:
@@ -105,7 +93,7 @@ def evaluate(
 
     if missing:
         print(
-            f"Warning: {len(missing)} images have no GPT-4V prediction and will be skipped."
+            f"Warning: {len(missing)} images have no GPT-4o prediction and will be skipped."
         )
 
     print(f"\nScoring {len(hyp_list)} captions...")
@@ -142,7 +130,11 @@ def main(args):
 
     loader = build_dataloader(args, max_length)
     mean, std = DATASET_NORM[args.data_name]
-    prompt = DATASET_PROMPTS[args.data_name]()
+    prompt = (
+        DATASET_PROMPTS["General"]()
+        if args.use_general_prompt
+        else DATASET_PROMPTS[args.data_name]()
+    )
 
     if not args.eval_only:
         captioner = GPT4VChangeCaptioner(
@@ -152,21 +144,14 @@ def main(args):
             temperature=args.temperature,
         )
 
-        done = load_done(output_path)
         total = len(loader.dataset)
-        print(
-            f"[{args.data_name}] {args.split}: {total} images, "
-            f"{len(done)} done, {total - len(done)} remaining."
-        )
+        print(f"[{args.data_name}] {args.split}: {total} images.")
 
-        with open(output_path, "a") as f_out:
+        with open(output_path, "w") as f_out:
             for imgA, imgB, _, _, _, _, _, name in tqdm(
                 loader, desc="GPT-4o captioning"
             ):
                 img_name = name[0]
-
-                if img_name in done:
-                    continue
 
                 enc_A = _numpy_to_base64(imgA[0].numpy(), mean, std)
                 enc_B = _numpy_to_base64(imgB[0].numpy(), mean, std)
@@ -188,7 +173,6 @@ def main(args):
                 }
                 f_out.write(json.dumps(entry) + "\n")
                 f_out.flush()
-                done.add(img_name)
 
                 if args.delay > 0:
                     time.sleep(args.delay)
@@ -265,6 +249,12 @@ if __name__ == "__main__":
         type=str2bool,
         default=False,
         help="Skip querying and only score already-saved results",
+    )
+    parser.add_argument(
+        "--use_general_prompt",
+        type=str2bool,
+        default=False,
+        help="Whether to enable dataset-specific style prompt guidance or not",
     )
 
     args = parser.parse_args()

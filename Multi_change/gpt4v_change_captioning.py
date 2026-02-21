@@ -129,7 +129,22 @@ def get_levir_mci_prompt() -> str:
     )
 
 
+def get_general_prompt() -> str:
+    return (
+        "You are given two aerial images of the same location taken at different times.\n"
+        "Image A is 'before' and Image B is 'after'.\n\n"
+        "Describe what has changed between the two images in one sentence. "
+        "If there is no change, say 'the scene is the same as before'.\n\n"
+        "Rules:\n"
+        "1. Output a single sentence only.\n"
+        "2. Be specific about what has changed and where.\n"
+        "3. Do not describe things that have not changed."
+        "4. Do not refer to 'Image A' or 'Image B'."
+    )
+
+
 DATASET_PROMPTS = {
+    "General": get_general_prompt,
     "Forest-Change": get_forest_change_prompt,
     "LEVIR-MCI-Trees": get_levir_mci_prompt,
 }
