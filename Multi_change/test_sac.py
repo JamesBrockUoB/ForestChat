@@ -68,14 +68,8 @@ def save_mask(pred, gt, name, save_path, split, args):
         os.path.join(save_path, name.split(".")[0] + "_pred_diff.png"), diff_rgb
     )
 
-    # Handle different folder structures
     img_A_path = os.path.join(args.data_folder, split, "A", name)
-    if not os.path.exists(img_A_path):
-        # JL1-CD-Trees doesn't have split subdirectories
-        img_A_path = os.path.join(args.data_folder, "A", name)
-        img_B_path = os.path.join(args.data_folder, "B", name)
-    else:
-        img_B_path = os.path.join(args.data_folder, split, "B", name)
+    img_B_path = os.path.join(args.data_folder, split, "B", name)
 
     img_A = cv2.imread(img_A_path)
     img_B = cv2.imread(img_B_path)
@@ -106,10 +100,6 @@ def main(args):
             for name in dirs:
                 os.rmdir(os.path.join(root, name))
 
-    if "JL1-CD-Trees" in args.data_folder:
-        args.split = ""
-
-    # Use existing AnyChange loader
     dataset = load_images_anychange(args.data_folder, args.split)
     test_loader = data.DataLoader(
         dataset,
