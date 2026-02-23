@@ -38,7 +38,7 @@ DATASET_CONFIGS = {
         "list_path": "./data/Forest-Change/",
         "checkpoint": "./models_ckpt/Forest-Change_model.pth",
         "num_classes": 2,
-        "pixel_area": 30,
+        "pixel_size": 30,
         "mean": [0.2267 * 255, 0.29982 * 255, 0.22058 * 255],
         "std": [0.0923 * 255, 0.06658 * 255, 0.05681 * 255],
     },
@@ -47,9 +47,18 @@ DATASET_CONFIGS = {
         "list_path": "./data/LEVIR-MCI-Trees/",
         "checkpoint": "./models_ckpt/LEVIR-MCI-Trees_model.pth",
         "num_classes": 3,
-        "pixel_area": 0.5,
+        "pixel_size": 0.5,
         "mean": [0.39073 * 255, 0.38623 * 255, 0.32989 * 255],
         "std": [0.15329 * 255, 0.14628 * 255, 0.13648 * 255],
+    },
+    "JL1-CD-Trees": {
+        "data_folder": "./data/JL1-CD-Trees-dataset/images",
+        "list_path": "./data/Forest-Change/",
+        "checkpoint": "./models_ckpt/Forest-Change_model.pth",
+        "num_classes": 2,
+        "pixel_size": 0.5,
+        "mean": [0.2427 * 255, 0.3016 * 255, 0.1888 * 255],
+        "std": [0.1592 * 255, 0.1403 * 255, 0.1314 * 255],
     },
 }
 
@@ -123,7 +132,7 @@ class Change_Perception(object):
 
         Args:
             parent_parser: Parent argument parser (optional)
-            dataset_name: Name of the dataset to use ("Forest-Change" or "LEVIR-MCI-Trees").
+            dataset_name: Name of the dataset to use ("Forest-Change", "LEVIR-MCI-Trees", or "JL1-CD-Trees").
                          Defaults to "Forest-Change" if not specified.
         """
         args = self.define_args(parent_parser=parent_parser, dataset_name=dataset_name)
@@ -132,7 +141,7 @@ class Change_Perception(object):
 
         # Load dataset-specific configuration
         config = DATASET_CONFIGS[dataset_name]
-        self.pixel_area = config["pixel_area"]
+        self.pixel_size = config["pixel_size"]
         self.mean = config["mean"]
         self.std = config["std"]
 
@@ -507,7 +516,7 @@ class Change_Perception(object):
         print("model_infer_compute_percentage_change: end")
         return percentage_str
 
-    def compute_patch_metrics(self, changed_mask, object, pixel_area=1.0):
+    def compute_patch_metrics(self, changed_mask, object):
         print("model_infer_compute_change_patch_metrics: start")
 
         mask = changed_mask.copy()
@@ -525,6 +534,7 @@ class Change_Perception(object):
         lbl = measure.label(mask_cp, connectivity=2)
         props = measure.regionprops(lbl)
 
+        pixel_area = self.pixel_size**2
         areas = [p.area * pixel_area for p in props if p.area > 5]
         if not areas:
             print("model_infer_compute_change_patch_metrics: end")
@@ -758,9 +768,7 @@ if __name__ == "__main__":
     mask = Change_Perception.change_detection(imgA_path, imgB_path, args.mask_save_path)
     Change_Perception.compute_change_percentage(mask)
     Change_Perception.compute_object_num(mask, "deforestation patches")
-    Change_Perception.compute_patch_metrics(
-        mask, "deforestation patches", Change_Perception.pixel_area
-    )
+    Change_Perception.compute_patch_metrics(mask, "deforestation patches")
 
     base, ext = os.path.splitext(args.mask_save_path)
     anychange_mask_filename = f"{base}_anychange{ext}"

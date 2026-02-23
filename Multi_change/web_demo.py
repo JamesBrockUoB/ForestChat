@@ -128,7 +128,7 @@ class StreamlitUI:
             config = DATASET_CONFIGS[dataset_name]
             with st.sidebar.expander("↳ Dataset details", expanded=False):
                 st.caption(f"Classes: {config['num_classes']}")
-                st.caption(f"Pixel area: {config['pixel_area']} m²")
+                st.caption(f"Pixel size: {config['pixel_size']} m²")
                 st.caption(f"Model: {os.path.basename(config['checkpoint'])}")
 
         if dataset_name != st.session_state.get("dataset_selected"):
@@ -428,7 +428,7 @@ class StreamlitUI:
 
                 if show_patches:
                     change_statistics = change_perception.compute_patch_metrics(
-                        mask, "all changes", change_perception.pixel_area
+                        mask, "all changes"
                     )
                     st.markdown(f"**Change patch statistics:**\n\n {change_statistics}")
 

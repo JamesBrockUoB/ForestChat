@@ -1,26 +1,26 @@
 """
-test_gpt4v_change_captioning.py
+test_gpt4o_change_captioning.py
 
-Zero-shot change captioning evaluation using GPT-4V.
+Zero-shot change captioning evaluation using GPT-4o.
 Mirrors the structure of test.py — uses the same dataloaders, vocab,
 and metadata files, and scores with the same get_eval_score() call.
 
 Usage:
 
   # Forest-Change (default)
-  python test_gpt4v_change_captioning.py \
-      --result_path ./predict_results/gpt4v
+  python test_gpt4o_change_captioning.py \
+      --result_path ./predict_results/gpt4o
 
   # LEVIR-MCI-Trees
-  python test_gpt4v_change_captioning.py \
+  python test_gpt4o_change_captioning.py \
       --data_name LEVIR-MCI-Trees \
       --data_folder ./data/LEVIR-MCI-Trees-dataset/images \
       --list_path ./data/LEVIR-MCI-Trees/ \
       --token_folder ./data/LEVIR-MCI-Trees/tokens/ \
-      --result_path ./predict_results/gpt4v
+      --result_path ./predict_results/gpt4o
 
   # Evaluate only (skip querying, re-score saved results)
-  python test_gpt4v_change_captioning.py --eval_only
+  python test_gpt4o_change_captioning.py --eval_only
 """
 
 import argparse
@@ -30,15 +30,16 @@ import os
 import time
 
 from dotenv import load_dotenv
-from gpt4v_change_captioning import (
+from tqdm import tqdm
+from utils_tool.utils import get_eval_score, str2bool
+
+from Multi_change.gpt4o_change_captioning import (
     DATASET_NORM,
     DATASET_PROMPTS,
-    GPT4VChangeCaptioner,
+    GPT4oChangeCaptioner,
     _numpy_to_base64,
     build_dataloader,
 )
-from tqdm import tqdm
-from utils_tool.utils import get_eval_score, str2bool
 
 load_dotenv()
 
@@ -49,7 +50,7 @@ logging.basicConfig(
 
 
 def get_output_path(result_path: str, data_name: str, split: str) -> str:
-    return os.path.join(result_path, f"gpt4v_{data_name}_{split}_captions.jsonl")
+    return os.path.join(result_path, f"gpt4o_{data_name}_{split}_captions.jsonl")
 
 
 def load_results(output_path: str) -> dict:
@@ -111,7 +112,7 @@ def evaluate(
         f"CIDEr   : {score_dict['CIDEr']:.5f}\n"
     )
 
-    score_path = os.path.join(result_path, f"gpt4v_{data_name}_{split}_scores.json")
+    score_path = os.path.join(result_path, f"gpt4o_{data_name}_{split}_scores.json")
     with open(score_path, "w") as f:
         json.dump({"dataset": data_name, "split": split, **score_dict}, f, indent=4)
     print(f"Scores saved to: {score_path}")
@@ -137,7 +138,7 @@ def main(args):
     )
 
     if not args.eval_only:
-        captioner = GPT4VChangeCaptioner(
+        captioner = GPT4oChangeCaptioner(
             api_key=args.api_key or os.environ.get("OPEN_AI_KEY"),
             model=args.model,
             max_tokens=args.max_tokens,
@@ -225,7 +226,7 @@ if __name__ == "__main__":
     parser.add_argument("--workers", type=int, default=0)
 
     # Output
-    parser.add_argument("--result_path", default="./predict_results/gpt4v")
+    parser.add_argument("--result_path", default="./predict_results/gpt4o")
 
     # API
     parser.add_argument(
@@ -258,4 +259,5 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+    main(args)
     main(args)

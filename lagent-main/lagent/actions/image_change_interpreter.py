@@ -86,11 +86,11 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
 
         **IMPORTANT DATASET SELECTION:**
         Change_Perception() defaults to the Forest-Change dataset for forest/deforestation detection.
-        - For forest changes: Change_Perception() or Change_Perception(dataset_name='Forest-Change')
+        - For forest changes: Change_Perception(dataset_name='Forest-Change') or Change_Perception(dataset_name='JL1-CD-Trees')
         - For road/building changes: Change_Perception(dataset_name='LEVIR-MCI-Trees')
 
         Use LEVIR-MCI-Trees when the user mentions "road", "building", "urban", "infrastructure", "LEVIR-MCI", or "LEVIR-MCI-Trees".
-        Otherwise, use the default Forest-Change dataset.
+        Otherwise, use the default Forest-Change dataset, or JL1-CD-Trees if specified.
 
         1. **`change_detection(path_A, path_B, savepath_mask)`**:
            - **Parameters**:
@@ -205,6 +205,13 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             from tools import Change_Perception
             # Use this for road/building changes
             Change_Perception_model = Change_Perception(dataset_name='LEVIR-MCI-Trees')
+        ```
+
+        For J1-CD-Trees dataset (largely forest change, gains and losses)
+        def solution():
+            from tools import Change_Perception
+            # Use this for the JL1-CD-Trees dataset
+            Change_Perception_model = Change_Perception(dataset_name='JL1-CD-Trees')
         ```
 
         For example:

@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 import torch
 from data.ForestChange import ForestChangeDataset
+from data.JL1CDTrees import JL1CDTreesDataset
 from data.LEVIRMCITrees import LEVIRMCITreesDataset
 from mci_model.model_decoder import DecoderTransformer
 from mci_model.model_encoder_att import AttentiveEncoder, Encoder, get_backbone_dims
@@ -71,6 +72,7 @@ def save_mask(pred, gt, name, save_path, args):
 
     img_A_path = os.path.join(args.data_folder, args.split, "A", name)
     img_B_path = os.path.join(args.data_folder, args.split, "B", name)
+
     img_A = cv2.imread(img_A_path)
     img_B = cv2.imread(img_B_path)
     cv2.imwrite(os.path.join(save_path, name.split(".")[0] + "_A.png"), img_A)
@@ -165,7 +167,40 @@ def main(args):
     decoder = decoder.to(DEVICE)
 
     # Custom dataloaders
-    if args.data_name in ["LEVIR-MCI-Trees", "Forest-Change"]:
+    if args.data_name == "JL1-CD-Trees":
+        dataset = JL1CDTreesDataset(
+            data_folder=args.data_folder,
+            split=args.split,
+            img_size=(256, 256),
+            num_classes=args.num_classes,
+        )
+
+        def collate_fn_jl1cd(batch):
+            imgA = torch.stack([torch.from_numpy(b["imgA"]).float() for b in batch])
+            imgB = torch.stack([torch.from_numpy(b["imgB"]).float() for b in batch])
+            labels = torch.stack([torch.from_numpy(b["label"]).long() for b in batch])
+            names = [b["name"] for b in batch]
+            dummy_tokens = torch.zeros(1, 1, dtype=torch.long)
+            return (
+                imgA,
+                imgB,
+                labels,
+                dummy_tokens,
+                dummy_tokens,
+                dummy_tokens,
+                dummy_tokens,
+                names,
+            )
+
+        test_loader = data.DataLoader(
+            dataset,
+            batch_size=args.test_batchsize,
+            shuffle=False,
+            num_workers=args.workers,
+            pin_memory=True,
+            collate_fn=collate_fn_jl1cd,
+        )
+    elif args.data_name in ["LEVIR-MCI-Trees", "Forest-Change"]:
         dataset = (
             ForestChangeDataset(
                 data_folder=args.data_folder,
@@ -200,115 +235,118 @@ def main(args):
         raise ValueError("Unknown dataset selected")
 
     # Epochs
-    references = list()  # references (true captions) for calculating BLEU-4 score
-    hypotheses = list()  # hypotheses (predictions)
+    references = list()
+    hypotheses = list()
     evaluator = Evaluator(num_class=args.num_classes)
 
     total_start = time.time()
 
-    seg_start = time.time()
-    with torch.no_grad():
-        for ind, (
-            imgA,
-            imgB,
-            seg_label,
-            token_all,
-            token_all_len,
-            _,
-            _,
-            name,
-        ) in enumerate(
-            tqdm(
-                test_loader,
-                desc="test_SEGMENTATION",
-            )
-        ):
-            imgA = imgA.to(DEVICE)
-            imgB = imgB.to(DEVICE)
-            if encoder is not None:
-                feat1, feat2 = encoder(imgA, imgB)
-            feat1, feat2, seg_pre = encoder_trans(feat1, feat2)
-            pred_seg = np.argmax(seg_pre.data.cpu().numpy(), axis=1)
-            seg_label_np = seg_label.cpu().numpy()
-            if args.save_mask:
-                save_mask(pred_seg, seg_label_np, name, args.result_path, args)
-            evaluator.add_batch(seg_label_np, pred_seg)
-
-    seg_time = time.time() - seg_start
-
-    cap_start = time.time()
-    with torch.no_grad():
-        for ind, (
-            imgA,
-            imgB,
-            seg_label,
-            token_all,
-            token_all_len,
-            _,
-            _,
-            name,
-        ) in enumerate(
-            tqdm(
-                test_loader,
-                desc="test_CAPTIONING" + " EVALUATING AT BEAM SIZE " + str(1),
-            )
-        ):
-            imgA = imgA.to(DEVICE)
-            imgB = imgB.to(DEVICE)
-            token_all = token_all.squeeze(0).to(DEVICE)
-            if encoder is not None:
-                feat1, feat2 = encoder(imgA, imgB)
-            feat1, feat2, _ = encoder_trans(feat1, feat2)
-            seq = decoder.sample(feat1, feat2)
-            img_token = token_all.tolist()
-            img_tokens = list(
-                map(
-                    lambda c: [
-                        w
-                        for w in c
-                        if w
-                        not in {
-                            word_vocab["<START>"],
-                            word_vocab["<END>"],
-                            word_vocab["<NULL>"],
-                        }
-                    ],
-                    img_token,
+    if args.test_goal in [0, 2]:
+        seg_start = time.time()
+        with torch.no_grad():
+            for ind, (
+                imgA,
+                imgB,
+                seg_label,
+                token_all,
+                token_all_len,
+                _,
+                _,
+                name,
+            ) in enumerate(
+                tqdm(
+                    test_loader,
+                    desc="test_SEGMENTATION",
                 )
-            )  # remove <start> and pads
-            references.append(img_tokens)
-            pred_seq = [
-                w
-                for w in seq
-                if w
-                not in {
-                    word_vocab["<START>"],
-                    word_vocab["<END>"],
-                    word_vocab["<NULL>"],
-                }
-            ]
-            hypotheses.append(pred_seq)
-            assert len(references) == len(hypotheses)
-            pred_caption = " ".join(list(word_vocab.keys())[i] for i in pred_seq)
+            ):
+                imgA = imgA.to(DEVICE)
+                imgB = imgB.to(DEVICE)
+                if encoder is not None:
+                    feat1, feat2 = encoder(imgA, imgB)
+                feat1, feat2, seg_pre = encoder_trans(feat1, feat2)
+                pred_seg = np.argmax(seg_pre.data.cpu().numpy(), axis=1)
+                seg_label_np = seg_label.cpu().numpy()
+                if args.save_mask:
+                    save_mask(pred_seg, seg_label_np, name, args.result_path, args)
+                evaluator.add_batch(seg_label_np, pred_seg)
+        seg_time = time.time() - seg_start
+    else:
+        seg_time = 0
 
-            ref_captions = ""
-            for tokens in img_tokens:
-                ref_captions += (
-                    " ".join(list(word_vocab.keys())[i] for i in tokens) + ".    "
+    if args.test_goal in [1, 2]:
+        cap_start = time.time()
+        with torch.no_grad():
+            for ind, (
+                imgA,
+                imgB,
+                seg_label,
+                token_all,
+                token_all_len,
+                _,
+                _,
+                name,
+            ) in enumerate(
+                tqdm(
+                    test_loader,
+                    desc="test_CAPTIONING" + " EVALUATING AT BEAM SIZE " + str(1),
                 )
-
-            # for captioning: save captions?
-            if args.save_caption:
-                save_captions(
-                    pred_caption,
-                    ref_captions,
-                    hypotheses[-1],
-                    references[-1],
-                    name,
-                    args.result_path,
+            ):
+                imgA = imgA.to(DEVICE)
+                imgB = imgB.to(DEVICE)
+                token_all = token_all.squeeze(0).to(DEVICE)
+                if encoder is not None:
+                    feat1, feat2 = encoder(imgA, imgB)
+                feat1, feat2, _ = encoder_trans(feat1, feat2)
+                seq = decoder.sample(feat1, feat2)
+                img_token = token_all.tolist()
+                img_tokens = list(
+                    map(
+                        lambda c: [
+                            w
+                            for w in c
+                            if w
+                            not in {
+                                word_vocab["<START>"],
+                                word_vocab["<END>"],
+                                word_vocab["<NULL>"],
+                            }
+                        ],
+                        img_token,
+                    )
                 )
+                references.append(img_tokens)
+                pred_seq = [
+                    w
+                    for w in seq
+                    if w
+                    not in {
+                        word_vocab["<START>"],
+                        word_vocab["<END>"],
+                        word_vocab["<NULL>"],
+                    }
+                ]
+                hypotheses.append(pred_seq)
+                assert len(references) == len(hypotheses)
+                pred_caption = " ".join(list(word_vocab.keys())[i] for i in pred_seq)
 
-    cap_time = time.time() - cap_start
+                ref_captions = ""
+                for tokens in img_tokens:
+                    ref_captions += (
+                        " ".join(list(word_vocab.keys())[i] for i in tokens) + ".    "
+                    )
+
+                if args.save_caption:
+                    save_captions(
+                        pred_caption,
+                        ref_captions,
+                        hypotheses[-1],
+                        references[-1],
+                        name,
+                        args.result_path,
+                    )
+        cap_time = time.time() - cap_start
+    else:
+        cap_time = 0
 
     total_time = time.time() - total_start
 
@@ -316,67 +354,67 @@ def main(args):
     print(f"Segmentation time: {seg_time:.3f} s")
     print(f"Captioning time:   {cap_time:.3f} s")
 
-    # Fast test during the training
-
-    Acc_seg = evaluator.Pixel_Accuracy()
-    Acc_class_seg = evaluator.Pixel_Accuracy_Class()
-    mIoU_seg, IoU = evaluator.Mean_Intersection_over_Union()
-    FWIoU_seg = evaluator.Frequency_Weighted_Intersection_over_Union()
-    Acc_seg = evaluator.Pixel_Accuracy()
-    F1_score, F1_class_score = evaluator.F1_Score()
-    Precision, Precision_class, Recall, Recall_class = (
-        evaluator.Precision_Recall_Class()
-    )
-    print(
-        "Test of Segmentation:\n"
-        "Time: {0:.3f}\t"
-        "Acc_seg: {1:.5f}\t"
-        "Acc_class_seg: {2:.5f}\t"
-        "mIoU_seg: {3:.5f}\t"
-        "FWIoU_seg: {4:.5f}\t"
-        "IoU: {5}\t"
-        "F1: {6:.5f}\t"
-        "F1_class: {7}\t"
-        "Precision: {8:.5f}\t"
-        "Precision_class: {9}\t"
-        "Recall: {10:.5f}\t"
-        "Recall_class: {11}\t".format(
-            seg_time,
-            Acc_seg,
-            Acc_class_seg,
-            mIoU_seg,
-            FWIoU_seg,
-            IoU,
-            F1_score,
-            F1_class_score,
-            Precision,
-            Precision_class,
-            Recall,
-            Recall_class,
+    if args.test_goal in [0, 2]:
+        Acc_seg = evaluator.Pixel_Accuracy()
+        Acc_class_seg = evaluator.Pixel_Accuracy_Class()
+        mIoU_seg, IoU = evaluator.Mean_Intersection_over_Union()
+        FWIoU_seg = evaluator.Frequency_Weighted_Intersection_over_Union()
+        Acc_seg = evaluator.Pixel_Accuracy()
+        F1_score, F1_class_score = evaluator.F1_Score()
+        Precision, Precision_class, Recall, Recall_class = (
+            evaluator.Precision_Recall_Class()
         )
-    )
-
-    score_dict = get_eval_score(references, hypotheses)
-    Bleu_1 = score_dict["Bleu_1"]
-    Bleu_2 = score_dict["Bleu_2"]
-    Bleu_3 = score_dict["Bleu_3"]
-    Bleu_4 = score_dict["Bleu_4"]
-    Meteor = score_dict["METEOR"]
-    Rouge = score_dict["ROUGE_L"]
-    Cider = score_dict["CIDEr"]
-    print(
-        "Test of Captioning:\n"
-        "Time: {0:.3f}\t"
-        "BLEU-1: {1:.5f}\t"
-        "BLEU-2: {2:.5f}\t"
-        "BLEU-3: {3:.5f}\t"
-        "BLEU-4: {4:.5f}\t"
-        "Meteor: {5:.5f}\t"
-        "Rouge: {6:.5f}\t"
-        "Cider: {7:.5f}\t".format(
-            cap_time, Bleu_1, Bleu_2, Bleu_3, Bleu_4, Meteor, Rouge, Cider
+        print(
+            "Test of Segmentation:\n"
+            "Time: {0:.3f}\t"
+            "Acc_seg: {1:.5f}\t"
+            "Acc_class_seg: {2:.5f}\t"
+            "mIoU_seg: {3:.5f}\t"
+            "FWIoU_seg: {4:.5f}\t"
+            "IoU: {5}\t"
+            "F1: {6:.5f}\t"
+            "F1_class: {7}\t"
+            "Precision: {8:.5f}\t"
+            "Precision_class: {9}\t"
+            "Recall: {10:.5f}\t"
+            "Recall_class: {11}\t".format(
+                seg_time,
+                Acc_seg,
+                Acc_class_seg,
+                mIoU_seg,
+                FWIoU_seg,
+                IoU,
+                F1_score,
+                F1_class_score,
+                Precision,
+                Precision_class,
+                Recall,
+                Recall_class,
+            )
         )
-    )
+
+    if args.test_goal in [1, 2]:
+        score_dict = get_eval_score(references, hypotheses)
+        Bleu_1 = score_dict["Bleu_1"]
+        Bleu_2 = score_dict["Bleu_2"]
+        Bleu_3 = score_dict["Bleu_3"]
+        Bleu_4 = score_dict["Bleu_4"]
+        Meteor = score_dict["METEOR"]
+        Rouge = score_dict["ROUGE_L"]
+        Cider = score_dict["CIDEr"]
+        print(
+            "Test of Captioning:\n"
+            "Time: {0:.3f}\t"
+            "BLEU-1: {1:.5f}\t"
+            "BLEU-2: {2:.5f}\t"
+            "BLEU-3: {3:.5f}\t"
+            "BLEU-4: {4:.5f}\t"
+            "Meteor: {5:.5f}\t"
+            "Rouge: {6:.5f}\t"
+            "Cider: {7:.5f}\t".format(
+                cap_time, Bleu_1, Bleu_2, Bleu_3, Bleu_4, Meteor, Rouge, Cider
+            )
+        )
 
 
 if __name__ == "__main__":
@@ -423,6 +461,13 @@ if __name__ == "__main__":
         help="path to checkpoint",
     )
     parser.add_argument(
+        "--test_goal",
+        type=int,
+        default=2,
+        choices=[0, 1, 2],
+        help="0: change detection only, 1: captioning only, 2: both (default)",
+    )
+    parser.add_argument(
         "--print_freq",
         type=int,
         default=10,
@@ -431,7 +476,6 @@ if __name__ == "__main__":
     parser.add_argument("--test_batchsize", default=1, help="batch_size for test")
     parser.add_argument("--workers", type=int, default=0, help="for data-loading")
     parser.add_argument("--dropout", type=float, default=0.1, help="dropout")
-    # save masks and captions?
     parser.add_argument(
         "--save_mask", type=str2bool, default=True, help="save the result of masks"
     )

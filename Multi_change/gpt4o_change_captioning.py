@@ -1,7 +1,7 @@
 """
-gpt4v_change_captioning.py
+gpt4o_change_captioning.py
 
-Zero-shot image change captioning using GPT-4V.
+Zero-shot image change captioning using GPT-4o.
 Supports Forest-Change and LEVIR-MCI-Trees datasets.
 
 Uses the existing ForestChangeDataset / LEVIRMCITreesDataset dataloaders
@@ -150,7 +150,7 @@ DATASET_PROMPTS = {
 }
 
 
-class GPT4VChangeCaptioner:
+class GPT4oChangeCaptioner:
     """Queries GPT-4o with a before/after image pair for zero-shot change captioning."""
 
     def __init__(
@@ -224,7 +224,7 @@ class GPT4VChangeCaptioner:
 
         if not response.ok:
             raise IOError(
-                f"GPT-4V request failed [{response.status_code}]: {response.json()}"
+                f"GPT-4o request failed [{response.status_code}]: {response.json()}"
             )
 
         remaining = response.headers.get("x-ratelimit-remaining-requests", "?")

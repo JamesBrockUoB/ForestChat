@@ -10,7 +10,7 @@
 - `label/`: Binary change masks (woodland change areas)
 
 **Format:**
-- Images: PNG, 256×256 pixels
+- Images: PNG, 512×512 pixels
 - Change masks: Binary (0=no change, 255=woodland change)
 
 **Usage:** 

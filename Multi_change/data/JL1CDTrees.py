@@ -10,8 +10,8 @@ import numpy as np
 from imageio import imread
 from torch.utils.data import Dataset
 
-NORMALISATION_MEAN = [0.2385 * 255, 0.3023 * 255, 0.1885 * 255]
-NORMALISATION_STD = [0.1503 * 255, 0.1395 * 255, 0.1315 * 255]
+NORMALISATION_MEAN = [0.2427 * 255, 0.3016 * 255, 0.1888 * 255]
+NORMALISATION_STD = [0.1592 * 255, 0.1403 * 255, 0.1314 * 255]
 
 
 class JL1CDTreesDataset(Dataset):
@@ -22,6 +22,7 @@ class JL1CDTreesDataset(Dataset):
     def __init__(
         self,
         data_folder,
+        split,
         img_size=(256, 256),
         num_classes=2,
     ):
@@ -32,13 +33,15 @@ class JL1CDTreesDataset(Dataset):
             num_classes: Number of classes present in the change masks
         """
         self.data_folder = data_folder
+        self.split = split
         self.img_size = img_size
         self.num_classes = num_classes
+        self.PIXEL_SIZE = 0.5
 
         self.files = []
-        img_dir_A = os.path.join(data_folder, "A")
-        img_dir_B = os.path.join(data_folder, "B")
-        label_dir = os.path.join(data_folder, "label")
+        img_dir_A = os.path.join(data_folder, split, "A")
+        img_dir_B = os.path.join(data_folder, split, "B")
+        label_dir = os.path.join(data_folder, split, "label")
 
         if not os.path.exists(img_dir_A):
             img_dir_A = os.path.join(data_folder, "A")
@@ -62,7 +65,7 @@ class JL1CDTreesDataset(Dataset):
                         "imgA": img_file_A,
                         "imgB": img_file_B,
                         "label": label_file,
-                        "name": name.replace(".png", ""),
+                        "name": name,
                     }
                 )
 
