@@ -17,6 +17,7 @@ from benchmark_models.change_3d.utils import BCEDiceLoss
 from benchmark_models.chg2cap.model_decoder import DecoderTransformer
 from benchmark_models.chg2cap.model_encoder import AttentiveEncoder, Encoder
 from data.ForestChange import ForestChangeDataset
+from data.JL1CDTrees import JL1CDTreesDataset
 from data.LEVIRMCITrees import LEVIRMCITreesDataset
 from einops import rearrange
 from torch import nn
@@ -82,7 +83,7 @@ class Trainer(object):
         self.build_benchmark_model()
 
         # Custom dataloaders
-        if args.data_name in ["LEVIR-MCI-Trees", "Forest-Change"]:
+        if args.data_name in ["LEVIR-MCI-Trees", "Forest-Change", "JL1-CD-Trees"]:
             datasets = []
             for split in ["train", "val"]:
                 dataset = (
@@ -101,17 +102,28 @@ class Trainer(object):
                             else args.increased_val_data_size
                         ),
                         num_classes=args.num_classes,
+                        max_percent_samples=args.max_percent_samples,
                     )
                     if "Forest-Change" in args.data_name
-                    else LEVIRMCITreesDataset(
-                        data_folder=args.data_folder,
-                        list_path=args.list_path,
-                        split=split,
-                        token_folder=args.token_folder,
-                        vocab_file=args.vocab_file,
-                        max_length=args.max_length,
-                        allow_unk=args.allow_unk,
-                        num_classes=args.num_classes,
+                    else (
+                        LEVIRMCITreesDataset(
+                            data_folder=args.data_folder,
+                            list_path=args.list_path,
+                            split=split,
+                            token_folder=args.token_folder,
+                            vocab_file=args.vocab_file,
+                            max_length=args.max_length,
+                            allow_unk=args.allow_unk,
+                            num_classes=args.num_classes,
+                            max_percent_samples=args.max_percent_samples,
+                        )
+                        if "LEVIR-MCI-Trees" in args.data_name
+                        else JL1CDTreesDataset(
+                            data_folder=args.data_folder,
+                            split=split,
+                            num_classes=args.num_classes,
+                            max_percent_samples=args.max_percent_samples,
+                        )
                     )
                 )
                 datasets.append(dataset)
@@ -1026,6 +1038,12 @@ if __name__ == "__main__":
         type=int,
         default=None,
         help="if you provide a number, it will increase the validation dataset size to match the number",
+    )
+    parser.add_argument(
+        "--max_percent_samples",
+        type=int,
+        default=None,
+        help="Percentage of training samples to use, from 0-1",
     )
     parser.add_argument(
         "--num_epochs",

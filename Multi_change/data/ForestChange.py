@@ -35,6 +35,7 @@ class ForestChangeDataset(Dataset):
         img_size=(256, 256),
         max_iters=None,
         num_classes=2,
+        max_percent_samples=None,
     ):
         """
         :param data_folder: folder where image files are stored
@@ -48,6 +49,7 @@ class ForestChangeDataset(Dataset):
         :param img_size: the dimensions all images should be returned as
         :param max_iters: the maximum iteration when loading the data
         :param num_classes: the number of classes in the dataset
+        :param max_percent_samples: maximum percentage of samples returned by the dataset if running few-shot learning (0-100)
         """
         self.list_path = list_path
         self.split = split
@@ -56,6 +58,7 @@ class ForestChangeDataset(Dataset):
         self.img_size = img_size
         self.num_classes = num_classes
         self.PIXEL_SIZE = 30
+        self.max_percent_samples = max_percent_samples
 
         assert self.split in {"train", "val", "test"}
         self.img_ids = [
@@ -98,6 +101,10 @@ class ForestChangeDataset(Dataset):
                         "name": name.split("-")[0],
                     }
                 )
+            if max_percent_samples is not None:
+                max_samples = round(len(self.files) * self.max_percent_samples / 100)
+                print(f"Limiting {split} split to {max_samples} samples")
+                self.files = self.files[:max_samples]
         else:
             for name in self.img_ids:
                 img_fileA = os.path.join(data_folder + "/" + split + "/A/" + name)

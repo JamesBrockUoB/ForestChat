@@ -174,24 +174,6 @@ def main(args):
             img_size=(256, 256),
             num_classes=args.num_classes,
         )
-
-        def collate_fn_jl1cd(batch):
-            imgA = torch.stack([torch.from_numpy(b["imgA"]).float() for b in batch])
-            imgB = torch.stack([torch.from_numpy(b["imgB"]).float() for b in batch])
-            labels = torch.stack([torch.from_numpy(b["label"]).long() for b in batch])
-            names = [b["name"] for b in batch]
-            dummy_tokens = torch.zeros(1, 1, dtype=torch.long)
-            return (
-                imgA,
-                imgB,
-                labels,
-                dummy_tokens,
-                dummy_tokens,
-                dummy_tokens,
-                dummy_tokens,
-                names,
-            )
-
         test_loader = data.DataLoader(
             dataset,
             batch_size=args.test_batchsize,

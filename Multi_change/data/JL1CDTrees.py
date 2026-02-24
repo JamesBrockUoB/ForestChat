@@ -25,18 +25,23 @@ class JL1CDTreesDataset(Dataset):
         split,
         img_size=(256, 256),
         num_classes=2,
+        max_percent_samples=None,
     ):
         """
         Args:
-            data_folder: Path to JL1-CD-Trees root folder (containing A/, B/, label/)
-            img_size: Target image size (height, width)
-            num_classes: Number of classes present in the change masks
+            :param data_folder: Path to JL1-CD-Trees root folder (containing A/, B/, label/)
+            :param img_size: Target image size (height, width)
+            :param num_classes: Number of classes present in the change masks
+            :param max_percent_samples: maximum percentage of samples returned by the dataset if running few-shot learning (0-100)
         """
         self.data_folder = data_folder
         self.split = split
         self.img_size = img_size
         self.num_classes = num_classes
         self.PIXEL_SIZE = 0.5
+        self.max_percent_samples = max_percent_samples
+
+        assert self.split in {"train", "val", "test"}
 
         self.files = []
         img_dir_A = os.path.join(data_folder, split, "A")
@@ -68,6 +73,10 @@ class JL1CDTreesDataset(Dataset):
                         "name": name,
                     }
                 )
+        if max_percent_samples is not None:
+            max_samples = round(len(self.files) * self.max_percent_samples / 100)
+            print(f"Limiting {split} split to {max_samples} samples")
+            self.files = self.files[:max_samples]
 
     def __len__(self):
         return len(self.files)
