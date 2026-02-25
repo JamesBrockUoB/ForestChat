@@ -4,12 +4,12 @@ import json
 import os
 import random
 import time
-from distutils.util import strtobool
 
 import numpy as np
 import torch
 import wandb
 from data.ForestChange import ForestChangeDataset
+from data.JL1CDTrees import JL1CDTreesDataset
 from data.LEVIRMCITrees import LEVIRMCITreesDataset
 from mci_model.model_decoder import DecoderTransformer
 from mci_model.model_encoder_att import AttentiveEncoder, Encoder, get_backbone_dims
@@ -103,11 +103,12 @@ class Trainer(object):
             self.grads = torch.zeros(sum(self.grad_dims), NUM_TASKS).to(DEVICE)
 
         # Custom dataloaders
-        if args.data_name in ["LEVIR-MCI-Trees", "Forest-Change"]:
+        if args.data_name in ["LEVIR-MCI-Trees", "Forest-Change", "JL1-CD-Trees"]:
             datasets = []
             for split in ["train", "val"]:
-                dataset = (
-                    ForestChangeDataset(
+
+                if args.data_name == "Forest-Change":
+                    dataset = ForestChangeDataset(
                         data_folder=args.data_folder,
                         list_path=args.list_path,
                         split=split,
@@ -122,9 +123,13 @@ class Trainer(object):
                             else args.increased_val_data_size
                         ),
                         num_classes=args.num_classes,
+                        max_percent_samples=(
+                            args.max_percent_samples if split == "val" else None
+                        ),
                     )
-                    if "Forest-Change" in args.data_name
-                    else LEVIRMCITreesDataset(
+
+                elif args.data_name == "LEVIR-MCI-Trees":
+                    dataset = LEVIRMCITreesDataset(
                         data_folder=args.data_folder,
                         list_path=args.list_path,
                         split=split,
@@ -133,24 +138,63 @@ class Trainer(object):
                         max_length=self.max_length,
                         allow_unk=args.allow_unk,
                         num_classes=args.num_classes,
+                        max_percent_samples=(
+                            args.max_percent_samples if split == "val" else None
+                        ),
                     )
-                )
+
+                elif args.data_name == "JL1-CD-Trees":
+                    dataset = JL1CDTreesDataset(
+                        data_folder=args.data_folder,
+                        split=split,
+                        img_size=(256, 256),  # ← IMPORTANT
+                        num_classes=args.num_classes,
+                        max_percent_samples=(
+                            args.max_percent_samples if split == "val" else None
+                        ),
+                    )
+
+                else:
+                    raise ValueError("Unknown dataset selected")
+
                 datasets.append(dataset)
+
             self.train_dataset_size = len(datasets[0])
-            self.train_loader = data.DataLoader(
-                datasets[0],
-                batch_size=args.train_batchsize,
-                shuffle=True,
-                num_workers=args.workers,
-                pin_memory=True,
-            )
-            self.val_loader = data.DataLoader(
-                datasets[1],
-                batch_size=args.val_batchsize,
-                shuffle=False,
-                num_workers=args.workers,
-                pin_memory=True,
-            )
+
+            # 🔥 TRAIN LOADER
+            if args.data_name == "JL1-CD-Trees":
+                self.train_loader = data.DataLoader(
+                    datasets[0],
+                    batch_size=args.train_batchsize,
+                    shuffle=True,
+                    num_workers=args.workers,
+                    pin_memory=True,
+                    collate_fn=collate_fn_jl1cd,
+                )
+                self.val_loader = data.DataLoader(
+                    datasets[1],
+                    batch_size=args.val_batchsize,
+                    shuffle=False,
+                    num_workers=args.workers,
+                    pin_memory=True,
+                    collate_fn=collate_fn_jl1cd,
+                )
+            else:
+                self.train_loader = data.DataLoader(
+                    datasets[0],
+                    batch_size=args.train_batchsize,
+                    shuffle=True,
+                    num_workers=args.workers,
+                    pin_memory=True,
+                )
+                self.val_loader = data.DataLoader(
+                    datasets[1],
+                    batch_size=args.val_batchsize,
+                    shuffle=False,
+                    num_workers=args.workers,
+                    pin_memory=True,
+                )
+
         else:
             raise ValueError("Unknown dataset selected")
 
@@ -891,7 +935,7 @@ class Trainer(object):
                 model_name = f"{self.args.data_name}_bts_{self.args.train_batchsize}_{self.args.network}_epo_{epoch}_{metric}.pth"
                 best_model_path = os.path.join(self.args.savepath, model_name)
 
-                if epoch > 5:
+                if epoch > self.args.min_save_epoch:
                     # save_checkpoint
                     print(f"Save Model: {best_model_path}")
                     torch.save(state, best_model_path)
@@ -987,6 +1031,18 @@ if __name__ == "__main__":
         type=int,
         default=None,
         help="if you provide a number, it will increase the validation dataset size to match the number",
+    )
+    parser.add_argument(
+        "--max_percent_samples",
+        type=int,
+        default=None,
+        help="Percentage of training samples to use, from 0-1",
+    )
+    parser.add_argument(
+        "--min_save_epoch",
+        type=int,
+        default=5,
+        help="Epoch at which models begin saving",
     )
     parser.add_argument(
         "--num_epochs",

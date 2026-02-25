@@ -32,12 +32,12 @@ BACKBONE_FEATURE_DIMS = {
     "regnet_x_8gf": [64, 192, 432, 1920],
     "regnet_x_16gf": [80, 240, 576, 2048],
     # SegFormer family
-    "segformer-b0": [32, 64, 160, 256],
-    "segformer-b1": [64, 128, 320, 512],
-    "segformer-b2": [64, 128, 320, 512],
-    "segformer-b3": [64, 128, 320, 512],
-    "segformer-b4": [64, 128, 320, 512],
-    "segformer-b5": [64, 128, 320, 512],
+    "segformer-mit_b0": [32, 64, 160, 256],
+    "segformer-mit_b1": [64, 128, 320, 512],
+    "segformer-mit_b2": [64, 128, 320, 512],
+    "segformer-mit_b3": [64, 128, 320, 512],
+    "segformer-mit_b4": [64, 128, 320, 512],
+    "segformer-mit_b5": [64, 128, 320, 512],
 }
 
 

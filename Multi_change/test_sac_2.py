@@ -72,6 +72,7 @@ def save_mask(pred, gt, name, save_path, split, args):
 
     img_A_path = os.path.join(args.data_folder, split, "A", name)
     img_B_path = os.path.join(args.data_folder, split, "B", name)
+
     img_A = cv2.imread(img_A_path)
     img_B = cv2.imread(img_B_path)
     cv2.imwrite(os.path.join(save_path, name.split(".")[0] + "_A.png"), img_A)

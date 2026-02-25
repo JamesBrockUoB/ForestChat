@@ -12,6 +12,7 @@ from benchmark_models.change_3d.trainer import Change3d_Trainer
 from benchmark_models.chg2cap.model_decoder import DecoderTransformer
 from benchmark_models.chg2cap.model_encoder import AttentiveEncoder, Encoder
 from data.ForestChange import ForestChangeDataset
+from data.JL1CDTrees import JL1CDTreesDataset
 from data.LEVIRMCITrees import LEVIRMCITreesDataset
 from einops import rearrange
 from torch.utils import data
@@ -123,6 +124,7 @@ def save_mask(pred, gt, name, save_path, args):
 
     img_A_path = os.path.join(args.data_folder, args.split, "A", name)
     img_B_path = os.path.join(args.data_folder, args.split, "B", name)
+
     img_A = cv2.imread(img_A_path)
     img_B = cv2.imread(img_B_path)
     cv2.imwrite(os.path.join(save_path, name.split(".")[0] + "_A.png"), img_A)
@@ -243,7 +245,40 @@ def main(args):
         raise ValueError("Unknown benchmark model selected.")
 
     # Custom dataloaders
-    if args.data_name in ["LEVIR-MCI-Trees", "Forest-Change"]:
+    if args.data_name == "JL1-CD-Trees":
+        dataset = JL1CDTreesDataset(
+            data_folder=args.data_folder,
+            split=args.split,
+            img_size=(256, 256),
+            num_classes=args.num_classes,
+        )
+
+        def collate_fn_jl1cd(batch):
+            imgA = torch.stack([torch.from_numpy(b["imgA"]).float() for b in batch])
+            imgB = torch.stack([torch.from_numpy(b["imgB"]).float() for b in batch])
+            labels = torch.stack([torch.from_numpy(b["label"]).long() for b in batch])
+            names = [b["name"] for b in batch]
+            dummy_tokens = torch.zeros(1, 1, dtype=torch.long)
+            return (
+                imgA,
+                imgB,
+                labels,
+                dummy_tokens,
+                dummy_tokens,
+                dummy_tokens,
+                dummy_tokens,
+                names,
+            )
+
+        test_loader = data.DataLoader(
+            dataset,
+            batch_size=args.test_batchsize,
+            shuffle=False,
+            num_workers=args.workers,
+            pin_memory=True,
+            collate_fn=collate_fn_jl1cd,
+        )
+    elif args.data_name in ["LEVIR-MCI-Trees", "Forest-Change"]:
         dataset = (
             ForestChangeDataset(
                 data_folder=args.data_folder,
