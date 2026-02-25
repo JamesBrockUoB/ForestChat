@@ -769,19 +769,21 @@ class Trainer(object):
                 self.evaluator.Precision_Recall_Class()
             )
             print(
-                "Test of Segmentation:\n"
-                "Time: {0:.3f}\t"
-                "Acc_seg: {1:.5f}\t"
-                "Acc_class_seg: {2:.5f}\t"
-                "mIoU_seg: {3:.5f}\t"
-                "FWIoU_seg: {4:.5f}\t"
-                "IoU: {5}\t"
-                "F1: {6:.5f}\t"
-                "F1_class: {7}\t"
-                "Precision: {8:.5f}\t"
-                "Precision_class: {9}\t"
-                "Recall: {10:.5f}\t"
-                "Recall_class: {11}\t".format(
+                "Segmentation Validation:\n"
+                "Epoch: {0}\t"
+                "Time: {1:.3f}\t"
+                "Acc_seg: {2:.5f}\t"
+                "Acc_class_seg: {3:.5f}\t"
+                "mIoU_seg: {4:.5f}\t"
+                "FWIoU_seg: {5:.5f}\t"
+                "IoU: {6}\t"
+                "F1: {7:.5f}\t"
+                "F1_class: {8}\t"
+                "Precision: {9:.5f}\t"
+                "Precision_class: {10}\t"
+                "Recall: {11:.5f}\t"
+                "Recall_class: {12}\t".format(
+                    epoch,
                     seg_time,
                     Acc_seg,
                     Acc_class_seg,

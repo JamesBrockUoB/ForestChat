@@ -56,18 +56,15 @@ def run_training(args):
         str(args.output_dir),
         "--max_percent_samples",
         str(args.data_pct),
+        "--train_goal",
+        "0",
+        "--min_save_epoch",
+        "0",
     ]
 
     # Add script-specific args
     if args.train_script == "train_benchmark.py":
-        cmd.extend(["--benchmark", args.benchmark, "--train_goal", "0"])
-    else:
-        cmd.extend(
-            [
-                "--train_goal",
-                "0",
-            ]
-        )
+        cmd.extend(["--benchmark", args.benchmark])
 
     # Run
     log_file = args.output_dir / "train.log"
@@ -85,7 +82,8 @@ def run_training(args):
     checkpoints = list(args.output_dir.glob("**/*.pth"))
     if not checkpoints:
         print(f"❌ No checkpoint found in {args.output_dir}")
-        sys.exit(1)
+        print("Resorting to initial checkpoint")
+        return args.checkpoint
 
     best_ckpt = max(checkpoints, key=lambda p: p.stat().st_mtime)
     print(f"✅ Training complete: {best_ckpt.name}\n")
@@ -126,8 +124,6 @@ def run_testing(args, checkpoint):
 
     if args.train_script == "train_benchmark.py":
         cmd.extend(["--benchmark", args.benchmark])
-    else:
-        cmd.extend(["--network", args.network, "--encoder_dim", str(args.encoder_dim)])
 
     # Run
     log_file = test_dir / "test.log"
@@ -232,12 +228,6 @@ def main():
     # Model
     parser.add_argument(
         "--train_script", default="train.py", choices=["train.py", "train_benchmark.py"]
-    )
-    parser.add_argument(
-        "--network", default="segformer-mit_b1", help="Network (for train.py)"
-    )
-    parser.add_argument(
-        "--encoder_dim", type=int, default=512, help="Encoder dim (for train.py)"
     )
     parser.add_argument(
         "--benchmark", default="bifa", help="Benchmark model (for train_benchmark.py)"

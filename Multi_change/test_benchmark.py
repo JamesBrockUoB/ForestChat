@@ -195,14 +195,14 @@ def main(args):
     # UPDATE THIS LOGIC
     if args.benchmark == "change_3d":
         model = Change3d_Trainer(args).to(DEVICE).float()
-        if args.train_goal == 1:
+        if args.test_goal == 1:
             model.encoder.load_state_dict(checkpoint["encoder_state_dict"])
             model.decoder.load_state_dict(checkpoint["decoder_state_dict"])
             model.encoder.eval()
             model.encoder = model.encoder.to(DEVICE)
             model.decoder.eval()
             model.decoder = model.decoder.to(DEVICE)
-        elif args.train_goal == 0:
+        elif args.test_goal == 0:
             model.load_state_dict(checkpoint["state_dict"])
             model.eval()
             model = model.to(DEVICE)
@@ -319,7 +319,7 @@ def main(args):
             token_all = token_all.squeeze(0).to(DEVICE)
 
             if args.benchmark == "change_3d":
-                if args.train_goal == 1:
+                if args.test_goal == 1:
                     encoder_out = model.update_cc(imgA, imgB)
                     encoder_out = rearrange(encoder_out, "b c h w -> (h w) b c")
 
@@ -354,7 +354,7 @@ def main(args):
 
                     evaluator.add_batch(seg_label, pred_seg)
             elif args.benchmark == "bifa":
-                args.train_goal = 0
+                args.test_goal = 0
                 if args.data_name == "LEVIR-MCI-Trees":
                     seg_label = (seg_label > 0).long()
                     args.num_class = 2  # enforce
@@ -369,7 +369,7 @@ def main(args):
 
                 evaluator.add_batch(seg_label, pred_seg)
             elif args.benchmark == "chg2cap":
-                args.train_goal = 1
+                args.test_goal = 1
                 if encoder is not None:
                     feat1, feat2 = encoder(imgA, imgB)
                 feat1, feat2 = encoder_trans(feat1, feat2)
@@ -389,7 +389,7 @@ def main(args):
         test_time = time.time() - test_start_time
 
         # Fast test during the training
-        if args.train_goal == 0:
+        if args.test_goal == 0:
 
             Acc_seg = evaluator.Pixel_Accuracy()
             Acc_class_seg = evaluator.Pixel_Accuracy_Class()
@@ -429,7 +429,7 @@ def main(args):
                 )
             )
 
-        if args.train_goal == 1:
+        if args.test_goal == 1:
             score_dict = get_eval_score(references, hypotheses)
             Bleu_1 = score_dict["Bleu_1"]
             Bleu_2 = score_dict["Bleu_2"]
@@ -522,7 +522,7 @@ if __name__ == "__main__":
         help="save the result of captions",
     )
     parser.add_argument(
-        "--train_goal",
+        "--test_goal",
         type=int,
         default=0,
         help="0:det; 1:cap;",
