@@ -4,7 +4,6 @@ import json
 import os
 import random
 import time
-from distutils.util import strtobool
 
 import numpy as np
 import torch
@@ -124,7 +123,9 @@ class Trainer(object):
                             else args.increased_val_data_size
                         ),
                         num_classes=args.num_classes,
-                        max_percent_samples=args.max_percent_samples,
+                        max_percent_samples=(
+                            args.max_percent_samples if split == "val" else None
+                        ),
                     )
 
                 elif args.data_name == "LEVIR-MCI-Trees":
@@ -137,6 +138,9 @@ class Trainer(object):
                         max_length=self.max_length,
                         allow_unk=args.allow_unk,
                         num_classes=args.num_classes,
+                        max_percent_samples=(
+                            args.max_percent_samples if split == "val" else None
+                        ),
                     )
 
                 elif args.data_name == "JL1-CD-Trees":
@@ -145,7 +149,9 @@ class Trainer(object):
                         split=split,
                         img_size=(256, 256),  # ← IMPORTANT
                         num_classes=args.num_classes,
-                        max_percent_samples=args.max_percent_samples,
+                        max_percent_samples=(
+                            args.max_percent_samples if split == "val" else None
+                        ),
                     )
 
                 else:
@@ -929,7 +935,7 @@ class Trainer(object):
                 model_name = f"{self.args.data_name}_bts_{self.args.train_batchsize}_{self.args.network}_epo_{epoch}_{metric}.pth"
                 best_model_path = os.path.join(self.args.savepath, model_name)
 
-                if epoch > 5:
+                if epoch > self.args.min_save_epoch:
                     # save_checkpoint
                     print(f"Save Model: {best_model_path}")
                     torch.save(state, best_model_path)
@@ -1031,6 +1037,12 @@ if __name__ == "__main__":
         type=int,
         default=None,
         help="Percentage of training samples to use, from 0-1",
+    )
+    parser.add_argument(
+        "--min_save_epoch",
+        type=int,
+        default=5,
+        help="Epoch at which models begin saving",
     )
     parser.add_argument(
         "--num_epochs",

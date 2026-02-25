@@ -6,11 +6,10 @@ Trains a model on N% of data, tests it, and outputs metrics to CSV.
 
 Usage:
     python fewshot_train_test.py \
-        --checkpoint ./models/model.pth \
+        --checkpoint ./models_ckpt/benchmarking_ckpts/model.pth \
         --train_script train.py \
         --data_pct 25 \
-        --output_dir ./results/exp1 \
-        --network segformer-mit_b1 \
+        --output_dir ./models_ckpt/few-shot-experiments \
         --encoder_dim 512
 
 Output:
@@ -23,6 +22,8 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+from utils_tool.utils import *
 
 
 def run_training(args):
@@ -147,7 +148,7 @@ def run_testing(args, checkpoint):
 
 
 def parse_metrics(log_file):
-    """Parse mIoU and class IoUs from test log."""
+    """Parse mIoU and IoU string from test log."""
     with open(log_file, "r") as f:
         content = f.read()
 
@@ -158,17 +159,16 @@ def parse_metrics(log_file):
     if match:
         metrics["mIoU"] = float(match.group(1))
     else:
-        print("⚠️  Could not parse mIoU")
+        print("⚠️ Could not parse mIoU")
         metrics["mIoU"] = None
 
-    # Parse IoU array: IoU: [0.123, 0.456]
-    match = re.search(r"IoU:\s+([0-9.\s]+)\t", content)
+    # Parse full IoU string (keep it as-is)
+    match = re.search(r"IoU:\s+([0-9.\s]+)", content)
     if match:
-        iou_values = [float(x.strip()) for x in match.group(1).split(",")]
-        for i, iou in enumerate(iou_values):
-            metrics[f"IoU_class_{i}"] = iou
+        metrics["IoU"] = match.group(1).strip()
     else:
-        print("⚠️  Could not parse class IoUs")
+        print("⚠️ Could not parse IoU")
+        metrics["IoU"] = None
 
     return metrics
 
@@ -183,12 +183,8 @@ def save_metrics(args, metrics, checkpoint):
         "max_percent_samples": args.data_pct,
         "network": args.network if args.train_script == "train.py" else args.benchmark,
         "mIoU": metrics.get("mIoU"),
+        "IoU": metrics.get("IoU"),
     }
-
-    # Add class IoUs
-    for key, value in metrics.items():
-        if key.startswith("IoU_class_"):
-            row[key] = value
 
     row["trained_checkpoint"] = str(checkpoint)
 
@@ -245,6 +241,12 @@ def main():
     )
     parser.add_argument(
         "--benchmark", default="bifa", help="Benchmark model (for train_benchmark.py)"
+    )
+    parser.add_argument(
+        "--fine_tune_encoder",
+        type=str2bool,
+        default=True,
+        help="whether fine-tune encoder or not",
     )
 
     # Training

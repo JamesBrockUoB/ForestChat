@@ -4,7 +4,6 @@ import json
 import os
 import random
 import time
-from distutils.util import strtobool
 from pathlib import Path
 
 import numpy as np
@@ -102,7 +101,9 @@ class Trainer(object):
                             else args.increased_val_data_size
                         ),
                         num_classes=args.num_classes,
-                        max_percent_samples=args.max_percent_samples,
+                        max_percent_samples=(
+                            args.max_percent_samples if split == "train" else None
+                        ),
                     )
                     if "Forest-Change" in args.data_name
                     else (
@@ -115,14 +116,18 @@ class Trainer(object):
                             max_length=args.max_length,
                             allow_unk=args.allow_unk,
                             num_classes=args.num_classes,
-                            max_percent_samples=args.max_percent_samples,
+                            max_percent_samples=(
+                                args.max_percent_samples if split == "train" else None
+                            ),
                         )
                         if "LEVIR-MCI-Trees" in args.data_name
                         else JL1CDTreesDataset(
                             data_folder=args.data_folder,
                             split=split,
                             num_classes=args.num_classes,
-                            max_percent_samples=args.max_percent_samples,
+                            max_percent_samples=(
+                                args.max_percent_samples if split == "train" else None
+                            ),
                         )
                     )
                 )
@@ -952,7 +957,7 @@ class Trainer(object):
             model_name = f"{args.benchmark}_{args.data_name}_bts_{args.train_batchsize}_epo_{epoch}_{metric}.pth"
             best_model_path = os.path.join(self.args.savepath, model_name)
 
-            if epoch > 5:
+            if epoch > args.min_save_epoch:
                 print(f"Save Model: {best_model_path}")
                 torch.save(state, os.path.join(args.savepath, model_name))
 
@@ -1044,6 +1049,12 @@ if __name__ == "__main__":
         type=int,
         default=None,
         help="Percentage of training samples to use, from 0-1",
+    )
+    parser.add_argument(
+        "--min_save_epoch",
+        type=int,
+        default=5,
+        help="Epoch at which models begin saving",
     )
     parser.add_argument(
         "--num_epochs",
