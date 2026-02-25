@@ -124,7 +124,7 @@ class Trainer(object):
                         ),
                         num_classes=args.num_classes,
                         max_percent_samples=(
-                            args.max_percent_samples if split == "val" else None
+                            args.max_percent_samples if split == "train" else None
                         ),
                     )
 
@@ -139,7 +139,7 @@ class Trainer(object):
                         allow_unk=args.allow_unk,
                         num_classes=args.num_classes,
                         max_percent_samples=(
-                            args.max_percent_samples if split == "val" else None
+                            args.max_percent_samples if split == "train" else None
                         ),
                     )
 
@@ -150,7 +150,7 @@ class Trainer(object):
                         img_size=(256, 256),  # ← IMPORTANT
                         num_classes=args.num_classes,
                         max_percent_samples=(
-                            args.max_percent_samples if split == "val" else None
+                            args.max_percent_samples if split == "train" else None
                         ),
                     )
 

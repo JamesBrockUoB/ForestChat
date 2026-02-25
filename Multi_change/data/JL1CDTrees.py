@@ -73,7 +73,7 @@ class JL1CDTreesDataset(Dataset):
                         "name": name,
                     }
                 )
-        if max_percent_samples is not None:
+        if split == "train" and max_percent_samples is not None:
             max_samples = round(len(self.files) * self.max_percent_samples / 100)
             print(f"Limiting {split} split to {max_samples} samples")
             self.files = self.files[:max_samples]
