@@ -147,7 +147,7 @@ class Trainer(object):
                     dataset = JL1CDTreesDataset(
                         data_folder=args.data_folder,
                         split=split,
-                        img_size=(256, 256),  # ← IMPORTANT
+                        img_size=(256, 256),
                         num_classes=args.num_classes,
                         max_percent_samples=(
                             args.max_percent_samples if split == "train" else None
@@ -161,7 +161,6 @@ class Trainer(object):
 
             self.train_dataset_size = len(datasets[0])
 
-            # 🔥 TRAIN LOADER
             if args.data_name == "JL1-CD-Trees":
                 self.train_loader = data.DataLoader(
                     datasets[0],

@@ -85,8 +85,9 @@ class Trainer(object):
         if args.data_name in ["LEVIR-MCI-Trees", "Forest-Change", "JL1-CD-Trees"]:
             datasets = []
             for split in ["train", "val"]:
-                dataset = (
-                    ForestChangeDataset(
+
+                if args.data_name == "Forest-Change":
+                    dataset = ForestChangeDataset(
                         data_folder=args.data_folder,
                         list_path=args.list_path,
                         split=split,
@@ -105,52 +106,77 @@ class Trainer(object):
                             args.max_percent_samples if split == "train" else None
                         ),
                     )
-                    if "Forest-Change" in args.data_name
-                    else (
-                        LEVIRMCITreesDataset(
-                            data_folder=args.data_folder,
-                            list_path=args.list_path,
-                            split=split,
-                            token_folder=args.token_folder,
-                            vocab_file=args.vocab_file,
-                            max_length=args.max_length,
-                            allow_unk=args.allow_unk,
-                            num_classes=args.num_classes,
-                            max_percent_samples=(
-                                args.max_percent_samples if split == "train" else None
-                            ),
-                        )
-                        if "LEVIR-MCI-Trees" in args.data_name
-                        else JL1CDTreesDataset(
-                            data_folder=args.data_folder,
-                            split=split,
-                            num_classes=args.num_classes,
-                            max_percent_samples=(
-                                args.max_percent_samples if split == "train" else None
-                            ),
-                        )
+
+                elif args.data_name == "LEVIR-MCI-Trees":
+                    dataset = LEVIRMCITreesDataset(
+                        data_folder=args.data_folder,
+                        list_path=args.list_path,
+                        split=split,
+                        token_folder=args.token_folder,
+                        vocab_file=args.vocab_file,
+                        max_length=args.max_length,
+                        allow_unk=args.allow_unk,
+                        num_classes=args.num_classes,
+                        max_percent_samples=(
+                            args.max_percent_samples if split == "train" else None
+                        ),
                     )
-                )
+
+                elif args.data_name == "JL1-CD-Trees":
+                    dataset = JL1CDTreesDataset(
+                        data_folder=args.data_folder,
+                        split=split,
+                        img_size=(256, 256),
+                        num_classes=args.num_classes,
+                        max_percent_samples=(
+                            args.max_percent_samples if split == "train" else None
+                        ),
+                    )
+
+                else:
+                    raise ValueError("Unknown dataset selected")
+
                 datasets.append(dataset)
+
             self.train_dataset_size = len(datasets[0])
-            self.train_loader = data.DataLoader(
-                datasets[0],
-                batch_size=args.train_batchsize,
-                shuffle=True,
-                num_workers=args.workers,
-                pin_memory=True,
-            )
-            self.max_batches = len(self.train_loader)
-            self.val_loader = data.DataLoader(
-                datasets[1],
-                batch_size=args.val_batchsize,
-                shuffle=False,
-                num_workers=args.workers,
-                pin_memory=True,
-            )
+
+            if args.data_name == "JL1-CD-Trees":
+                self.train_loader = data.DataLoader(
+                    datasets[0],
+                    batch_size=args.train_batchsize,
+                    shuffle=True,
+                    num_workers=args.workers,
+                    pin_memory=True,
+                    collate_fn=collate_fn_jl1cd,
+                )
+                self.val_loader = data.DataLoader(
+                    datasets[1],
+                    batch_size=args.val_batchsize,
+                    shuffle=False,
+                    num_workers=args.workers,
+                    pin_memory=True,
+                    collate_fn=collate_fn_jl1cd,
+                )
+            else:
+                self.train_loader = data.DataLoader(
+                    datasets[0],
+                    batch_size=args.train_batchsize,
+                    shuffle=True,
+                    num_workers=args.workers,
+                    pin_memory=True,
+                )
+                self.val_loader = data.DataLoader(
+                    datasets[1],
+                    batch_size=args.val_batchsize,
+                    shuffle=False,
+                    num_workers=args.workers,
+                    pin_memory=True,
+                )
+
         else:
             raise ValueError("Unknown dataset selected")
 
+        self.max_batches = len(self.train_loader)
         self.evaluator = Evaluator(num_class=args.num_classes)
 
         self.best_model_path = None
