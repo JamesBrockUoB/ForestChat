@@ -179,7 +179,7 @@ def save_metrics(args, metrics, checkpoint):
     row = {
         "checkpoint": Path(args.checkpoint).name,
         "max_percent_samples": args.data_pct,
-        "network": args.network if args.train_script == "train.py" else args.benchmark,
+        "network": "mci" if args.train_script == "train.py" else args.benchmark,
         "mIoU": metrics.get("mIoU"),
         "IoU": metrics.get("IoU"),
     }
