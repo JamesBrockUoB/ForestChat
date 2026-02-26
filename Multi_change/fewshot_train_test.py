@@ -66,7 +66,7 @@ def run_training(args):
     if args.train_script == "train_benchmark.py":
         cmd.extend(["--benchmark", args.benchmark])
     else:
-        cmd.extend(["--resume_from_checkpoint", "True"])
+        cmd.extend(["--train_stage", "s2", "--resume_from_checkpoint", "False"])
 
     # Run
     log_file = args.output_dir / "train.log"
@@ -239,12 +239,6 @@ def main():
         type=str2bool,
         default=True,
         help="whether fine-tune encoder or not",
-    )
-    parser.add_argument(
-        "--resume_from_checkpoint",
-        type=str2bool,
-        default=True,
-        help="Whether to resume mci model training from checkpoint or not",
     )
 
     # Training
