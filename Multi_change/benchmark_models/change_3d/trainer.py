@@ -174,6 +174,7 @@ class Change3d_Trainer(nn.Module):
         """
         super().__init__()
         self.args = args
+        train_goal = self.args.test_goal
 
         # Define embedding dimensions for each stage
         self.embed_dims = [24, 24, 48, 96]
@@ -182,11 +183,11 @@ class Change3d_Trainer(nn.Module):
         self.encoder = Encoder(args, self.embed_dims)
 
         # For binary change detection and change caption task
-        if args.train_goal == 0:
+        if train_goal == 0:
             self.decoder = ChangeDecoder(args, in_dim=self.embed_dims, has_sigmoid=True)
             # Initialize decoder weights
             weight_init(self.decoder)
-        elif args.train_goal == 1:
+        elif train_goal == 1:
             self.decoder = CaptionDecoder(args)
         else:
             assert False
