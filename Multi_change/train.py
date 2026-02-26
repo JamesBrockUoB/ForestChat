@@ -1111,7 +1111,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_classes", type=int, default=2)
     parser.add_argument(
         "--loss_balancing_method",
-        default="uncert",
+        default="normalised",
         help="loss balancing approach method",
         choices=["edwa", "uncert", "normalised"],
     )
