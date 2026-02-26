@@ -174,7 +174,7 @@ class Change3d_Trainer(nn.Module):
         """
         super().__init__()
         self.args = args
-        train_goal = self.args.test_goal
+        goal = self._get_goal(self.args)
 
         # Define embedding dimensions for each stage
         self.embed_dims = [24, 24, 48, 96]
@@ -183,11 +183,11 @@ class Change3d_Trainer(nn.Module):
         self.encoder = Encoder(args, self.embed_dims)
 
         # For binary change detection and change caption task
-        if train_goal == 0:
+        if goal == 0:
             self.decoder = ChangeDecoder(args, in_dim=self.embed_dims, has_sigmoid=True)
             # Initialize decoder weights
             weight_init(self.decoder)
-        elif train_goal == 1:
+        elif goal == 1:
             self.decoder = CaptionDecoder(args)
         else:
             assert False
@@ -229,3 +229,11 @@ class Change3d_Trainer(nn.Module):
         features = self.encoder(x, y, output_final=True)
 
         return features
+
+    def _get_goal(self, args: Any) -> int:
+        """Extract goal from args, checking both train_goal and test_goal."""
+        if hasattr(args, "train_goal") and args.train_goal is not None:
+            return args.train_goal
+        if hasattr(args, "test_goal") and args.test_goal is not None:
+            return args.test_goal
+        raise ValueError("args must contain either 'train_goal' or 'test_goal'")
