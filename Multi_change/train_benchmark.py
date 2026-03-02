@@ -15,7 +15,7 @@ from benchmark_models.change_3d.trainer import Change3d_Trainer
 from benchmark_models.change_3d.utils import BCEDiceLoss
 from benchmark_models.chg2cap.model_decoder import DecoderTransformer
 from benchmark_models.chg2cap.model_encoder import AttentiveEncoder, Encoder
-from benchmark_models.u_net.u_net import UNet
+from benchmark_models.fc_siam_diff.fc_siam_diff import FCSiamDiff_Wrapper
 from data.ForestChange import ForestChangeDataset
 from data.JL1CDTrees import JL1CDTreesDataset
 from data.LEVIRMCITrees import LEVIRMCITreesDataset
@@ -394,8 +394,8 @@ class Trainer(object):
             self.decoder_lr_scheduler = torch.optim.lr_scheduler.StepLR(
                 self.decoder_optimizer, step_size=5, gamma=0.5
             )
-        elif args.benchmark == "u_net":
-            self.model = UNet(
+        elif args.benchmark == "fc_siam_diff":
+            self.model = FCSiamDiff_Wrapper(
                 encoder_name=args.encoder_name,
                 encoder_weights=args.encoder_weights,
                 in_channels=args.in_channels,
@@ -460,7 +460,7 @@ class Trainer(object):
             self.decoder.train()
             self.encoder.train()
             self.encoder_trans.train()
-        elif args.benchmark == "u_net":
+        elif args.benchmark == "fc_siam_diff":
             self.model.train()
 
         for id, (imgA, imgB, seg_label, _, _, token, token_len, _) in enumerate(
@@ -586,7 +586,7 @@ class Trainer(object):
                 self.encoder_trans_optimizer.step()
                 if self.encoder_optimizer is not None:
                     self.encoder_optimizer.step()
-            elif args.benchmark == "u_net":
+            elif args.benchmark == "fc_siam_diff":
                 seg_pred = self.model(imgA, imgB)
 
                 if seg_label.ndim == 4:
@@ -681,7 +681,7 @@ class Trainer(object):
 
         if args.benchmark == "bifa":
             self.scheduler.step()
-        elif args.benchmark == "u_net":
+        elif args.benchmark == "fc_siam_diff":
             self.scheduler.step()
 
         gc.collect()
@@ -704,7 +704,7 @@ class Trainer(object):
             self.encoder_trans.eval()
             if self.encoder is not None:
                 self.encoder.eval()
-        elif args.benchmark == "u_net":
+        elif args.benchmark == "fc_siam_diff":
             self.model.to(DEVICE).eval()
 
         val_start_time = time.time()
@@ -852,7 +852,7 @@ class Trainer(object):
                             for j in i:
                                 ref_caption += (list(word_vocab.keys())[j]) + " "
                             ref_caption += ".    "
-                elif args.benchmark == "u_net":
+                elif args.benchmark == "fc_siam_diff":
                     args.test_goal = 0
 
                     if args.data_name == "LEVIR-MCI-Trees":
@@ -1021,7 +1021,7 @@ class Trainer(object):
                     "encoder_trans_optimizer": self.encoder_trans_optimizer.state_dict(),
                     "decoder_optimizer": self.decoder_optimizer.state_dict(),
                 }
-            elif args.benchmark == "u_net":
+            elif args.benchmark == "fc_siam_diff":
                 state = {
                     "state_dict": self.model.state_dict(),
                     "arch": str(self.model),
@@ -1083,7 +1083,7 @@ if __name__ == "__main__":
         "--benchmark",
         default=None,
         help="name of the benchmark model to be loaded",
-        choices=["change_3d", "bifa", "chg2cap", "u_net"],
+        choices=["change_3d", "bifa", "chg2cap", "fc_siam_diff"],
     )
 
     parser.add_argument(
@@ -1172,7 +1172,7 @@ if __name__ == "__main__":
         args.train_goal = 0
     elif args.benchmark == "chg2cap":
         args.train_goal = 1
-    elif args.benchmark == "u_net":
+    elif args.benchmark == "fc_siam_diff":
         args.train_goal = 0
 
     trainer = Trainer(args)
@@ -1194,4 +1194,5 @@ if __name__ == "__main__":
                 )
                 break
     except Exception as e:
+        print_log("Hit an exception: {}".format(e), trainer.log)
         print_log("Hit an exception: {}".format(e), trainer.log)

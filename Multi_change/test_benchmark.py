@@ -11,7 +11,7 @@ from benchmark_models.bifa.bifa import BiFA
 from benchmark_models.change_3d.trainer import Change3d_Trainer
 from benchmark_models.chg2cap.model_decoder import DecoderTransformer
 from benchmark_models.chg2cap.model_encoder import AttentiveEncoder, Encoder
-from benchmark_models.u_net.u_net import UNet
+from benchmark_models.fc_siam_diff.fc_siam_diff import FCSiamDiff_Wrapper
 from data.ForestChange import ForestChangeDataset
 from data.JL1CDTrees import JL1CDTreesDataset
 from data.LEVIRMCITrees import LEVIRMCITreesDataset
@@ -225,8 +225,8 @@ def main(args):
         encoder_trans = encoder_trans.to(DEVICE)
         decoder.eval()
         decoder = decoder.to(DEVICE)
-    elif args.benchmark == "u_net":
-        model = UNet(
+    elif args.benchmark == "fc_siam_diff":
+        model = FCSiamDiff_Wrapper(
             encoder_name=args.encoder_name,
             encoder_weights=None,
             in_channels=args.in_channels,
@@ -374,7 +374,7 @@ def main(args):
                     references,
                     hypotheses,
                 )
-            elif args.benchmark == "u_net":
+            elif args.benchmark == "fc_siam_diff":
                 args.test_goal = 0
                 seg_pred = model(imgA, imgB)
                 if seg_label.ndim == 4:
@@ -493,7 +493,7 @@ if __name__ == "__main__":
         "--benchmark",
         default=None,
         help="name of the benchmark model to be loaded",
-        choices=["change_3d", "bifa", "chg2cap", "u_net"],
+        choices=["change_3d", "bifa", "chg2cap", "fc_siam_diff"],
     )
 
     parser.add_argument("--gpu_id", type=int, default=0, help="gpu id in the training.")

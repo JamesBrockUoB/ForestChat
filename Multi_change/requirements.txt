@@ -20,7 +20,7 @@ albumentations==2.0.8
 pyproj==3.6.1
 python-dotenv==1.1.1
 git+https://github.com/Z-Zheng/pytorch-change-models
-huggingface-hub==0.23.0
+huggingface-hub==0.36.2
 datasets==2.15.0
 ever-beta==0.5.6
 git+https://github.com/huggingface/transformers.git@v4.38.2
@@ -29,4 +29,5 @@ wandb==0.22.3
 fvcore==0.1.5.post20221221
 pytorchvideo==0.1.5
 sam2==1.1.0
-segmentation_models_pytorch==0.3.3
+torchgeo==0.7.0
+
