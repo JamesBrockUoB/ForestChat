@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from imageio.v2 import imread
 from mci_model.model_decoder import DecoderTransformer
-from mci_model.model_encoder_att import AttentiveEncoder, Encoder
+from mci_model.model_encoder_att import AttentiveEncoder, Encoder, get_backbone_dims
 from scipy.ndimage import distance_transform_edt
 from skimage import measure
 from skimage.segmentation import find_boundaries
@@ -160,7 +160,7 @@ class Change_Perception(object):
 
         self.encoder = Encoder(args.network)
 
-        dims = [32, 64, 160, 256] if "mit_b0" in args.network else [64, 128, 320, 512]
+        dims = get_backbone_dims(args.network)
         self.encoder_trans = AttentiveEncoder(
             train_stage=None,
             n_layers=args.n_layers,

@@ -437,7 +437,7 @@ if __name__ == "__main__":
 
     # Test
     parser.add_argument("--gpu_id", type=int, default=0, help="gpu id in the training.")
-    parser.add_argument(
+    parser.add_argument(ls 
         "--checkpoint",
         default="./models_ckpt/Forest-Change_model.pth",
         help="path to checkpoint",
