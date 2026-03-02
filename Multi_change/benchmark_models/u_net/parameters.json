@@ -1,0 +1,8 @@
+{
+    "encoder_name": "resnet50",
+    "encoder_weights": "imagenet",
+    "in_channels": 3,
+    "lr": 0.01,
+    "momentum": 0.9,
+    "weight_decay": 0.0005
+}

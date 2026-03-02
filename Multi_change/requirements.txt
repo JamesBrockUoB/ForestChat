@@ -29,3 +29,4 @@ wandb==0.22.3
 fvcore==0.1.5.post20221221
 pytorchvideo==0.1.5
 sam2==1.1.0
+segmentation_models_pytorch==0.3.3

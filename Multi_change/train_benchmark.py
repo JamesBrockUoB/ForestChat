@@ -15,6 +15,7 @@ from benchmark_models.change_3d.trainer import Change3d_Trainer
 from benchmark_models.change_3d.utils import BCEDiceLoss
 from benchmark_models.chg2cap.model_decoder import DecoderTransformer
 from benchmark_models.chg2cap.model_encoder import AttentiveEncoder, Encoder
+from benchmark_models.u_net.u_net import UNet
 from data.ForestChange import ForestChangeDataset
 from data.JL1CDTrees import JL1CDTreesDataset
 from data.LEVIRMCITrees import LEVIRMCITreesDataset
@@ -33,9 +34,6 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class Trainer(object):
     def __init__(self, args):
-        """
-        Training and validation.
-        """
         self.args = args
         self.run = wandb.init(
             project="forest-chat",
@@ -66,7 +64,7 @@ class Trainer(object):
         print_log("=>train_batchsize: {}".format(args.train_batchsize), self.log)
         print_log("=>benchmark: {}".format(args.benchmark), self.log)
 
-        self.best_bleu4 = 0.0  # BLEU-4 score right now
+        self.best_bleu4 = 0.0
         self.MIou = 0.3
         self.start_epoch = 0
         with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
@@ -78,10 +76,8 @@ class Trainer(object):
             args.max_length = json.load(f)["max_length"]
 
         args.vocab_size = len(args.word_vocab)
-        # Initialize / load checkpoint
         self.build_benchmark_model()
 
-        # Custom dataloaders
         if args.data_name in ["LEVIR-MCI-Trees", "Forest-Change", "JL1-CD-Trees"]:
             datasets = []
             for split in ["train", "val"]:
@@ -380,11 +376,9 @@ class Trainer(object):
                         ),
                         lr=args.encoder_lr,
                     )
-            # Move to GPU, if available
             self.encoder = self.encoder.to(DEVICE)
             self.encoder_trans = self.encoder_trans.to(DEVICE)
             self.decoder = self.decoder.to(DEVICE)
-            # Loss function
             self.criterion = torch.nn.CrossEntropyLoss().to(DEVICE)
 
             self.encoder_lr_scheduler = (
@@ -400,11 +394,46 @@ class Trainer(object):
             self.decoder_lr_scheduler = torch.optim.lr_scheduler.StepLR(
                 self.decoder_optimizer, step_size=5, gamma=0.5
             )
+        elif args.benchmark == "u_net":
+            self.model = UNet(
+                encoder_name=args.encoder_name,
+                encoder_weights=args.encoder_weights,
+                in_channels=args.in_channels,
+                classes=args.num_classes,
+            ).to(DEVICE)
+
+            self.criterion = nn.CrossEntropyLoss().to(DEVICE)
+
+            self.optimizer = torch.optim.SGD(
+                self.model.parameters(),
+                lr=args.lr,
+                momentum=args.momentum,
+                weight_decay=args.weight_decay,
+            )
+
+            def lambda_rule(epoch):
+                lr_l = 1.0 - epoch / float(args.num_epochs + 1)
+                return lr_l
+
+            self.scheduler = torch.optim.lr_scheduler.LambdaLR(
+                self.optimizer, lr_lambda=lambda_rule
+            )
+
+            if args.checkpoint:
+                print_log(f"Resuming from checkpoint: {args.checkpoint}", self.log)
+                checkpoint = torch.load(args.checkpoint, map_location=DEVICE)
+
+                self.model.load_state_dict(checkpoint["state_dict"])
+                self.optimizer.load_state_dict(checkpoint["optimizer"])
+                self.scheduler.load_state_dict(checkpoint["scheduler"])
+
+                self.start_epoch = checkpoint.get("epoch", 0)
+                self.best_epoch = checkpoint.get("epoch", 0)
+                self.MIou = checkpoint.get("best_mIoU", 0.3)
         else:
             raise ValueError("Unknown benchmark model selected.")
 
     def training(self, args, epoch, lr_factor=1.0):
-        # Only need one epoch of hist for printing as is stored in wandb to reduce memory
         self.index_i = 0
         self.hist = np.zeros((args.num_epochs * self.max_batches, 5))
 
@@ -431,6 +460,8 @@ class Trainer(object):
             self.decoder.train()
             self.encoder.train()
             self.encoder_trans.train()
+        elif args.benchmark == "u_net":
+            self.model.train()
 
         for id, (imgA, imgB, seg_label, _, _, token, token_len, _) in enumerate(
             self.train_loader
@@ -439,7 +470,7 @@ class Trainer(object):
 
             if args.data_name == "LEVIR-MCI-Trees":
                 seg_label = (seg_label > 0).long()
-                args.num_classes = 2  # enforce
+                args.num_classes = 2
 
             imgA = imgA.to(DEVICE)
             imgB = imgB.to(DEVICE)
@@ -479,7 +510,6 @@ class Trainer(object):
                         if self.encoder_optimizer is not None:
                             clip_gradient(self.encoder_optimizer, args.grad_clip)
 
-                    # Update weights
                     self.encoder_optimizer.step()
                     self.encoder_lr_scheduler.step()
                     self.decoder_optimizer.step()
@@ -529,7 +559,6 @@ class Trainer(object):
                     feat1, feat2, token, token_len
                 )
 
-                # Since we decoded starting with <start>, the targets are all words after <start>, up to <end>
                 targets = caps_sorted[:, 1:]
                 scores = pack_padded_sequence(
                     scores, decode_lengths, batch_first=True
@@ -538,12 +567,9 @@ class Trainer(object):
                     targets, decode_lengths, batch_first=True
                 ).data
 
-                # Calculate loss
                 cap_loss = self.criterion(scores, targets)
-                # Back prop.
                 cap_loss.backward()
 
-                # Clip gradients
                 if args.grad_clip is not None:
                     torch.nn.utils.clip_grad_value_(
                         self.decoder.parameters(), args.grad_clip
@@ -556,28 +582,37 @@ class Trainer(object):
                             self.encoder.parameters(), args.grad_clip
                         )
 
-                # Update weights
                 self.decoder_optimizer.step()
                 self.encoder_trans_optimizer.step()
                 if self.encoder_optimizer is not None:
                     self.encoder_optimizer.step()
+            elif args.benchmark == "u_net":
+                seg_pred = self.model(imgA, imgB)
 
-            # Keep track of metrics
-            self.hist[self.index_i, 0] = time.time() - start_time  # batch_time
+                if seg_label.ndim == 4:
+                    seg_label = seg_label.squeeze(1)
+
+                seg_label = seg_label.long()
+                det_loss = self.criterion(seg_pred, seg_label)
+
+                self.optimizer.zero_grad()
+                det_loss.backward()
+                self.optimizer.step()
+
+            self.hist[self.index_i, 0] = time.time() - start_time
             if self.args.train_goal == 0:
-                self.hist[self.index_i, 1] = det_loss.item()  # train_loss
+                self.hist[self.index_i, 1] = det_loss.item()
                 self.hist[self.index_i, 2] = accuracy(
                     seg_pred.permute(0, 2, 3, 1).reshape(-1, seg_pred.size(1)),
                     seg_label.reshape(-1),
                     1,
                 )
             if self.args.train_goal == 1:
-                self.hist[self.index_i, 3] = cap_loss.item()  # train_loss
-                self.hist[self.index_i, 4] = accuracy(scores, targets, 5)  # top5
+                self.hist[self.index_i, 3] = cap_loss.item()
+                self.hist[self.index_i, 4] = accuracy(scores, targets, 5)
 
             self.index_i += 1
             log_vals = False
-            # Print status
             if self.index_i % args.print_freq == 0 and args.print_freq > 1:
                 log_vals = True
                 print_vals = (
@@ -646,12 +681,13 @@ class Trainer(object):
 
         if args.benchmark == "bifa":
             self.scheduler.step()
+        elif args.benchmark == "u_net":
+            self.scheduler.step()
 
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-    # One epoch's validation
     def validation(self, epoch):
         word_vocab = self.args.word_vocab
 
@@ -664,19 +700,20 @@ class Trainer(object):
         elif args.benchmark == "bifa":
             self.model.to(DEVICE).eval()
         elif args.benchmark == "chg2cap":
-            self.decoder.eval()  # eval mode (no dropout or batchnorm)
+            self.decoder.eval()
             self.encoder_trans.eval()
             if self.encoder is not None:
                 self.encoder.eval()
+        elif args.benchmark == "u_net":
+            self.model.to(DEVICE).eval()
 
         val_start_time = time.time()
-        references = list()  # references (true captions) for calculating BLEU-4 score
-        hypotheses = list()  # hypotheses (predictions)
+        references = list()
+        hypotheses = list()
 
         self.evaluator.reset()
 
         with torch.no_grad():
-            # Batches
             for ind, (
                 imgA,
                 imgB,
@@ -694,9 +731,8 @@ class Trainer(object):
             ):
                 if args.data_name == "LEVIR-MCI-Trees":
                     seg_label = (seg_label > 0).long()
-                    args.num_classes = 2  # enforce
+                    args.num_classes = 2
 
-                # Move to GPU, if available
                 imgA = imgA.to(DEVICE)
                 imgB = imgB.to(DEVICE)
                 seg_label = seg_label.to(DEVICE)
@@ -724,7 +760,7 @@ class Trainer(object):
                                 ],
                                 img_token,
                             )
-                        )  # remove <start> and pads
+                        )
                         references.append(img_tokens)
 
                         pred_seq = [
@@ -750,8 +786,6 @@ class Trainer(object):
                                 for j in i:
                                     ref_caption += (list(word_vocab.keys())[j]) + " "
                                 ref_caption += ".    "
-                            # print(f"Pred caption: {pred_caption}")
-                            # print(f"Ref caption: {ref_caption}")
                     else:
                         seg_pred = self.model.update_bcd(imgA, imgB)
                         seg_pred = seg_pred.squeeze(1)
@@ -792,7 +826,7 @@ class Trainer(object):
                             ],
                             img_token,
                         )
-                    )  # remove <start> and pads
+                    )
                     references.append(img_tokens)
 
                     pred_seq = [
@@ -818,15 +852,25 @@ class Trainer(object):
                             for j in i:
                                 ref_caption += (list(word_vocab.keys())[j]) + " "
                             ref_caption += ".    "
-                            # print(f"Pred caption: {pred_caption}")
-                            # print(f"Ref caption: {ref_caption}")
+                elif args.benchmark == "u_net":
+                    args.test_goal = 0
+
+                    if args.data_name == "LEVIR-MCI-Trees":
+                        seg_label = (seg_label > 0).long()
+                        args.num_classes = 2
+
+                    seg_pred = self.model(imgA, imgB)
+                    seg_pred = torch.argmax(seg_pred, dim=1)
+
+                    pred_seg = seg_pred.data.cpu().numpy()
+                    seg_label = seg_label.cpu().numpy()
+
+                    self.evaluator.add_batch(seg_label, pred_seg)
 
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
 
             val_time = time.time() - val_start_time
-            # Fast test during the training
-            # for segmentation
             if self.args.train_goal == 0:
                 Acc_seg = self.evaluator.Pixel_Accuracy()
                 Acc_class_seg = self.evaluator.Pixel_Accuracy_Class()
@@ -879,7 +923,6 @@ class Trainer(object):
                     }
                 )
 
-            # Calculate evaluation scores
             if self.args.train_goal == 1:
                 score_dict = get_eval_score(references, hypotheses)
                 Bleu_1 = score_dict["Bleu_1"]
@@ -931,7 +974,6 @@ class Trainer(object):
             if self.encoder_lr_scheduler is not None:
                 self.encoder_lr_scheduler.step()
 
-        # Check if there was an improvement
         if args.train_goal == 0:
             Bleu_4 = 0
         if args.train_goal == 1:
@@ -979,8 +1021,16 @@ class Trainer(object):
                     "encoder_trans_optimizer": self.encoder_trans_optimizer.state_dict(),
                     "decoder_optimizer": self.decoder_optimizer.state_dict(),
                 }
+            elif args.benchmark == "u_net":
+                state = {
+                    "state_dict": self.model.state_dict(),
+                    "arch": str(self.model),
+                    "epoch": epoch + 1,
+                    "best_mIoU": self.MIou,
+                    "optimizer": self.optimizer.state_dict(),
+                    "scheduler": self.scheduler.state_dict(),
+                }
 
-            # save_checkpoint
             metric = f"MIou_{round(100000 * self.MIou)}_Bleu4_{round(100000 * self.best_bleu4)}"
             model_name = f"{args.benchmark}_{args.data_name}_bts_{args.train_batchsize}_epo_{epoch}_{metric}.pth"
             best_model_path = os.path.join(self.args.savepath, model_name)
@@ -1000,7 +1050,6 @@ if __name__ == "__main__":
         description="Remote_Sensing_Image_Change_Interpretation"
     )
 
-    # Data parameters
     parser.add_argument("--sys", default="win", help="system win or linux")
     parser.add_argument(
         "--data_folder",
@@ -1034,7 +1083,7 @@ if __name__ == "__main__":
         "--benchmark",
         default=None,
         help="name of the benchmark model to be loaded",
-        choices=["change_3d", "bifa", "chg2cap"],
+        choices=["change_3d", "bifa", "chg2cap", "u_net"],
     )
 
     parser.add_argument(
@@ -1043,7 +1092,6 @@ if __name__ == "__main__":
         default=5,
         help="print training/validation stats every __ batches",
     )
-    # Training parameters
     parser.add_argument(
         "--train_goal",
         type=int,
@@ -1076,7 +1124,7 @@ if __name__ == "__main__":
         "--max_percent_samples",
         type=int,
         default=None,
-        help="Percentage of training samples to use, from 0-1",
+        help="Percentage of training samples to use, from 0-100",
     )
     parser.add_argument(
         "--min_save_epoch",
@@ -1098,7 +1146,6 @@ if __name__ == "__main__":
     )
     parser.add_argument("--workers", type=int, default=4, help="for data-loading")
 
-    # Validation
     parser.add_argument(
         "--val_batchsize", type=int, default=1, help="batch_size for validation"
     )
@@ -1125,6 +1172,8 @@ if __name__ == "__main__":
         args.train_goal = 0
     elif args.benchmark == "chg2cap":
         args.train_goal = 1
+    elif args.benchmark == "u_net":
+        args.train_goal = 0
 
     trainer = Trainer(args)
     print_log("\nStarting Epoch: {}".format(trainer.start_epoch), trainer.log)
@@ -1136,7 +1185,6 @@ if __name__ == "__main__":
     try:
         for epoch in range(trainer.start_epoch, trainer.args.num_epochs):
             trainer.training(trainer.args, epoch)
-            # if not trainer.args.no_val and epoch % args.eval_interval == (args.eval_interval - 1):
             trainer.validation(epoch)
 
             if epoch - trainer.best_epoch > trainer.args.patience:

@@ -11,6 +11,7 @@ from benchmark_models.bifa.bifa import BiFA
 from benchmark_models.change_3d.trainer import Change3d_Trainer
 from benchmark_models.chg2cap.model_decoder import DecoderTransformer
 from benchmark_models.chg2cap.model_encoder import AttentiveEncoder, Encoder
+from benchmark_models.u_net.u_net import UNet
 from data.ForestChange import ForestChangeDataset
 from data.JL1CDTrees import JL1CDTreesDataset
 from data.LEVIRMCITrees import LEVIRMCITreesDataset
@@ -32,7 +33,6 @@ def process_caption(
     references,
     hypotheses,
 ):
-    # Convert tokens
     img_token = token_all.tolist()
     img_tokens = [
         [
@@ -53,13 +53,11 @@ def process_caption(
     hypotheses.append(pred_seq)
     assert len(references) == len(hypotheses)
 
-    # Build captions
     pred_caption = " ".join(list(word_vocab.keys())[i] for i in pred_seq)
     ref_captions = ""
     for tokens in img_tokens:
         ref_captions += " ".join(list(word_vocab.keys())[i] for i in tokens) + ".    "
 
-    # Save captions if requested
     if args.save_caption:
         save_captions(
             pred_caption,
@@ -72,14 +70,11 @@ def process_caption(
 
 
 def save_mask(pred, gt, name, save_path, args):
-    # pred value: 0,1,2; map to black, yellow, red
-    # gt value: 0,1,2; map to black, yellow, red
     name = name[0]
     evaluator = Evaluator(num_class=args.num_classes)
     evaluator.add_batch(gt, pred)
     mIoU_seg, IoU = evaluator.Mean_Intersection_over_Union()
     Miou_str = round(mIoU_seg, 4)
-    # Miou_str save in json file named score
     json_name = os.path.join(save_path, "score.json")
     if not os.path.exists(json_name):
         with open(json_name, "a+") as f:
@@ -91,12 +86,10 @@ def save_mask(pred, gt, name, save_path, args):
             data = json.load(file)
             key = name.split(".")[0]
             data[key] = {"MIoU": Miou_str}
-        # write to json file
         with open(os.path.join(save_path, "score.json"), "w") as file:
             json.dump(data, file)
         file.close()
 
-    # save mask
     pred = pred[0].astype(np.uint8)
     gt = gt[0].astype(np.uint8)
     pred_rgb = np.zeros((pred.shape[0], pred.shape[1], 3), dtype=np.uint8)
@@ -133,14 +126,12 @@ def save_mask(pred, gt, name, save_path, args):
 
 def save_captions(pred_caption, ref_caption, hypotheses, references, name, save_path):
     name = name[0]
-    # return 0
     score_dict = get_eval_score([references], [hypotheses])
     Bleu_4 = score_dict["Bleu_4"]
     Bleu_4_str = round(Bleu_4, 4)
     Bleu_3 = score_dict["Bleu_3"]
     Bleu_3_str = round(Bleu_3, 4)
 
-    # read JSON
     json_name = os.path.join(save_path, "score.json")
     if not os.path.exists(json_name):
         with open(json_name, "a+") as f:
@@ -162,10 +153,6 @@ def save_captions(pred_caption, ref_caption, hypotheses, references, name, save_
 
 
 def main(args):
-    """
-    Testing.
-    """
-
     with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
         args.word_vocab = json.load(f)
 
@@ -174,7 +161,6 @@ def main(args):
 
     args.vocab_size = len(args.word_vocab)
 
-    # Load checkpoint
     snapshot_full_path = args.checkpoint
     checkpoint = torch.load(snapshot_full_path, map_location=DEVICE)
 
@@ -185,14 +171,12 @@ def main(args):
         os.makedirs(args.result_path, exist_ok=True)
     else:
         print("result_path exists!")
-        # clear folder
         for root, dirs, files in os.walk(args.result_path):
             for name in files:
                 os.remove(os.path.join(root, name))
             for name in dirs:
                 os.rmdir(os.path.join(root, name))
 
-    # UPDATE THIS LOGIC
     if args.benchmark == "change_3d":
         model = Change3d_Trainer(args).to(DEVICE).float()
         if args.test_goal == 1:
@@ -241,10 +225,20 @@ def main(args):
         encoder_trans = encoder_trans.to(DEVICE)
         decoder.eval()
         decoder = decoder.to(DEVICE)
+    elif args.benchmark == "u_net":
+        model = UNet(
+            encoder_name=args.encoder_name,
+            encoder_weights=None,
+            in_channels=args.in_channels,
+            classes=args.num_classes,
+        ).to(DEVICE)
+
+        checkpoint = torch.load(snapshot_full_path, map_location=DEVICE)
+        model.load_state_dict(checkpoint["state_dict"])
+        model.eval()
     else:
         raise ValueError("Unknown benchmark model selected.")
 
-    # Custom dataloaders
     if args.data_name == "JL1-CD-Trees":
         dataset = JL1CDTreesDataset(
             data_folder=args.data_folder,
@@ -295,10 +289,9 @@ def main(args):
     else:
         raise ValueError("Unknown dataset selected")
 
-    # Epochs
     test_start_time = time.time()
-    references = list()  # references (true captions) for calculating BLEU-4 score
-    hypotheses = list()  # hypotheses (predictions)
+    references = list()
+    hypotheses = list()
     evaluator = Evaluator(num_class=args.num_classes)
     with torch.no_grad():
         for ind, (
@@ -313,10 +306,13 @@ def main(args):
         ) in enumerate(
             tqdm(test_loader, desc="test_" + " EVALUATING AT BEAM SIZE " + str(1))
         ):
-            # Move to GPU, if available
             imgA = imgA.to(DEVICE)
             imgB = imgB.to(DEVICE)
             token_all = token_all.squeeze(0).to(DEVICE)
+
+            if args.data_name == "LEVIR-MCI-Trees":
+                seg_label = (seg_label > 0).long()
+                args.num_class = 2
 
             if args.benchmark == "change_3d":
                 if args.test_goal == 1:
@@ -335,10 +331,6 @@ def main(args):
                         hypotheses,
                     )
                 else:
-                    if args.data_name == "LEVIR-MCI-Trees":
-                        seg_label = (seg_label > 0).long()
-                        args.num_class = 2  # enforce
-
                     seg_pred = model.update_bcd(imgA, imgB)
                     seg_pred = seg_pred.squeeze(1)
                     seg_pred = torch.where(
@@ -355,9 +347,6 @@ def main(args):
                     evaluator.add_batch(seg_label, pred_seg)
             elif args.benchmark == "bifa":
                 args.test_goal = 0
-                if args.data_name == "LEVIR-MCI-Trees":
-                    seg_label = (seg_label > 0).long()
-                    args.num_class = 2  # enforce
 
                 seg_pred = model(imgA, imgB)
                 seg_pred = np.argmax(seg_pred, axis=1)
@@ -385,10 +374,22 @@ def main(args):
                     references,
                     hypotheses,
                 )
+            elif args.benchmark == "u_net":
+                args.test_goal = 0
+                seg_pred = model(imgA, imgB)
+                if seg_label.ndim == 4:
+                    seg_label = seg_label.squeeze(1)
+
+                pred_seg = seg_pred.data.cpu().numpy()
+                seg_label = seg_label.cpu().long().numpy()
+
+                if args.save_mask:
+                    save_mask(pred_seg, seg_label, name, args.result_path, args)
+
+                evaluator.add_batch(seg_label, pred_seg)
 
         test_time = time.time() - test_start_time
 
-        # Fast test during the training
         if args.test_goal == 0:
 
             Acc_seg = evaluator.Pixel_Accuracy()
@@ -458,7 +459,6 @@ if __name__ == "__main__":
         description="Remote_Sensing_Image_Change_Interpretation"
     )
 
-    # Data parameters
     parser.add_argument("--sys", default="linux", help="system win or linux")
     parser.add_argument(
         "--data_folder",
@@ -493,10 +493,9 @@ if __name__ == "__main__":
         "--benchmark",
         default=None,
         help="name of the benchmark model to be loaded",
-        choices=["change_3d", "bifa", "chg2cap"],
+        choices=["change_3d", "bifa", "chg2cap", "u_net"],
     )
 
-    # Test
     parser.add_argument("--gpu_id", type=int, default=0, help="gpu id in the training.")
     parser.add_argument(
         "--checkpoint",
@@ -511,7 +510,6 @@ if __name__ == "__main__":
     )
     parser.add_argument("--test_batchsize", default=1, help="batch_size for test")
     parser.add_argument("--workers", type=int, default=0, help="for data-loading")
-    # save masks and captions?
     parser.add_argument(
         "--save_mask", type=str2bool, default=True, help="save the result of masks"
     )
