@@ -402,21 +402,13 @@ class Trainer(object):
                 classes=args.num_classes,
             ).to(DEVICE)
 
-            self.criterion = nn.CrossEntropyLoss().to(DEVICE)
+            self.criterion = ce_dice
 
-            self.optimizer = torch.optim.SGD(
+            self.optimizer = torch.optim.Adam(
                 self.model.parameters(),
                 lr=args.lr,
-                momentum=args.momentum,
+                eps=1e-08,
                 weight_decay=args.weight_decay,
-            )
-
-            def lambda_rule(epoch):
-                lr_l = 1.0 - epoch / float(args.num_epochs + 1)
-                return lr_l
-
-            self.scheduler = torch.optim.lr_scheduler.LambdaLR(
-                self.optimizer, lr_lambda=lambda_rule
             )
 
             if args.checkpoint:
@@ -425,7 +417,6 @@ class Trainer(object):
 
                 self.model.load_state_dict(checkpoint["state_dict"])
                 self.optimizer.load_state_dict(checkpoint["optimizer"])
-                self.scheduler.load_state_dict(checkpoint["scheduler"])
 
                 self.start_epoch = checkpoint.get("epoch", 0)
                 self.best_epoch = checkpoint.get("epoch", 0)
@@ -680,8 +671,6 @@ class Trainer(object):
                 )
 
         if args.benchmark == "bifa":
-            self.scheduler.step()
-        elif args.benchmark == "fc_siam_diff":
             self.scheduler.step()
 
         gc.collect()
@@ -1028,7 +1017,6 @@ class Trainer(object):
                     "epoch": epoch + 1,
                     "best_mIoU": self.MIou,
                     "optimizer": self.optimizer.state_dict(),
-                    "scheduler": self.scheduler.state_dict(),
                 }
 
             metric = f"MIou_{round(100000 * self.MIou)}_Bleu4_{round(100000 * self.best_bleu4)}"

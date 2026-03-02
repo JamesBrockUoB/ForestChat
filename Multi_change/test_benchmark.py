@@ -377,11 +377,10 @@ def main(args):
             elif args.benchmark == "fc_siam_diff":
                 args.test_goal = 0
                 seg_pred = model(imgA, imgB)
-                if seg_label.ndim == 4:
-                    seg_label = seg_label.squeeze(1)
 
+                seg_pred = np.argmax(seg_pred, axis=1)
                 pred_seg = seg_pred.data.cpu().numpy()
-                seg_label = seg_label.cpu().long().numpy()
+                seg_label = seg_label.cpu().numpy()
 
                 if args.save_mask:
                     save_mask(pred_seg, seg_label, name, args.result_path, args)
