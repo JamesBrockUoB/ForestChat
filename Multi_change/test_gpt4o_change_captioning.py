@@ -30,16 +30,15 @@ import os
 import time
 
 from dotenv import load_dotenv
-from tqdm import tqdm
-from utils_tool.utils import get_eval_score, str2bool
-
-from Multi_change.gpt4o_change_captioning import (
+from gpt4o_change_captioning import (
     DATASET_NORM,
     DATASET_PROMPTS,
     GPT4oChangeCaptioner,
     _numpy_to_base64,
     build_dataloader,
 )
+from tqdm import tqdm
+from utils_tool.utils import get_eval_score, str2bool
 
 load_dotenv()
 
@@ -259,5 +258,4 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    main(args)
     main(args)
