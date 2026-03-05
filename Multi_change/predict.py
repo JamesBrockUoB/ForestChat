@@ -5,6 +5,10 @@ import os
 import cv2
 import numpy as np
 import torch
+
+# GPT-4o refinement
+from gpt4o_caption_refinement import GPT4oCaptionRefiner
+from gpt4o_change_captioning import DATASET_NORM, _numpy_to_base64
 from imageio.v2 import imread
 from mci_model.model_decoder import DecoderTransformer
 from mci_model.model_encoder_att import AttentiveEncoder, Encoder, get_backbone_dims
@@ -195,6 +199,13 @@ class Change_Perception(object):
         self.decoder.eval()
         self.decoder = self.decoder.to(DEVICE)
 
+        # GPT-4o refiner — instantiated lazily on first use (see _get_refiner())
+        self._refiner: GPT4oCaptionRefiner | None = None
+
+        # Normalisation constants repackaged for _numpy_to_base64
+        self._norm_mean = [v / 255.0 for v in self.mean]
+        self._norm_std = [v / 255.0 for v in self.std]
+
         # Initialize uncertainty estimators if enabled
         if args.compute_uncertainty:
             print(f"\n{'='*70}")
@@ -212,6 +223,26 @@ class Change_Perception(object):
             self.uncertainty_visualizer = UncertaintyVisualizer(
                 num_classes=args.num_classes
             )
+
+    # ------------------------------------------------------------------
+    # GPT-4o refiner — lazy init so the API key is only needed when used
+    # ------------------------------------------------------------------
+
+    def _get_refiner(self) -> GPT4oCaptionRefiner:
+        """Return a cached GPT4oCaptionRefiner, creating it on first call."""
+        if self._refiner is None:
+            self._refiner = GPT4oCaptionRefiner()  # reads OPENAI_API_KEY from env
+        return self._refiner
+
+    def _images_to_base64(self, path_A: str, path_B: str):
+        """
+        Read two image paths and return base-64 encoded PNGs ready for the
+        GPT-4o API, using the dataset's normalisation constants.
+        """
+        imgA, imgB = self.preprocess(path_A, path_B)  # (1, C, H, W) tensors
+        enc_A = _numpy_to_base64(imgA[0].numpy(), self._norm_mean, self._norm_std)
+        enc_B = _numpy_to_base64(imgB[0].numpy(), self._norm_mean, self._norm_std)
+        return enc_A, enc_B
 
     def preprocess(self, path_A, path_B):
         imgA = imread(path_A)
@@ -240,7 +271,22 @@ class Change_Perception(object):
 
         return imgA, imgB
 
-    def generate_change_caption(self, path_A, path_B):
+    def generate_change_caption(self, path_A, path_B, refine_with_gpt4o: bool = False):
+        """Generate a change caption for a before/after image pair.
+
+        Args:
+            path_A:            Path to the 'before' image.
+            path_B:            Path to the 'after' image.
+            refine_with_gpt4o: When True, the trained-model caption is passed to
+                               GPT-4o alongside the raw images.  GPT-4o preserves
+                               the change-type vocabulary from the prediction and
+                               enriches it with spatial / geographic context it reads
+                               directly from the pixels.  Defaults to False.
+
+        Returns:
+            str: The final caption (refined if refine_with_gpt4o=True, otherwise the
+                 raw trained-model output).
+        """
         print("model_infer_change_captioning: start")
         imgA, imgB = self.preprocess(path_A, path_B)
         imgA = imgA.to(DEVICE)
@@ -261,10 +307,32 @@ class Change_Perception(object):
         pred_caption = ""
         for i in pred_seq:
             pred_caption += (list(self.word_vocab.keys())[i]) + " "
+        pred_caption = pred_caption.strip()
 
-        caption = pred_caption
-        print("change captioning:", caption)
-        return caption
+        print("change captioning (trained model):", pred_caption)
+
+        if not refine_with_gpt4o:
+            return pred_caption
+
+        # ── GPT-4o spatial refinement ──────────────────────────────────────
+        print("Refining caption with GPT-4o...")
+        try:
+            enc_A, enc_B = self._images_to_base64(path_A, path_B)
+            refined_caption = self._get_refiner().refine(
+                enc_A,
+                enc_B,
+                predicted_caption=pred_caption,
+                dataset=self.dataset_name,
+                mode="refine",
+            )
+            print("change captioning (GPT-4o refined):", refined_caption)
+            return refined_caption
+        except Exception as e:
+            print(
+                f"GPT-4o refinement failed ({type(e).__name__}: {e}). "
+                "Returning trained-model caption."
+            )
+            return pred_caption
 
     def change_detection(self, path_A, path_B, savepath_mask):
         print("model_infer_change_detection: start")

@@ -43,7 +43,7 @@
 
     **Step 4**: Setup .env file.
     Create a file in the project root folder called `.env` with the following variables:
-      - OPEN_AI_KEY: Your OPEN_AI API key - https://platform.openai.com/api-keys
+      - OPENAI_API_KEY: Your OPEN_AI API key - https://platform.openai.com/api-keys
       - SERPER_API_KEY - Your Google Search / Scholar API key - https://serpapi.com/
       - WANDB_USERNAME - Your Weights & Biases username for run logging - https://wandb.ai/site/
     

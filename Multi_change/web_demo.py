@@ -185,7 +185,7 @@ class StreamlitUI:
             if option.startswith("gpt"):
                 st.session_state["model_map"][option] = GPTAPI(
                     model_type=option,
-                    key=os.environ.get("OPEN_AI_KEY"),
+                    key=os.environ.get("OPENAI_API_KEY"),
                     proxies={},
                 )
             else:

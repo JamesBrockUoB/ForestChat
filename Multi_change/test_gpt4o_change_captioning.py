@@ -2,8 +2,7 @@
 test_gpt4o_change_captioning.py
 
 Zero-shot change captioning evaluation using GPT-4o.
-Mirrors the structure of test.py — uses the same dataloaders, vocab,
-and metadata files, and scores with the same get_eval_score() call.
+Also tests refined captions on trained models using GPT-4o.
 
 Usage:
 
@@ -19,8 +18,13 @@ Usage:
       --token_folder ./data/LEVIR-MCI-Trees/tokens/ \
       --result_path ./predict_results/gpt4o
 
+  # Refinement mode (enrich trained-model predictions with spatial context)
+  python test_gpt4o_change_captioning.py \
+      --predicted_captions ./predict_results/my_model/ \
+      --result_path ./predict_results/gpt4o_refined
+
   # Evaluate only (skip querying, re-score saved results)
-  python test_gpt4o_change_captioning.py --eval_only
+  python test_gpt4o_change_captioning.py --eval_only True
 """
 
 import argparse
@@ -33,6 +37,7 @@ from dotenv import load_dotenv
 from gpt4o_change_captioning import (
     DATASET_NORM,
     DATASET_PROMPTS,
+    GPT4oCaptionRefiner,
     GPT4oChangeCaptioner,
     _numpy_to_base64,
     build_dataloader,
@@ -48,8 +53,9 @@ logging.basicConfig(
 )
 
 
-def get_output_path(result_path: str, data_name: str, split: str) -> str:
-    return os.path.join(result_path, f"gpt4o_{data_name}_{split}_captions.jsonl")
+def get_output_path(result_path: str, data_name: str, split: str, refine: bool) -> str:
+    prefix = "gpt4o_refined" if refine else "gpt4o"
+    return os.path.join(result_path, f"{prefix}_{data_name}_{split}_captions.jsonl")
 
 
 def load_results(output_path: str) -> dict:
@@ -79,6 +85,7 @@ def evaluate(
     data_name: str,
     split: str,
     result_path: str,
+    refine: bool,
 ):
     ref_list = []
     hyp_list = []
@@ -99,8 +106,13 @@ def evaluate(
     print(f"\nScoring {len(hyp_list)} captions...")
     score_dict = get_eval_score(ref_list, hyp_list)
 
+    tag = (
+        "GPT-4o Refined Change Captioning"
+        if refine
+        else "GPT-4o Zero-Shot Change Captioning"
+    )
     print(
-        "\n=== GPT-4o Zero-Shot Change Captioning ===\n"
+        f"\n=== {tag} ===\n"
         f"Dataset : {data_name}  |  Split: {split}\n"
         f"BLEU-1  : {score_dict['Bleu_1']:.5f}\n"
         f"BLEU-2  : {score_dict['Bleu_2']:.5f}\n"
@@ -111,7 +123,8 @@ def evaluate(
         f"CIDEr   : {score_dict['CIDEr']:.5f}\n"
     )
 
-    score_path = os.path.join(result_path, f"gpt4o_{data_name}_{split}_scores.json")
+    prefix = "gpt4o_refined" if refine else "gpt4o"
+    score_path = os.path.join(result_path, f"{prefix}_{data_name}_{split}_scores.json")
     with open(score_path, "w") as f:
         json.dump({"dataset": data_name, "split": split, **score_dict}, f, indent=4)
     print(f"Scores saved to: {score_path}")
@@ -126,44 +139,84 @@ def main(args):
         max_length = json.load(f)["max_length"]
 
     os.makedirs(args.result_path, exist_ok=True)
-    output_path = get_output_path(args.result_path, args.data_name, args.split)
+
+    refine = args.predicted_captions is not None
+    output_path = get_output_path(args.result_path, args.data_name, args.split, refine)
 
     loader = build_dataloader(args, max_length)
     mean, std = DATASET_NORM[args.data_name]
-    prompt = (
-        DATASET_PROMPTS["General"]()
-        if args.use_general_prompt
-        else DATASET_PROMPTS[args.data_name]()
-    )
 
     if not args.eval_only:
-        captioner = GPT4oChangeCaptioner(
-            api_key=args.api_key or os.environ.get("OPEN_AI_KEY"),
-            model=args.model,
-            max_tokens=args.max_tokens,
-            temperature=args.temperature,
-        )
+        if refine:
+            if not os.path.exists(args.predicted_captions):
+                raise FileNotFoundError(
+                    f"Predicted captions folder not found: {args.predicted_captions}"
+                )
+            predicted = {}
+            for fname in os.listdir(args.predicted_captions):
+                if not fname.endswith("_cap.txt"):
+                    continue
+                name = fname.replace("_cap.txt", ".png")
+                with open(os.path.join(args.predicted_captions, fname)) as f:
+                    first_line = f.readline().strip()
+                predicted[name] = first_line.replace("pred_caption:", "").strip()
+            print(
+                f"Loaded {len(predicted)} predicted captions from {args.predicted_captions}"
+            )
+
+            refiner = GPT4oCaptionRefiner(
+                api_key=args.api_key or os.environ.get("OPENAI_API_KEY"),
+                model=args.model,
+                max_tokens=args.max_tokens,
+                temperature=args.temperature,
+            )
+        else:
+            prompt = (
+                DATASET_PROMPTS["General"]()
+                if args.use_general_prompt
+                else DATASET_PROMPTS[args.data_name]()
+            )
+            captioner = GPT4oChangeCaptioner(
+                api_key=args.api_key or os.environ.get("OPENAI_API_KEY"),
+                model=args.model,
+                max_tokens=args.max_tokens,
+                temperature=args.temperature,
+            )
 
         total = len(loader.dataset)
         print(f"[{args.data_name}] {args.split}: {total} images.")
 
         with open(output_path, "w") as f_out:
             for imgA, imgB, _, _, _, _, _, name in tqdm(
-                loader, desc="GPT-4o captioning"
+                loader, desc="GPT-4o refining" if refine else "GPT-4o captioning"
             ):
                 img_name = name[0]
+
+                if refine and img_name not in predicted:
+                    print(f"\n  [SKIP] {img_name}: no predicted caption.")
+                    continue
 
                 enc_A = _numpy_to_base64(imgA[0].numpy(), mean, std)
                 enc_B = _numpy_to_base64(imgB[0].numpy(), mean, std)
 
                 try:
-                    caption = captioner.query(enc_A, enc_B, prompt)
+                    if refine:
+                        caption = refiner.refine(
+                            enc_A, enc_B, predicted[img_name], args.data_name
+                        )
+                    else:
+                        caption = captioner.query(enc_A, enc_B, prompt)
                 except Exception as e:
                     cause = e.__cause__ if e.__cause__ is not None else e
                     print(f"\n  [ERROR] {img_name}: {type(cause).__name__}: {cause}")
                     continue
 
-                print(f"\n  {img_name} -> {caption}")
+                if refine:
+                    print(f"\n  {img_name}")
+                    print(f"    PRED   : {predicted[img_name]}")
+                    print(f"    REFINED: {caption}")
+                else:
+                    print(f"\n  {img_name} -> {caption}")
 
                 entry = {
                     "name": img_name,
@@ -171,6 +224,8 @@ def main(args):
                     "split": args.split,
                     "dataset": args.data_name,
                 }
+                if refine:
+                    entry["predicted_caption"] = predicted[img_name]
                 f_out.write(json.dumps(entry) + "\n")
                 f_out.flush()
 
@@ -201,6 +256,7 @@ def main(args):
         args.data_name,
         args.split,
         args.result_path,
+        refine,
     )
 
 
@@ -255,6 +311,11 @@ if __name__ == "__main__":
         type=str2bool,
         default=False,
         help="Whether to enable dataset-specific style prompt guidance or not",
+    )
+    parser.add_argument(
+        "--predicted_captions",
+        default=None,
+        help="Path to folder of trained-model predictions. Each file is <name>_cap.text with first line 'pred_caption: <caption>'. When set, runs refinement mode instead of zero-shot.",
     )
 
     args = parser.parse_args()

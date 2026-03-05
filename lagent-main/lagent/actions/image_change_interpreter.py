@@ -103,14 +103,25 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
                - 1 stands for changed road or deforestation patches, and
                - 2 stands for changed building.
 
-        2. **`generate_change_caption(path_A, path_B)`**:
+        2. **`generate_change_caption(path_A, path_B, refine_with_gpt4o=False)`**:
            - **Parameters**:
              - `path_A`: Path to the first image.
              - `path_B`: Path to the second image.
+             - `refine_with_gpt4o` (bool, default `False`): When `True`, the trained model's
+               caption is passed to GPT-4o alongside the raw before/after images. GPT-4o
+               preserves the change-type vocabulary (severity words, change nouns) from the
+               prediction and enriches it with spatial and geographic context it reads
+               directly from the pixels — for example adding region references such as
+               'bottom-left', 'top-center', or patch-size descriptions. Use this when a
+               richer, more geographically grounded caption is needed. Requires the
+               `OPENAI_API_KEY` environment variable to be set. Defaults to `False`.
            - **Returns**:
-             - A String: Sentences describing the changes between the two images.
+             - A string describing the changes between the two images. If `refine_with_gpt4o=True`,
+               this will be the spatially enriched caption; otherwise it is the raw trained-model
+               output. If GPT-4o refinement fails for any reason, the raw caption is returned
+               as a fallback.
 
-        3. **`compute_object_num(change_mask,object)`**:
+        3. **`compute_object_num(change_mask, object)`**:
            - **Parameters**:
              - `change_mask`: The mask from the `change_detection` function.
              - `object`: The object type to be counted. It can be one of 'deforestation patches', 'all changes', 'building', or 'road'.
@@ -188,6 +199,12 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
         Then you MUST initialize with the LEVIR-MCI-Trees dataset:
         - Change_Perception(dataset_name='LEVIR-MCI-Trees')
 
+        **GPT-4o CAPTION REFINEMENT:**
+        Use `refine_with_gpt4o=True` only when the user explicitly asks for a more detailed,
+        spatially grounded, or geographically enriched caption. Do NOT enable it by default.
+        It requires the OPENAI_API_KEY environment variable and makes an additional API call,
+        so only use it when the user has specifically requested richer caption output.
+
         **Examples:**
 
         For Forest-Change dataset (DEFAULT - forest/deforestation detection):
@@ -233,6 +250,34 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             cv2.imwrite(savepath_mask, mask_bgr)
             change_percent_caption = Change_Perception_model.compute_change_percentage(mask)
             return change_percent_caption
+        ```
+
+        If the user wants a standard change caption (no GPT-4o), "Action Input" should be as follows:
+        ``python
+        def solution():
+            from tools import Change_Perception
+            path_A = 'xxxxxx'
+            path_B = 'xxxxxx'
+            Change_Perception_model = Change_Perception()
+            # refine_with_gpt4o defaults to False — raw trained-model caption
+            caption = Change_Perception_model.generate_change_caption(path_A, path_B)
+            return caption
+        ```
+
+        If the user explicitly asks for a richer, more spatially detailed, or geographically
+        grounded caption, enable GPT-4o refinement:
+        ``python
+        def solution():
+            from tools import Change_Perception
+            path_A = 'xxxxxx'
+            path_B = 'xxxxxx'
+            Change_Perception_model = Change_Perception()
+            # GPT-4o sees the raw pixels and enriches the trained model's caption
+            # with spatial region references and geographic context
+            caption = Change_Perception_model.generate_change_caption(
+                path_A, path_B, refine_with_gpt4o=True
+            )
+            return caption
         ```
 
         If the user wants to know how many deforestation patches have changed, "Action Input" should be as follows:
