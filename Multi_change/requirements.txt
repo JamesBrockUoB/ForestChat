@@ -31,4 +31,5 @@ pytorchvideo==0.1.5
 sam2==1.1.0
 segmentation-models-pytorch==0.4.0
 torchgeo==0.7.0
+bert-score==0.3.13
 

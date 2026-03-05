@@ -33,6 +33,7 @@ import logging
 import os
 import time
 
+from bert_score import score as bert_score
 from dotenv import load_dotenv
 from gpt4o_change_captioning import (
     DATASET_NORM,
@@ -100,14 +101,24 @@ def evaluate(
 ):
     ref_list = []
     hyp_list = []
+    hyp_strings = []
+    ref_strings = []
     missing = []
+
+    id_to_word = {v: k for k, v in word_vocab.items()}
 
     for name, img_tokens in zip(names, references):
         if name not in results:
             missing.append(name)
             continue
-        hyp_list.append(caption_to_token_ids(results[name], word_vocab))
+        hyp_ids = caption_to_token_ids(results[name], word_vocab)
+        hyp_list.append(hyp_ids)
         ref_list.append(img_tokens)
+        hyp_strings.append(results[name])
+        # flatten multiple references into one string for BERTScore
+        ref_strings.append(
+            " ".join(id_to_word.get(w, "") for refs in img_tokens for w in refs).strip()
+        )
 
     if missing:
         print(
@@ -116,6 +127,10 @@ def evaluate(
 
     print(f"\nScoring {len(hyp_list)} captions...")
     score_dict = get_eval_score(ref_list, hyp_list)
+
+    # BERTScore — operates on real word strings, not token IDs
+    _, _, bert_f1 = bert_score(hyp_strings, ref_strings, lang="en", verbose=False)
+    score_dict["BERTScore_F1"] = round(bert_f1.mean().item(), 5)
 
     tag = (
         "GPT-4o Refined Change Captioning"
@@ -132,6 +147,7 @@ def evaluate(
         f"METEOR  : {score_dict['METEOR']:.5f}\n"
         f"ROUGE-L : {score_dict['ROUGE_L']:.5f}\n"
         f"CIDEr   : {score_dict['CIDEr']:.5f}\n"
+        f"BERTScore F1: {score_dict['BERTScore_F1']:.5f}\n"
     )
 
     score_path = os.path.join(
@@ -153,10 +169,43 @@ def main(args):
 
     os.makedirs(args.result_path, exist_ok=True)
 
-    refine = args.predicted_captions is not None
-    output_path = get_output_path(
-        args.result_path, args.data_name, args.split, refine, args.predicted_captions
-    )
+    if args.eval_only:
+        if args.result_path.endswith(".jsonl") and os.path.isfile(args.result_path):
+            output_path = args.result_path
+            refine = "refined" in os.path.basename(output_path)
+        else:
+            candidates = (
+                [
+                    f
+                    for f in os.listdir(args.result_path)
+                    if f.endswith(
+                        f"_gpt4o_refined_{args.data_name}_{args.split}_captions.jsonl"
+                    )
+                    or f == f"gpt4o_{args.data_name}_{args.split}_captions.jsonl"
+                ]
+                if os.path.isdir(args.result_path)
+                else []
+            )
+            if not candidates:
+                raise FileNotFoundError(
+                    f"No captions file found in {args.result_path} for {args.data_name}/{args.split}"
+                )
+            if len(candidates) > 1:
+                raise RuntimeError(
+                    f"Multiple matching files found in {args.result_path}, be more specific:\n"
+                    + "\n".join(candidates)
+                )
+            output_path = os.path.join(args.result_path, candidates[0])
+            refine = "refined" in candidates[0]
+    else:
+        refine = args.predicted_captions is not None
+        output_path = get_output_path(
+            args.result_path,
+            args.data_name,
+            args.split,
+            refine,
+            args.predicted_captions,
+        )
 
     loader = build_dataloader(args, max_length)
     mean, std = DATASET_NORM[args.data_name]
@@ -191,8 +240,11 @@ def main(args):
                 if args.use_general_prompt
                 else DATASET_PROMPTS[args.data_name]()
             )
+            print(
+                f"Using {'general' if args.use_general_prompt else args.data_name} prompt."
+            )
             captioner = GPT4oChangeCaptioner(
-                api_key=args.api_key or os.environ.get("OPENAI_API_KEY"),
+                api_key=args.api_key or os.environ.get("OPEN_AI_KEY"),
                 model=args.model,
                 max_tokens=args.max_tokens,
                 temperature=args.temperature,
@@ -201,11 +253,28 @@ def main(args):
         total = len(loader.dataset)
         print(f"[{args.data_name}] {args.split}: {total} images.")
 
-        with open(output_path, "w") as f_out:
+        already_done = set()
+        if os.path.exists(output_path):
+            with open(output_path) as f_existing:
+                for line in f_existing:
+                    try:
+                        already_done.add(json.loads(line)["name"])
+                    except Exception:
+                        pass
+            if already_done and len(already_done) < total:
+                print(f"  Resuming: {len(already_done)} already processed, skipping.")
+            else:
+                already_done = set()
+                os.remove(output_path)
+
+        with open(output_path, "a") as f_out:
             for imgA, imgB, _, _, _, _, _, name in tqdm(
                 loader, desc="GPT-4o refining" if refine else "GPT-4o captioning"
             ):
                 img_name = name[0]
+
+                if img_name in already_done:
+                    continue
 
                 if refine and img_name not in predicted:
                     print(f"\n  [SKIP] {img_name}: no predicted caption.")
@@ -331,7 +400,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--predicted_captions",
         default=None,
-        help="Path to folder of trained-model predictions. Each file is <name>_cap.text with first line 'pred_caption: <caption>'. When set, runs refinement mode instead of zero-shot.",
+        help="Path to folder of trained-model predictions. Each file is <name>_cap.txt with first line 'pred_caption: <caption>'. When set, runs refinement mode instead of zero-shot.",
     )
 
     args = parser.parse_args()
