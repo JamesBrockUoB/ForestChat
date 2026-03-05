@@ -53,9 +53,19 @@ logging.basicConfig(
 )
 
 
-def get_output_path(result_path: str, data_name: str, split: str, refine: bool) -> str:
-    prefix = "gpt4o_refined" if refine else "gpt4o"
-    return os.path.join(result_path, f"{prefix}_{data_name}_{split}_captions.jsonl")
+def get_output_path(
+    result_path: str,
+    data_name: str,
+    split: str,
+    refine: bool,
+    predicted_captions: str = None,
+) -> str:
+    if refine:
+        source = os.path.basename(os.path.normpath(predicted_captions))
+        return os.path.join(
+            result_path, f"{source}_gpt4o_refined_{data_name}_{split}_captions.jsonl"
+        )
+    return os.path.join(result_path, f"gpt4o_{data_name}_{split}_captions.jsonl")
 
 
 def load_results(output_path: str) -> dict:
@@ -86,6 +96,7 @@ def evaluate(
     split: str,
     result_path: str,
     refine: bool,
+    output_path: str,
 ):
     ref_list = []
     hyp_list = []
@@ -123,8 +134,10 @@ def evaluate(
         f"CIDEr   : {score_dict['CIDEr']:.5f}\n"
     )
 
-    prefix = "gpt4o_refined" if refine else "gpt4o"
-    score_path = os.path.join(result_path, f"{prefix}_{data_name}_{split}_scores.json")
+    score_path = os.path.join(
+        result_path,
+        os.path.basename(output_path).replace("_captions.jsonl", "_scores.json"),
+    )
     with open(score_path, "w") as f:
         json.dump({"dataset": data_name, "split": split, **score_dict}, f, indent=4)
     print(f"Scores saved to: {score_path}")
@@ -141,7 +154,9 @@ def main(args):
     os.makedirs(args.result_path, exist_ok=True)
 
     refine = args.predicted_captions is not None
-    output_path = get_output_path(args.result_path, args.data_name, args.split, refine)
+    output_path = get_output_path(
+        args.result_path, args.data_name, args.split, refine, args.predicted_captions
+    )
 
     loader = build_dataloader(args, max_length)
     mean, std = DATASET_NORM[args.data_name]
@@ -257,6 +272,7 @@ def main(args):
         args.split,
         args.result_path,
         refine,
+        output_path,
     )
 
 

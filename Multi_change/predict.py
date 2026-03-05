@@ -5,10 +5,7 @@ import os
 import cv2
 import numpy as np
 import torch
-
-# GPT-4o refinement
-from gpt4o_caption_refinement import GPT4oCaptionRefiner
-from gpt4o_change_captioning import DATASET_NORM, _numpy_to_base64
+from gpt4o_change_captioning import DATASET_NORM, GPT4oCaptionRefiner, _numpy_to_base64
 from imageio.v2 import imread
 from mci_model.model_decoder import DecoderTransformer
 from mci_model.model_encoder_att import AttentiveEncoder, Encoder, get_backbone_dims
@@ -323,7 +320,6 @@ class Change_Perception(object):
                 enc_B,
                 predicted_caption=pred_caption,
                 dataset=self.dataset_name,
-                mode="refine",
             )
             print("change captioning (GPT-4o refined):", refined_caption)
             return refined_caption
