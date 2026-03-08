@@ -111,30 +111,45 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
                caption is passed to GPT-4o alongside the raw before/after images. GPT-4o
                preserves the change-type vocabulary (severity words, change nouns) from the
                prediction and enriches it with spatial and geographic context it reads
-               directly from the pixels — for example adding region references such as
-               'bottom-left', 'top-center', or patch-size descriptions. Use this when a
-               richer, more geographically grounded caption is needed. Requires the
-               `OPENAI_API_KEY` environment variable to be set. Defaults to `False`.
+               directly from the pixels. Use this when a richer, more geographically grounded
+               caption is needed. Requires the `OPENAI_API_KEY` environment variable to be set.
+               NOT supported for JL1-CD-Trees (no caption training data) — use
+               generate_zero_shot_change_caption() for that dataset instead.
            - **Returns**:
              - A string describing the changes between the two images. If `refine_with_gpt4o=True`,
                this will be the spatially enriched caption; otherwise it is the raw trained-model
                output. If GPT-4o refinement fails for any reason, the raw caption is returned
                as a fallback.
 
-        3. **`compute_object_num(change_mask, object)`**:
+        3. **`generate_zero_shot_change_caption(path_A, path_B)`**:
+           - **Parameters**:
+             - `path_A`: Path to the first image.
+             - `path_B`: Path to the second image.
+           - **Returns**:
+             - A string containing a GPT-4o zero-shot change caption produced by directly
+               analysing the before/after image pixels, with no trained captioning model involved.
+               Returns `None` if the API call fails.
+           - **Notes**:
+             - Supported for ALL datasets, including JL1-CD-Trees which has no ground-truth
+               captions and therefore cannot use `generate_change_caption(refine_with_gpt4o=True)`.
+             - Use this when the user asks for a "zero-shot", "GPT-4o only", or "direct" caption,
+               or when the dataset is JL1-CD-Trees and a caption is requested.
+             - Requires the `OPENAI_API_KEY` environment variable to be set.
+
+        4. **`compute_object_num(change_mask, object)`**:
            - **Parameters**:
              - `change_mask`: The mask from the `change_detection` function.
              - `object`: The object type to be counted. It can be one of 'deforestation patches', 'all changes', 'building', or 'road'.
            - **Returns**:
              - The number of changed objects.
 
-        4. **`compute_change_percentage(change_mask)`**:
+        5. **`compute_change_percentage(change_mask)`**:
            - **Parameters**:
              - `change_mask`: The mask from the `change_detection` function.
            - **Returns**:
              - A caption that includes the change percentage observed in the mask.
 
-        5. **`anychange_change_detection(path_A, path_B, savepath_mask, process_mask=True)`**:
+        6. **`anychange_change_detection(path_A, path_B, savepath_mask, process_mask=True)`**:
            - **Parameters**:
              - `path_A`: Path to the first image.
              - `path_B`: Path to the second image.
@@ -144,7 +159,7 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
              - A mask map representing the changed areas. The mask is a numpy array with dimensions (256,256).
                 - The mask may either be RGB if 'process_mask=False' or greyscale if 'process_mask=True' (default)
 
-        6. **`compute_patch_metrics(changed_mask, object, pixel_area=1.0)`**:
+        7. **`compute_patch_metrics(changed_mask, object, pixel_area=1.0)`**:
            - **Parameters**:
              - `changed_mask`: The mask from the `change_detection` function.
              - `object`: The object type for which patch-level morphology metrics are computed.
@@ -162,7 +177,7 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
                - `Compactness coefficient of variation`: Coefficient of variation of patch compactness.
               - If no valid patches are detected, returns `{ "num_patches": 0 }`.
 
-        7. **`compute_linearity_metrics(changed_mask, object)`**:
+        8. **`compute_linearity_metrics(changed_mask, object)`**:
            - **Parameters**:
              - `changed_mask`: The mask from the `change_detection` function.
              - `object`: The object type for which linearity metrics are computed.
@@ -174,7 +189,7 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
               - `Orientation std`: Standard deviation of patch orientations.
              - Returns an empty dictionary if no valid patches are found.
 
-        8. **`compute_edge_core_change(changed_mask, object, distance_threshold=10)`**:
+        9. **`compute_edge_core_change(changed_mask, object, distance_threshold=10)`**:
            - **Parameters**:
              - `changed_mask`: The mask from the `change_detection` function.
              - `object`: The object type for which edge and core change metrics are computed.
@@ -199,11 +214,26 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
         Then you MUST initialize with the LEVIR-MCI-Trees dataset:
         - Change_Perception(dataset_name='LEVIR-MCI-Trees')
 
+        **CAPTION METHOD SELECTION:**
+        Three captioning paths are available — choose based on dataset and user intent:
+
+        | Situation                                              | Method to use                                        |
+        |--------------------------------------------------------|------------------------------------------------------|
+        | Any dataset, standard caption (no GPT-4o)             | generate_change_caption(path_A, path_B)              |
+        | Forest-Change or LEVIR-MCI, richer/spatial caption    | generate_change_caption(..., refine_with_gpt4o=True) |
+        | JL1-CD-Trees, any caption request                     | generate_zero_shot_change_caption(path_A, path_B)    |
+        | Any dataset, user asks for zero-shot or GPT-4o caption | generate_zero_shot_change_caption(path_A, path_B)   |
+
         **GPT-4o CAPTION REFINEMENT:**
         Use `refine_with_gpt4o=True` only when the user explicitly asks for a more detailed,
-        spatially grounded, or geographically enriched caption. Do NOT enable it by default.
-        It requires the OPENAI_API_KEY environment variable and makes an additional API call,
-        so only use it when the user has specifically requested richer caption output.
+        spatially grounded, or geographically enriched caption, AND the dataset is Forest-Change
+        or LEVIR-MCI-Trees. Do NOT use it for JL1-CD-Trees. Do NOT enable it by default.
+
+        **ZERO-SHOT CAPTIONS:**
+        Use `generate_zero_shot_change_caption()` when the user asks for a "zero-shot",
+        "GPT-4o only", or "direct" caption, or whenever the dataset is JL1-CD-Trees and
+        a caption is requested. No trained-model output is involved — GPT-4o reads the
+        pixels directly.
 
         **Examples:**
 
@@ -224,16 +254,16 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             Change_Perception_model = Change_Perception(dataset_name='LEVIR-MCI-Trees')
         ```
 
-        For J1-CD-Trees dataset (largely forest change, gains and losses)
+        For JL1-CD-Trees dataset (largely forest change, gains and losses):
+        ```python
         def solution():
             from tools import Change_Perception
             # Use this for the JL1-CD-Trees dataset
             Change_Perception_model = Change_Perception(dataset_name='JL1-CD-Trees')
         ```
 
-        For example:
-        When the user wants to know what percentage of the image has new changes / deforestation and to save the deforestation areas in red, "Action Input" should be as follows:
-        ``python
+        When the user wants to know what percentage of the image has new changes / deforestation and to save the deforestation areas in red:
+        ```python
         def solution():
             from tools import Change_Perception
             import cv2
@@ -252,8 +282,8 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             return change_percent_caption
         ```
 
-        If the user wants a standard change caption (no GPT-4o), "Action Input" should be as follows:
-        ``python
+        If the user wants a standard change caption (no GPT-4o):
+        ```python
         def solution():
             from tools import Change_Perception
             path_A = 'xxxxxx'
@@ -265,8 +295,8 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
         ```
 
         If the user explicitly asks for a richer, more spatially detailed, or geographically
-        grounded caption, enable GPT-4o refinement:
-        ``python
+        grounded caption (Forest-Change or LEVIR-MCI-Trees only):
+        ```python
         def solution():
             from tools import Change_Perception
             path_A = 'xxxxxx'
@@ -280,8 +310,33 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             return caption
         ```
 
-        If the user wants to know how many deforestation patches have changed, "Action Input" should be as follows:
-        ``python
+        If the user asks for a zero-shot GPT-4o caption on ANY dataset (including JL1-CD-Trees):
+        ```python
+        def solution():
+            from tools import Change_Perception
+            path_A = 'xxxxxx'
+            path_B = 'xxxxxx'
+            # Works for all datasets — GPT-4o reads the pixels directly,
+            # no trained captioning model is used.
+            Change_Perception_model = Change_Perception()  # or whichever dataset
+            caption = Change_Perception_model.generate_zero_shot_change_caption(path_A, path_B)
+            return caption
+        ```
+
+        If the dataset is JL1-CD-Trees and the user asks for any caption:
+        ```python
+        def solution():
+            from tools import Change_Perception
+            path_A = 'xxxxxx'
+            path_B = 'xxxxxx'
+            # JL1-CD-Trees has no ground-truth captions, so always use zero-shot
+            Change_Perception_model = Change_Perception(dataset_name='JL1-CD-Trees')
+            caption = Change_Perception_model.generate_zero_shot_change_caption(path_A, path_B)
+            return caption
+        ```
+
+        If the user wants to know how many deforestation patches have changed:
+        ```python
         def solution():
             from tools import Change_Perception
             import cv2
@@ -300,9 +355,8 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             return changed_object_count
         ```
 
-        If the user wants to get change patch metrics, linearity metrics, and edge/core ratios for a specific object (or 'all changes') and return them in a single dictionary,
-        "Action Input" should be as follows:
-        ``python
+        If the user wants to get change patch metrics, linearity metrics, and edge/core ratios for a specific object (or 'all changes'):
+        ```python
         def solution():
             from tools import Change_Perception
             import cv2
@@ -340,8 +394,8 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             return combined_metrics
         ```
 
-        Alternatively, if the user wants to make use of the zero-shot AnyChange change detection to detect changes in forest cover and save the deforestation areas in red, 'Action Input should be as follows:
-        ''python
+        If the user wants to make use of the zero-shot AnyChange change detection to detect changes in forest cover and save the deforestation areas in red:
+        ```python
         def solution():
             from tools import Change_Perception
             import cv2
@@ -355,11 +409,12 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             mask_bgr[mask == 1] = [0, 0, 255] # '1' stands for changed area (red)
             cv2.imwrite(savepath_mask, mask_bgr)
             return mask_bgr
-        '''
-        If the user wants the raw AnyChange model output, then set 'process_mask=False' and assign the result to 'mask_bgr', save the mask and then return it
+        ```
+
+        If the user wants the raw AnyChange model output, then set 'process_mask=False' and assign the result to 'mask_bgr', save the mask and then return it.
 
         If the user mentions "road" or "building" detection, or mentions "LEVIR-MCI" or "LEVIR-MCI-Trees" dataset, use the LEVIR-MCI-Trees dataset instead:
-        ''python
+        ```python
         def solution():
             from tools import Change_Perception
             import cv2
@@ -376,7 +431,7 @@ class Visual_Change_Process_PythonInterpreter(BaseAction):
             cv2.imwrite(savepath_mask, mask_bgr)
             changed_object_count = Change_Perception_model.compute_object_num(mask, 'building')
             return changed_object_count
-        '''
+        ```
 
         Args:
             command (:class:`str`): Python code snippet

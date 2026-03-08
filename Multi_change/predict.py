@@ -5,7 +5,11 @@ import os
 import cv2
 import numpy as np
 import torch
-from gpt4o_change_captioning import DATASET_NORM, GPT4oCaptionRefiner, _numpy_to_base64
+from gpt4o_change_captioning import (
+    GPT4oCaptionRefiner,
+    GPT4oChangeCaptioner,
+    _numpy_to_base64,
+)
 from imageio.v2 import imread
 from mci_model.model_decoder import DecoderTransformer
 from mci_model.model_encoder_att import AttentiveEncoder, Encoder, get_backbone_dims
@@ -42,6 +46,7 @@ DATASET_CONFIGS = {
         "pixel_size": 30,
         "mean": [0.2267 * 255, 0.29982 * 255, 0.22058 * 255],
         "std": [0.0923 * 255, 0.06658 * 255, 0.05681 * 255],
+        "supports_refinement": True,
     },
     "LEVIR-MCI-Trees": {
         "data_folder": "./data/LEVIR-MCI-Trees-dataset/images",
@@ -51,6 +56,7 @@ DATASET_CONFIGS = {
         "pixel_size": 0.5,
         "mean": [0.39073 * 255, 0.38623 * 255, 0.32989 * 255],
         "std": [0.15329 * 255, 0.14628 * 255, 0.13648 * 255],
+        "supports_refinement": True,
     },
     "JL1-CD-Trees": {
         "data_folder": "./data/JL1-CD-Trees-dataset/images",
@@ -60,6 +66,7 @@ DATASET_CONFIGS = {
         "pixel_size": 0.5,
         "mean": [0.2427 * 255, 0.3016 * 255, 0.1888 * 255],
         "std": [0.1592 * 255, 0.1403 * 255, 0.1314 * 255],
+        "supports_refinement": False,  # JL1-CD-Trees has no ground-truth captions
     },
 }
 
@@ -145,6 +152,7 @@ class Change_Perception(object):
         self.pixel_size = config["pixel_size"]
         self.mean = config["mean"]
         self.std = config["std"]
+        self.supports_refinement = config["supports_refinement"]
 
         with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
             self.word_vocab = json.load(f)
@@ -196,7 +204,8 @@ class Change_Perception(object):
         self.decoder.eval()
         self.decoder = self.decoder.to(DEVICE)
 
-        # GPT-4o refiner — instantiated lazily on first use (see _get_refiner())
+        # GPT-4o captioner/refiner — instantiated lazily on first use
+        self._captioner: GPT4oChangeCaptioner | None = None
         self._refiner: GPT4oCaptionRefiner | None = None
 
         # Normalisation constants repackaged for _numpy_to_base64
@@ -221,9 +230,11 @@ class Change_Perception(object):
                 num_classes=args.num_classes
             )
 
-    # ------------------------------------------------------------------
-    # GPT-4o refiner — lazy init so the API key is only needed when used
-    # ------------------------------------------------------------------
+    def _get_captioner(self) -> GPT4oChangeCaptioner:
+        """Return a cached GPT4oChangeCaptioner, creating it on first call."""
+        if self._captioner is None:
+            self._captioner = GPT4oChangeCaptioner()  # reads OPENAI_API_KEY from env
+        return self._captioner
 
     def _get_refiner(self) -> GPT4oCaptionRefiner:
         """Return a cached GPT4oCaptionRefiner, creating it on first call."""
@@ -279,6 +290,8 @@ class Change_Perception(object):
                                the change-type vocabulary from the prediction and
                                enriches it with spatial / geographic context it reads
                                directly from the pixels.  Defaults to False.
+                               Note: not supported for JL1-CD-Trees (no caption data);
+                               use generate_zero_shot_change_caption() instead.
 
         Returns:
             str: The final caption (refined if refine_with_gpt4o=True, otherwise the
@@ -309,9 +322,19 @@ class Change_Perception(object):
         print("change captioning (trained model):", pred_caption)
 
         if not refine_with_gpt4o:
+            print("model_infer_change_captioning: end")
             return pred_caption
 
         # ── GPT-4o spatial refinement ──────────────────────────────────────
+        if not self.supports_refinement:
+            print(
+                f"GPT-4o refinement is not supported for dataset '{self.dataset_name}' "
+                "(no ground-truth captions). Use generate_zero_shot_change_caption() instead. "
+                "Returning trained-model caption."
+            )
+            print("model_infer_change_captioning: end")
+            return pred_caption
+
         print("Refining caption with GPT-4o...")
         try:
             enc_A, enc_B = self._images_to_base64(path_A, path_B)
@@ -322,13 +345,48 @@ class Change_Perception(object):
                 dataset=self.dataset_name,
             )
             print("change captioning (GPT-4o refined):", refined_caption)
+            print("model_infer_change_captioning: end")
             return refined_caption
         except Exception as e:
             print(
                 f"GPT-4o refinement failed ({type(e).__name__}: {e}). "
                 "Returning trained-model caption."
             )
+            print("model_infer_change_captioning: end")
             return pred_caption
+
+    def generate_zero_shot_change_caption(self, path_A, path_B):
+        """Generate a zero-shot change caption for a before/after image pair via GPT-4o.
+
+        Uses GPT-4o to directly describe the changes between the two images without
+        relying on the trained captioning model. Supported for all datasets, including
+        JL1-CD-Trees which has no ground-truth captions and therefore cannot use
+        generate_change_caption() with refine_with_gpt4o=True.
+
+        Args:
+            path_A: Path to the 'before' image.
+            path_B: Path to the 'after' image.
+
+        Returns:
+            str: The zero-shot GPT-4o change caption, or None if the API call fails.
+        """
+        print("zero_shot_change_captioning: start")
+        try:
+            enc_A, enc_B = self._images_to_base64(path_A, path_B)
+            caption = self._get_captioner().query(
+                enc_A,
+                enc_B,
+                dataset=self.dataset_name,
+            )
+            print("change captioning (GPT-4o zero-shot):", caption)
+            print("zero_shot_change_captioning: end")
+            return caption
+        except Exception as e:
+            print(
+                f"GPT-4o zero-shot caption generation failed ({type(e).__name__}: {e})."
+            )
+            print("zero_shot_change_captioning: end")
+            return None
 
     def change_detection(self, path_A, path_B, savepath_mask):
         print("model_infer_change_detection: start")

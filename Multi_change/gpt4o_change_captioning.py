@@ -19,6 +19,9 @@ import requests
 from data.ForestChange import NORMALISATION_MEAN as FOREST_MEAN
 from data.ForestChange import NORMALISATION_STD as FOREST_STD
 from data.ForestChange import ForestChangeDataset
+from data.JL1CDTrees import NORMALISATION_MEAN as JL1_MEAN
+from data.JL1CDTrees import NORMALISATION_STD as JL1_STD
+from data.JL1CDTrees import JL1CDTreesDataset
 from data.LEVIRMCITrees import NORMALISATION_MEAN as LEVIR_MEAN
 from data.LEVIRMCITrees import NORMALISATION_STD as LEVIR_STD
 from data.LEVIRMCITrees import LEVIRMCITreesDataset
@@ -35,6 +38,7 @@ logger = logging.getLogger(__name__)
 DATASET_NORM = {
     "Forest-Change": (FOREST_MEAN, FOREST_STD),
     "LEVIR-MCI-Trees": (LEVIR_MEAN, LEVIR_STD),
+    "JL1-CD-Trees": (JL1_MEAN, JL1_STD),
 }
 
 
@@ -128,6 +132,26 @@ def get_levir_mci_prompt() -> str:
     )
 
 
+def get_jl1_cd_prompt() -> str:
+    return (
+        "You are given two aerial images of the same urban or suburban location taken at different times.\n"
+        "Image A is 'before' and Image B is 'after'.\n\n"
+        "Generate ONE caption describing what has changed between the two images.\n\n"
+        "Style rules:\n"
+        "1. Be concise — typically one short sentence, occasionally two clauses joined with 'and'.\n"
+        "2. Use present-tense or passive constructions: 'appears', 'are built', "
+        "'is constructed', 'are removed', 'show up', 'disappear', 'has appeared'.\n"
+        "3. Refer to specific object types: 'houses', 'buildings', 'villas', "
+        "'road', 'lane', 'bareland', 'trees', 'plants'.\n"
+        "4. Quantify where possible: 'some', 'many', 'a row of', 'two', 'several'.\n"
+        "5. Locate changes simply: 'at the bottom', 'in the center', 'on the left', "
+        "'in the top right corner', 'beside the road', 'on the bareland'.\n"
+        "6. End the sentence with a space then a full stop: ' .'\n"
+        "7. Do NOT use cardinal directions (north, south, east, west).\n"
+        "8. Do NOT describe unchanged background context."
+    )
+
+
 def get_general_prompt() -> str:
     return (
         "You are given two aerial images of the same location taken at different times.\n"
@@ -146,6 +170,7 @@ DATASET_PROMPTS = {
     "General": get_general_prompt,
     "Forest-Change": get_forest_change_prompt,
     "LEVIR-MCI-Trees": get_levir_mci_prompt,
+    "JL1-CD-Trees": get_jl1_cd_prompt,
 }
 
 
@@ -253,6 +278,8 @@ def build_dataloader(args, max_length: int):
         dataset = ForestChangeDataset(**common_kwargs)
     elif "LEVIR-MCI-Trees" in args.data_name:
         dataset = LEVIRMCITreesDataset(**common_kwargs)
+    elif "JL1-CD-Trees" in args.data_name:
+        dataset = JL1CDTreesDataset(args.data_folder, split=args.split)
     else:
         raise ValueError(
             f"Unknown dataset '{args.data_name}'. "
@@ -267,11 +294,6 @@ def build_dataloader(args, max_length: int):
         pin_memory=True,
     )
     return loader
-
-
-# -----------------------------------------------------------------------------
-# Refinement: spatially enrich a trained-model caption using GPT-4o
-# -----------------------------------------------------------------------------
 
 
 def get_forest_refine_prompt(predicted_caption: str) -> str:
