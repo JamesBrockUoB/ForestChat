@@ -135,85 +135,85 @@ class Change_Perception(object):
         return args
 
     def __init__(self, parent_parser=None, dataset_name="Forest-Change"):
-        """
-        Training and validation.
-
-        Args:
-            parent_parser: Parent argument parser (optional)
-            dataset_name: Name of the dataset to use ("Forest-Change", "LEVIR-MCI-Trees", or "JL1-CD-Trees").
-                         Defaults to "Forest-Change" if not specified.
-        """
         args = self.define_args(parent_parser=parent_parser, dataset_name=dataset_name)
         self.args = args
         self.dataset_name = dataset_name
+        self._models_loaded = False  # track whether trained models are available
 
-        # Load dataset-specific configuration
         config = DATASET_CONFIGS[dataset_name]
         self.pixel_size = config["pixel_size"]
         self.mean = config["mean"]
         self.std = config["std"]
         self.supports_refinement = config["supports_refinement"]
 
-        with open(os.path.join(args.list_path + args.vocab_file + ".json"), "r") as f:
-            self.word_vocab = json.load(f)
+        # vocab/metadata only needed for trained-model captioning
+        self._word_vocab = None
+        self._max_length = None
 
-        with open(
-            os.path.join(args.list_path) + args.metadata_file + ".json", "r"
-        ) as f:
-            self.max_length = json.load(f)["max_length"]
-
-        # Load checkpoint
         snapshot_full_path = args.checkpoint
+        checkpoint = None
 
-        checkpoint = torch.load(snapshot_full_path, map_location=DEVICE)
+        if snapshot_full_path and os.path.exists(snapshot_full_path):
+            try:
+                checkpoint = torch.load(snapshot_full_path, map_location=DEVICE)
+            except Exception as e:
+                print(
+                    f"Warning: could not load checkpoint ({e}). Running in zero-shot mode."
+                )
+        else:
+            print("No checkpoint found — running in zero-shot mode (GPT-4o only).")
 
-        self.encoder = Encoder(args.network)
+        if checkpoint is not None:
+            # Load vocab/metadata
+            with open(
+                os.path.join(args.list_path + args.vocab_file + ".json"), "r"
+            ) as f:
+                self._word_vocab = json.load(f)
+            with open(
+                os.path.join(args.list_path) + args.metadata_file + ".json", "r"
+            ) as f:
+                self._max_length = json.load(f)["max_length"]
 
-        dims = get_backbone_dims(args.network)
-        self.encoder_trans = AttentiveEncoder(
-            train_stage=None,
-            n_layers=args.n_layers,
-            feature_size=[args.feat_size, args.feat_size, args.encoder_dim],
-            heads=args.n_heads,
-            num_classes=args.num_classes,
-            dims=dims,
-            dropout=args.dropout,
-        )
-        self.decoder = DecoderTransformer(
-            encoder_dim=args.encoder_dim,
-            feature_dim=args.feature_dim,
-            vocab_size=len(self.word_vocab),
-            max_lengths=self.max_length,
-            word_vocab=self.word_vocab,
-            n_head=args.n_heads,
-            n_layers=args.decoder_n_layers,
-            dropout=args.dropout,
-        )
+            self.encoder = Encoder(args.network)
+            dims = get_backbone_dims(args.network)
+            self.encoder_trans = AttentiveEncoder(
+                train_stage=None,
+                n_layers=args.n_layers,
+                feature_size=[args.feat_size, args.feat_size, args.encoder_dim],
+                heads=args.n_heads,
+                num_classes=args.num_classes,
+                dims=dims,
+                dropout=args.dropout,
+            )
+            self.decoder = DecoderTransformer(
+                encoder_dim=args.encoder_dim,
+                feature_dim=args.feature_dim,
+                vocab_size=len(self._word_vocab),
+                max_lengths=self._max_length,
+                word_vocab=self._word_vocab,
+                n_head=args.n_heads,
+                n_layers=args.decoder_n_layers,
+                dropout=args.dropout,
+            )
+            self.encoder.load_state_dict(checkpoint["encoder_dict"])
+            self.encoder_trans.load_state_dict(
+                checkpoint["encoder_trans_dict"], strict=False
+            )
+            self.decoder.load_state_dict(checkpoint["decoder_dict"])
 
-        self.encoder.load_state_dict(checkpoint["encoder_dict"])
-        self.encoder_trans.load_state_dict(
-            checkpoint["encoder_trans_dict"], strict=False
-        )
-        self.decoder.load_state_dict(checkpoint["decoder_dict"])
-
-        # Move to GPU, if available
-        self.encoder.eval()
-        self.encoder = self.encoder.to(DEVICE)
-        self.encoder_trans.eval()
-        self.encoder_trans = self.encoder_trans.to(DEVICE)
-        self.decoder.eval()
-        self.decoder = self.decoder.to(DEVICE)
+            self.encoder.eval().to(DEVICE)
+            self.encoder_trans.eval().to(DEVICE)
+            self.decoder.eval().to(DEVICE)
+            self._models_loaded = True
 
         # GPT-4o captioner/refiner — instantiated lazily on first use
-        self._captioner: GPT4oChangeCaptioner | None = None
-        self._refiner: GPT4oCaptionRefiner | None = None
-
-        # Normalisation constants repackaged for _numpy_to_base64
+        self._captioner = None
+        self._refiner = None
         self._norm_mean = [v / 255.0 for v in self.mean]
         self._norm_std = [v / 255.0 for v in self.std]
 
-        # Initialize uncertainty estimators if enabled
-        if args.compute_uncertainty:
+        # Uncertainty (only if models loaded)
+        if args.compute_uncertainty and self._models_loaded:
             print(f"\n{'='*70}")
             print(f"UNCERTAINTY QUANTIFICATION ENABLED")
             print(f"MC Dropout samples: {args.n_mc_samples}")

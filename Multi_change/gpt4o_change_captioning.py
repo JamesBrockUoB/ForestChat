@@ -200,7 +200,12 @@ class GPT4oChangeCaptioner:
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,
     )
-    def query(self, base64_A: str, base64_B: str, prompt: str) -> str:
+    def query(
+        self, base64_A: str, base64_B: str, prompt: str = None, dataset: str = "General"
+    ) -> str:
+        if prompt is None:
+            prompt_fn = DATASET_PROMPTS.get(dataset, DATASET_PROMPTS["General"])
+            prompt = prompt_fn()
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
