@@ -2,8 +2,6 @@
     
 <h1>Forest-Chat: Adapting Vision-Language Models for Interactive Forest Change Analysis</h1>
 
-**[James Brock](https://github.com/JamesBrockUoB/)**
-
 <div align="center">
   <img src="resource/conversation_examples.png" width="400"/>
 </div>
