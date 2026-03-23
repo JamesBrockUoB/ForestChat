@@ -188,6 +188,16 @@ python predict.py --imgA_path {imgA_path} --imgB_path {imgA_path} --mask_save_pa
 ```
 You can modify ``--checkpoint`` of ``Change_Perception.define_args()`` in ``predict.py``. Then you can use your own model, or use our pretrained models ``LEVIR-MCI-Trees_model.pth`` and ``Forest-Change_model.pth`` which are available at HuggingFace: [Forest-Change](https://huggingface.co/JimmyBrocko/Forest-Change) and [LEVIR-MCI-Trees](https://huggingface.co/JimmyBrocko/LEVIR-MCI-Trees).
 
+Use `--dataset` to specify the dataset configuration (defaults to `Forest-Change`). Available options: `Forest-Change`, `LEVIR-MCI-Trees`, `JL1-CD-Trees`. For example:
+```python
+python predict.py \
+    --imgA_path {imgA_path} \
+    --imgB_path {imgB_path} \
+    --mask_save_path ./CDmask.png \
+    --dataset JL1-CD-Trees
+```
+**Note**: JL1-CD-Trees does not support GPT-4o caption refinement as no ground-truth captions are available. Zero-shot captioning via GPT-4o is supported for all datasets.
+
 This is now configured to use the Forest-Change dataset by default, check commandline arguments and hard-coded constants for parameters that require updating to use LEVIR-MCI-Trees. E.g. --data_folder ./data/LEVIR-MCI-Trees-dataset/images --list_path ./data/LEVIR-MCI-Trees/ --token_folder ./data/LEVIR-MCI-Trees/tokens/ --data_name LEVIR-MCI-Trees --num_classes 3
 
 ## GPT-4o Zero-Shot and Refinement Captioning
