@@ -7,6 +7,10 @@
 </div>
 </div>
 
+## Give us a :star: if you find the repo useful!
+
+This is the official Python implementation of the paper: "**Forest-Chat: Adapting vision-language agents for interactive forest change analysis**" in [[Ecological Informatics](https://www.sciencedirect.com/science/article/pii/S1574954126001470)]
+
 ## Table of Contents
 - [Preparation](#preparation)
 - [LEVIR-MCI-Trees dataset](#levir-mci-trees-dataset)
@@ -348,6 +352,25 @@ Both scripts search over: `points_per_side`, `change_confidence_threshold`, `sta
     <div align="center">
           <img src="resource/point_query_app_screenshot.png"/>
     </div>
+
+## Citation
+If you find our work useful to your research, please consider citing:
+```
+@article{BROCK2026103741,
+title = {Forest-Chat: Adapting vision-language agents for interactive forest change analysis},
+journal = {Ecological Informatics},
+volume = {95},
+pages = {103741},
+year = {2026},
+issn = {1574-9541},
+doi = {https://doi.org/10.1016/j.ecoinf.2026.103741},
+url = {https://www.sciencedirect.com/science/article/pii/S1574954126001470},
+author = {James Brock and Ce Zhang and Nantheera Anantrasirichai},
+keywords = {Vision-Language models, Multi-task learning, Change interpretation, Zero-shot change detection and captioning, LLM agents},
+abstract = {The increasing availability of high-resolution satellite imagery, together with advances in deep learning, creates new opportunities for forest monitoring workflows. Two central challenges in this domain are pixel-level change detection and semantic change interpretation, particularly for complex forest dynamics. While large language models (LLMs) are increasingly adopted for data exploration, their integration with vision-language models (VLMs) for remote sensing image change interpretation (RSICI) remains underexplored, especially beyond urban environments. This paper introduces Forest-Chat, an LLM-driven agent for forest change analysis, enabling natural language querying across multiple RSICI tasks, including change detection and captioning, object counting, deforestation characterisation, and change reasoning. Forest-Chat builds upon a multi-level change interpretation (MCI) vision-language backbone with LLM-based orchestration, incorporating zero-shot change detection via AnyChange and multimodal LLM-based zero-shot change captioning and refinement. To support adaptation and evaluation in forest environments, we introduce the Forest-Change dataset, comprising bi-temporal satellite imagery, pixel-level change masks, and semantic change captions generated through human annotation and rule-based methods. Forest-Chat achieves mIoU and BLEU-4 scores of 67.10% and 40.17% on Forest-Change, and 88.13% and 34.41% on LEVIR-MCI-Trees, a tree-focused subset of LEVIR-MCI. In a zero-shot capacity, it achieves 60.15% and 34.00% on Forest-Change, and 47.32% and 18.23% on LEVIR-MCI-Trees respectively. Further experiments demonstrate the value of caption refinement for injecting geographic domain knowledge into supervised captions, and the system’s limited label domain transfer onto JL1-CD-Trees. These findings demonstrate that interactive, LLM-driven systems can support accessible and interpretable forest change analysis. Datasets and code are publicly available https://github.com/JamesBrockUoB/ForestChat.}
+}
+
+```
 
 ## Acknowledgement
 Thanks to the following repositories:
